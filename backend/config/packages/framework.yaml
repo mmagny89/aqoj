@@ -1,0 +1,14 @@
+framework:
+    secret: '%env(APP_SECRET)%'
+    http_method_override: false
+    handle_all_throwables: true
+
+    # API stateless — pas de sessions
+    session:
+        enabled: false
+
+    # Pas de protection CSRF pour une API stateless
+    csrf_protection: false
+
+    php_errors:
+        log: true

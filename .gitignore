@@ -1,0 +1,28 @@
+# Surcharges locales (secrets, config machine)
+.env.local
+.env.*.local
+
+# Backend
+backend/vendor/
+backend/var/
+backend/composer.lock
+backend/.env.local
+backend/.env.*.local
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.env.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# AI
+.claude/
