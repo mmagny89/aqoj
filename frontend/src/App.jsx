@@ -1,35 +1,28 @@
-import { useState, useEffect } from 'react'
+import { Routes, Route } from 'react-router-dom'
+import Navigation from './components/Navigation'
+import HomePage from './pages/HomePage'
+import RecommendationPage from './pages/RecommendationPage'
+import ImportBggPage from './pages/ImportBggPage'
+import LibraryPage from './pages/LibraryPage'
+import SessionsPage from './pages/SessionsPage'
+import SearchPage from './pages/SearchPage'
+import GameDetailPage from './pages/GameDetailPage'
 
-function App() {
-  const [apiStatus, setApiStatus] = useState(null)
-
-  useEffect(() => {
-    fetch('/api/health')
-      .then((res) => {
-        if (!res.ok) throw new Error('API non disponible')
-        return res.json()
-      })
-      .then((data) => setApiStatus(data.status))
-      .catch(() => setApiStatus('error'))
-  }, [])
-
+export default function App() {
   return (
-    <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center">
-      <h1 className="text-6xl font-bold text-white tracking-tight select-none">
-        A quoi on joue
-      </h1>
-
-      {apiStatus && (
-        <p
-          className={`mt-6 text-sm font-mono ${
-            apiStatus === 'ok' ? 'text-emerald-400' : 'text-red-400'
-          }`}
-        >
-          api: {apiStatus}
-        </p>
-      )}
+    <div className="min-h-screen bg-stone-50 text-stone-900">
+      <Navigation />
+      <main className="pt-16">
+        <Routes>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/recommander" element={<RecommendationPage />} />
+          <Route path="/rechercher" element={<SearchPage />} />
+          <Route path="/games/:id" element={<GameDetailPage />} />
+          <Route path="/importer" element={<ImportBggPage />} />
+          <Route path="/ludotheque" element={<LibraryPage />} />
+          <Route path="/parties" element={<SessionsPage />} />
+        </Routes>
+      </main>
     </div>
   )
 }
-
-export default App
