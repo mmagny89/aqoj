@@ -49,6 +49,25 @@ services:
       - app
     restart: unless-stopped
 
+  cron:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+    entrypoint: ["/bin/sh", "-c", "until [ -f /app/vendor/autoload.php ]; do echo '[cron] En attente du backend...'; sleep 3; done && crond -f -l 2"]
+    volumes:
+      - ./backend:/app
+      - ./docker/cron/crontab:/var/spool/cron/crontabs/root:ro
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-app}:${POSTGRES_PASSWORD:-app}@database:5432/${POSTGRES_DB:-app}?serverVersion=16&charset=utf8
+    depends_on:
+      backend:
+        condition: service_started
+      database:
+        condition: service_healthy
+    networks:
+      - app
+    restart: unless-stopped
+
   database:
     image: postgres:16-alpine
     environment:

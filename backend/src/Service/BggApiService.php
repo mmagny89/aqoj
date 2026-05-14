@@ -9,18 +9,30 @@ class BggApiService
 {
     private const BASE_URL = 'https://boardgamegeek.com/xmlapi2';
 
-    private const HEADERS = [
-        'User-Agent' => 'AQuoiOnJoue/1.0 (board game recommendation app)',
-        'Accept' => 'application/xml',
-    ];
+    public function __construct(
+        private readonly HttpClientInterface $httpClient,
+        private readonly string $bggToken,
+    ) {}
 
-    public function __construct(private readonly HttpClientInterface $httpClient) {}
+    private function headers(): array
+    {
+        $headers = [
+            'User-Agent' => 'AQuoiOnJoue/1.0 (board game recommendation app)',
+            'Accept' => 'application/xml',
+        ];
+
+        if ($this->bggToken !== '') {
+            $headers['Authorization'] = 'Bearer ' . $this->bggToken;
+        }
+
+        return $headers;
+    }
 
     public function fetchCollectionIds(string $username): array
     {
         for ($attempt = 0; $attempt < 5; $attempt++) {
             $response = $this->httpClient->request('GET', self::BASE_URL . '/collection', [
-                'headers' => self::HEADERS,
+                'headers' => $this->headers(),
                 'query' => [
                     'username' => $username,
                     'own' => 1,
@@ -68,7 +80,7 @@ class BggApiService
         }
 
         $response = $this->httpClient->request('GET', self::BASE_URL . '/thing', [
-            'headers' => self::HEADERS,
+            'headers' => $this->headers(),
             'query' => [
                 'id' => implode(',', $bggIds),
                 'stats' => 1,
@@ -98,7 +110,7 @@ class BggApiService
     {
         try {
             $response = $this->httpClient->request('GET', self::BASE_URL . '/search', [
-                'headers' => self::HEADERS,
+                'headers' => $this->headers(),
                 'query' => ['query' => $query, 'type' => 'boardgame'],
                 'timeout' => 15,
             ]);

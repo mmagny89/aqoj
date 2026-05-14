@@ -11,3 +11,15 @@ services:
             - '../src/DependencyInjection/'
             - '../src/Entity/'
             - '../src/Kernel.php'
+
+    App\Command\ImportBggCsvCommand:
+        arguments:
+            $projectDir: '%kernel.project_dir%'
+
+    App\Service\BggApiService:
+        arguments:
+            $bggToken: '%env(BGG_TOKEN)%'
+
+    App\Service\JwtService:
+        arguments:
+            $jwtSecret: '%env(JWT_SECRET)%'

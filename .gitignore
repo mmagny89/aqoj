@@ -6,6 +6,13 @@
 backend/vendor/
 backend/var/
 backend/composer.lock
+
+# Import BGG — garder la structure, ignorer les ZIPs et CSVs déposés
+!backend/var/imports/
+!backend/var/imports/bgg/
+!backend/var/imports/bgg/.gitkeep
+!backend/var/imports/bgg/processed/
+!backend/var/imports/bgg/processed/.gitkeep
 backend/.env.local
 backend/.env.*.local
 

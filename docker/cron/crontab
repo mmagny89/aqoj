@@ -1,0 +1,5 @@
+# Enrichissement BGG : 2h du matin, 2000 jeux les plus populaires en priorité
+0 2 * * * cd /app && php bin/console app:bgg:enrich-pending --limit=2000 >> /tmp/bgg-enrich.log 2>&1
+
+# Import CSV BGG : 3h du matin, si un nouveau ZIP est disponible dans var/imports/bgg/
+0 3 * * * cd /app && php bin/console app:bgg:import-csv >> /tmp/bgg-import.log 2>&1

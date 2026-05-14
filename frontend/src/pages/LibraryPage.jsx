@@ -1,126 +1,143 @@
-import { useState, useEffect } from 'react'
-import { searchGames } from '../api'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { Link } from 'react-router-dom'
+import { getLibrary } from '../api'
+import { useAuth } from '../context/AuthContext'
 import GameCard from '../components/GameCard'
 
-export default function LibraryPage() {
-  const [games, setGames] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
-  const [filters, setFilters] = useState({ players: '', maxTime: '' })
+const LIMIT = 50
 
-  const load = async () => {
+export default function LibraryPage() {
+  const { user } = useAuth()
+  const [games, setGames] = useState([])
+  const [bggUsername, setBggUsername] = useState(null)
+  const [page, setPage] = useState(1)
+  const [hasMore, setHasMore] = useState(true)
+  const [total, setTotal] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [initialLoading, setInitialLoading] = useState(true)
+  const [error, setError] = useState(null)
+  const sentinelRef = useRef(null)
+
+  const fetchPage = useCallback(async (pageNum, replace) => {
     setLoading(true)
-    setError(null)
     try {
-      const params = {}
-      if (filters.players) params.players = filters.players
-      if (filters.maxTime) params.maxTime = filters.maxTime
-      const data = await searchGames(params)
-      setGames(data)
+      const data = await getLibrary(pageNum)
+      setBggUsername(data.bggUsername)
+      setTotal(data.total)
+      setGames(prev => replace ? data.games : [...prev, ...data.games])
+      setHasMore(data.hasMore)
     } catch (err) {
       setError(err.message)
     } finally {
       setLoading(false)
+      if (replace) setInitialLoading(false)
     }
-  }
-
-  useEffect(() => {
-    load()
   }, [])
 
-  const handleFilter = (e) => {
-    e.preventDefault()
-    load()
+  useEffect(() => {
+    if (user) {
+      setInitialLoading(true)
+      setPage(1)
+      fetchPage(1, true)
+    } else {
+      setInitialLoading(false)
+    }
+  }, [user, fetchPage])
+
+  useEffect(() => {
+    if (page > 1) fetchPage(page, false)
+  }, [page]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    const sentinel = sentinelRef.current
+    if (!sentinel) return
+    const observer = new IntersectionObserver(
+      (entries) => { if (entries[0].isIntersecting && hasMore && !loading) setPage(p => p + 1) },
+      { rootMargin: '200px' }
+    )
+    observer.observe(sentinel)
+    return () => observer.disconnect()
+  }, [hasMore, loading])
+
+  if (!user) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-8 text-center">
+        <div className="text-5xl mb-4">📚</div>
+        <h2 className="text-2xl font-black text-stone-900 mb-2">Ma ludothèque</h2>
+        <p className="text-stone-500 mb-6">Connecte-toi pour accéder à ta collection personnelle.</p>
+        <Link to="/connexion" className="px-6 py-3 bg-amber-500 text-white font-bold rounded-xl hover:bg-amber-600">
+          Se connecter
+        </Link>
+      </div>
+    )
   }
 
-  const reset = () => {
-    setFilters({ players: '', maxTime: '' })
-    setTimeout(load, 0)
+  if (initialLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="w-6 h-6 border-2 border-stone-300 border-t-amber-500 rounded-full animate-spin" />
+      </div>
+    )
   }
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-3xl font-black text-stone-900">Ma ludothèque</h2>
-        {games.length > 0 && (
-          <span className="text-sm text-stone-400">{games.length} jeux</span>
+        <div>
+          <h2 className="text-3xl font-black text-stone-900">Ma ludothèque</h2>
+          {bggUsername && (
+            <p className="text-sm text-stone-400 mt-0.5">
+              Collection BGG de <span className="font-medium text-stone-600">{bggUsername}</span>
+            </p>
+          )}
+        </div>
+        {total !== null && (
+          <span className="text-sm text-stone-400">{total} jeu{total > 1 ? 'x' : ''}</span>
         )}
       </div>
 
-      {/* Filters */}
-      <form onSubmit={handleFilter} className="bg-white rounded-xl border border-stone-200 p-4 mb-6 flex flex-wrap gap-3 items-end">
-        <div>
-          <label className="block text-xs font-semibold text-stone-500 mb-1">Joueurs</label>
-          <select
-            value={filters.players}
-            onChange={(e) => setFilters((f) => ({ ...f, players: e.target.value }))}
-            className="px-3 py-2 rounded-lg border border-stone-300 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
-          >
-            <option value="">Tous</option>
-            {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
-              <option key={n} value={n}>{n} joueurs</option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="block text-xs font-semibold text-stone-500 mb-1">Durée max</label>
-          <select
-            value={filters.maxTime}
-            onChange={(e) => setFilters((f) => ({ ...f, maxTime: e.target.value }))}
-            className="px-3 py-2 rounded-lg border border-stone-300 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
-          >
-            <option value="">Toutes</option>
-            <option value="30">30 min</option>
-            <option value="60">1h</option>
-            <option value="90">1h30</option>
-            <option value="120">2h</option>
-            <option value="180">3h</option>
-          </select>
-        </div>
-        <button
-          type="submit"
-          className="px-4 py-2 bg-amber-500 text-white rounded-lg text-sm font-semibold hover:bg-amber-600"
-        >
-          Filtrer
-        </button>
-        {(filters.players || filters.maxTime) && (
-          <button type="button" onClick={reset} className="text-sm text-stone-400 hover:text-stone-600">
-            Réinitialiser
-          </button>
-        )}
-      </form>
-
-      {loading && (
-        <div className="text-center py-12 text-stone-400">
-          <div className="text-4xl animate-spin mb-4">⏳</div>
-          <p>Chargement…</p>
-        </div>
-      )}
-
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl p-4 text-sm">
+        <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl p-4 text-sm mb-6">
           {error}
         </div>
       )}
 
-      {!loading && !error && games.length === 0 && (
+      {!error && games.length === 0 && !loading && (
         <div className="text-center py-12 text-stone-500">
-          <div className="text-5xl mb-4">📚</div>
-          <p className="font-medium">Votre ludothèque est vide.</p>
-          <p className="text-sm mt-2">
-            <a href="/importer" className="text-amber-600 hover:underline">
-              Importez votre collection BGG →
-            </a>
+          <div className="text-5xl mb-4">📭</div>
+          <p className="font-medium text-stone-700 mb-2">Ta collection est vide.</p>
+          <p className="text-sm text-stone-500 mb-6">
+            Importe ta collection BoardGameGeek pour la retrouver ici.
           </p>
+          <Link
+            to="/importer"
+            className="px-6 py-3 bg-amber-500 text-white font-bold rounded-xl hover:bg-amber-600 inline-block"
+          >
+            Importer depuis BGG →
+          </Link>
         </div>
       )}
 
-      {!loading && games.length > 0 && (
+      {games.length > 0 && (
         <div className="space-y-3">
           {games.map((game) => (
             <GameCard key={game.id} game={game} />
           ))}
         </div>
+      )}
+
+      <div ref={sentinelRef} className="h-4" />
+
+      {loading && !initialLoading && (
+        <div className="text-center py-6">
+          <div className="inline-block w-5 h-5 border-2 border-stone-300 border-t-amber-500 rounded-full animate-spin" />
+        </div>
+      )}
+
+      {!hasMore && games.length > 0 && (
+        <p className="text-center text-xs text-stone-400 py-4">
+          {total ?? games.length} jeu{(total ?? games.length) > 1 ? 'x' : ''} dans ta collection
+        </p>
       )}
     </div>
   )

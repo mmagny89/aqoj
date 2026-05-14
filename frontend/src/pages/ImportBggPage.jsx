@@ -1,11 +1,19 @@
-import { useState } from 'react'
-import { importBgg } from '../api'
+import { useState, useEffect } from 'react'
+import { importBgg, getMe } from '../api'
+import { useAuth } from '../context/AuthContext'
 
 export default function ImportBggPage() {
-  const [username, setUsername] = useState('')
+  const { user, login } = useAuth()
+  const [username, setUsername] = useState(user?.bggUsername ?? '')
   const [status, setStatus] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+
+  useEffect(() => {
+    if (user?.bggUsername && !username) {
+      setUsername(user.bggUsername)
+    }
+  }, [user])
 
   const handleImport = async (e) => {
     e.preventDefault()
@@ -16,24 +24,40 @@ export default function ImportBggPage() {
     try {
       const data = await importBgg(username.trim())
       setStatus(data)
+      // Rafraîchir le profil pour mettre à jour bggUsername dans le contexte
+      const updatedUser = await getMe()
+      const token = localStorage.getItem('aqoj_token')
+      if (token) login(token, updatedUser)
     } catch (err) {
-      setError(err.message || 'Erreur lors de l\'import')
+      setError(err.message || "Erreur lors de l'import")
     } finally {
       setLoading(false)
     }
   }
 
+  const isExistingUsername = user?.bggUsername && user.bggUsername === username.trim()
+
   return (
     <div className="max-w-lg mx-auto px-4 py-8">
       <h2 className="text-3xl font-black text-stone-900 mb-2">Importer depuis BGG</h2>
       <p className="text-stone-500 mb-8">
-        Importez votre collection BoardGameGeek pour obtenir des recommandations personnalisées.
+        Importez votre collection BoardGameGeek pour la retrouver dans votre ludothèque.
       </p>
+
+      {user?.bggUsername && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6 flex items-center gap-3">
+          <span className="text-amber-600 text-xl">🔗</span>
+          <div>
+            <p className="text-sm font-semibold text-amber-800">Compte BGG lié</p>
+            <p className="text-sm text-amber-700">{user.bggUsername}</p>
+          </div>
+        </div>
+      )}
 
       <form onSubmit={handleImport} className="bg-white rounded-2xl border border-stone-200 shadow-sm p-6 space-y-4">
         <div>
           <label className="block text-sm font-semibold text-stone-600 mb-2">
-            Votre pseudo BoardGameGeek
+            Pseudo BoardGameGeek
           </label>
           <input
             type="text"
@@ -51,8 +75,11 @@ export default function ImportBggPage() {
         >
           {loading ? (
             <span className="flex items-center justify-center gap-2">
-              <span className="animate-spin">⏳</span> Import en cours… (peut prendre 30 sec)
+              <span className="inline-block w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+              Import en cours… (peut prendre 30 sec)
             </span>
+          ) : isExistingUsername ? (
+            'Synchroniser ma collection →'
           ) : (
             'Importer ma collection →'
           )}
@@ -72,18 +99,18 @@ export default function ImportBggPage() {
           <div className="mt-3 grid grid-cols-3 gap-3 text-center text-sm">
             <div className="bg-white rounded-lg p-3 shadow-sm">
               <div className="font-bold text-xl text-stone-900">{status.total}</div>
-              <div className="text-stone-400">Total collection</div>
+              <div className="text-stone-400">Total</div>
             </div>
             <div className="bg-white rounded-lg p-3 shadow-sm">
               <div className="font-bold text-xl text-green-600">{status.imported}</div>
-              <div className="text-stone-400">Nouveaux jeux</div>
+              <div className="text-stone-400">Nouveaux</div>
             </div>
             <div className="bg-white rounded-lg p-3 shadow-sm">
               <div className="font-bold text-xl text-stone-400">{status.skipped}</div>
-              <div className="text-stone-400">Déjà importés</div>
+              <div className="text-stone-400">Déjà présents</div>
             </div>
           </div>
-          <a href="/ludotheque" className="mt-4 block text-center text-amber-600 hover:underline text-sm">
+          <a href="/ludotheque" className="mt-4 block text-center text-amber-600 hover:underline text-sm font-medium">
             Voir ma ludothèque →
           </a>
         </div>

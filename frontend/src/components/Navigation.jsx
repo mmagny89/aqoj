@@ -1,7 +1,9 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useState } from 'react'
+import { useAuth } from '../context/AuthContext'
 
 export default function Navigation() {
+  const { user, logout } = useAuth()
   const [query, setQuery] = useState('')
   const navigate = useNavigate()
 
@@ -11,6 +13,11 @@ export default function Navigation() {
       navigate(`/rechercher?q=${encodeURIComponent(query.trim())}`)
       setQuery('')
     }
+  }
+
+  const handleLogout = () => {
+    logout()
+    navigate('/')
   }
 
   return (
@@ -55,6 +62,28 @@ export default function Navigation() {
             {label}
           </NavLink>
         ))}
+
+        {user ? (
+          <div className="flex items-center gap-2 ml-2 pl-2 border-l border-stone-200">
+            <span className="text-xs text-stone-500 max-w-[120px] truncate" title={user.email}>
+              {user.email}
+            </span>
+            <button
+              onClick={handleLogout}
+              title="Se déconnecter"
+              className="px-2.5 py-1.5 rounded-lg text-sm text-stone-500 hover:bg-stone-100 hover:text-stone-700 transition-colors"
+            >
+              ↪
+            </button>
+          </div>
+        ) : (
+          <NavLink
+            to="/connexion"
+            className="ml-2 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-lg transition-colors"
+          >
+            Connexion
+          </NavLink>
+        )}
       </div>
     </nav>
   )

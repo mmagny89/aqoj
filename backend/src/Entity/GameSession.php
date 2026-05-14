@@ -14,9 +14,9 @@ class GameSession implements \JsonSerializable
     #[ORM\Column]
     private ?int $id = null;
 
-    #[ORM\ManyToOne(targetEntity: UserProfile::class)]
-    #[ORM\JoinColumn(nullable: true)]
-    private ?UserProfile $userProfile = null;
+    #[ORM\ManyToOne(targetEntity: User::class)]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    private ?User $user = null;
 
     #[ORM\ManyToOne(targetEntity: Game::class)]
     #[ORM\JoinColumn(nullable: false)]
@@ -56,8 +56,8 @@ class GameSession implements \JsonSerializable
     }
 
     public function getId(): ?int { return $this->id; }
-    public function getUserProfile(): ?UserProfile { return $this->userProfile; }
-    public function setUserProfile(?UserProfile $userProfile): static { $this->userProfile = $userProfile; return $this; }
+    public function getUser(): ?User { return $this->user; }
+    public function setUser(?User $user): static { $this->user = $user; return $this; }
     public function getGame(): Game { return $this->game; }
     public function setGame(Game $game): static { $this->game = $game; return $this; }
     public function getPlayersCount(): int { return $this->playersCount; }

@@ -59,6 +59,15 @@ class Game implements \JsonSerializable
     #[ORM\Column(nullable: true)]
     private ?\DateTimeImmutable $lastSyncedAt = null;
 
+    #[ORM\Column(nullable: true)]
+    private ?int $bggRank = null;
+
+    #[ORM\Column(nullable: true)]
+    private ?int $usersRated = null;
+
+    #[ORM\Column(options: ['default' => false])]
+    private bool $isExpansion = false;
+
     public function __construct()
     {
         $this->createdAt = new \DateTimeImmutable();
@@ -82,6 +91,9 @@ class Game implements \JsonSerializable
             'ratingBgg' => $this->ratingBgg,
             'source' => $this->source,
             'lastSyncedAt' => $this->lastSyncedAt?->format('c'),
+            'bggRank' => $this->bggRank,
+            'usersRated' => $this->usersRated,
+            'isExpansion' => $this->isExpansion,
         ];
     }
 
@@ -115,4 +127,10 @@ class Game implements \JsonSerializable
     public function setSource(string $source): static { $this->source = $source; return $this; }
     public function getLastSyncedAt(): ?\DateTimeImmutable { return $this->lastSyncedAt; }
     public function setLastSyncedAt(\DateTimeImmutable $dt): static { $this->lastSyncedAt = $dt; return $this; }
+    public function getBggRank(): ?int { return $this->bggRank; }
+    public function setBggRank(?int $bggRank): static { $this->bggRank = $bggRank; return $this; }
+    public function getUsersRated(): ?int { return $this->usersRated; }
+    public function setUsersRated(?int $usersRated): static { $this->usersRated = $usersRated; return $this; }
+    public function isExpansion(): bool { return $this->isExpansion; }
+    public function setIsExpansion(bool $isExpansion): static { $this->isExpansion = $isExpansion; return $this; }
 }
