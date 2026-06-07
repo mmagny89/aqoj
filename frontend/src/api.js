@@ -46,29 +46,72 @@ export const searchGames = (params = {}) => {
   if (params.maxTime) qs.set('maxTime', params.maxTime)
   if (params.category) qs.set('category', params.category)
   if (params.page && params.page > 1) qs.set('page', params.page)
+  ;(params.engines ?? []).forEach(e => qs.append('engines[]', e))
   return request('/games/search' + (qs.toString() ? '?' + qs : ''))
 }
 
 export const getGame = (id) => request(`/games/${id}`)
 
 export const getRecommendations = (params = {}) => {
-  const { players, maxTime, categories = [] } = params
+  const { players, maxTime, families = [], categories = [], scope = 'collection' } = params
   const qs = new URLSearchParams()
   if (players) qs.set('players', players)
   if (maxTime) qs.set('maxTime', maxTime)
+  if (scope !== 'collection') qs.set('scope', scope)
+  families.forEach(f => qs.append('families[]', f))
   categories.forEach(c => qs.append('categories[]', c))
   return request('/games/recommendation?' + qs)
 }
 
 export const getForgottenGems = () => request('/games/forgotten')
 
+export const getHomeRecommendations = () => request('/games/home-reco')
+
 // Library (collection personnelle)
-export const getLibrary = (page = 1) =>
-  request('/library' + (page > 1 ? `?page=${page}` : ''))
+// played : true = joués (notés BGG), false = pas encore joués, undefined = tous
+export const getLibrary = (page = 1, played = undefined) => {
+  const qs = new URLSearchParams()
+  if (page > 1) qs.set('page', page)
+  if (played !== undefined) qs.set('played', played ? '1' : '0')
+  const q = qs.toString()
+  return request('/library' + (q ? '?' + q : ''))
+}
 
 // BGG import
 export const importBgg = (username) =>
   request('/bgg/import', { method: 'POST', body: JSON.stringify({ username }) })
+
+// Admin — Mechanic Mappings
+export const getMechanicMappings = () =>
+  request('/admin/mechanic-mappings')
+
+export const createMechanicMapping = (data) =>
+  request('/admin/mechanic-mappings', { method: 'POST', body: JSON.stringify(data) })
+
+export const updateMechanicMapping = (id, data) =>
+  request(`/admin/mechanic-mappings/${id}`, { method: 'PUT', body: JSON.stringify(data) })
+
+export const deleteMechanicMapping = (id) =>
+  request(`/admin/mechanic-mappings/${id}`, { method: 'DELETE' }).catch(() => {})
+
+export const recomputeMechanicFamilies = () =>
+  request('/admin/mechanic-mappings/recompute', { method: 'POST' })
+
+export const getUnmappedMechanics = () =>
+  request('/admin/mechanic-mappings/unmapped')
+
+export const getAdminStats = () =>
+  request('/admin/stats')
+
+// Theme mappings
+export const getThemeMappings = () => request('/theme-mappings')
+export const getUnmappedBggCategories = () => request('/admin/theme-mappings/unmapped')
+export const createThemeMapping = (data) =>
+  request('/admin/theme-mappings', { method: 'POST', body: JSON.stringify(data) })
+export const updateThemeMapping = (id, data) =>
+  request(`/admin/theme-mappings/${id}`, { method: 'PUT', body: JSON.stringify(data) })
+export const deleteThemeMapping = (id) =>
+  request(`/admin/theme-mappings/${id}`, { method: 'DELETE' }).catch(() => {})
 
 // Sessions
 export const getSessions = () => request('/sessions')

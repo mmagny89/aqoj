@@ -76,7 +76,7 @@ export default function ImportBggPage() {
           {loading ? (
             <span className="flex items-center justify-center gap-2">
               <span className="inline-block w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-              Import en cours… (peut prendre 30 sec)
+              Import en cours… (peut prendre 1-2 min)
             </span>
           ) : isExistingUsername ? (
             'Synchroniser ma collection →'
@@ -96,7 +96,7 @@ export default function ImportBggPage() {
         <div className="mt-4 bg-green-50 border border-green-200 rounded-xl p-4">
           <div className="text-green-800 font-bold mb-1">✅ Import terminé !</div>
           <p className="text-green-700 text-sm">{status.message}</p>
-          <div className="mt-3 grid grid-cols-3 gap-3 text-center text-sm">
+          <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-3 text-center text-sm">
             <div className="bg-white rounded-lg p-3 shadow-sm">
               <div className="font-bold text-xl text-stone-900">{status.total}</div>
               <div className="text-stone-400">Total</div>
@@ -105,6 +105,12 @@ export default function ImportBggPage() {
               <div className="font-bold text-xl text-green-600">{status.imported}</div>
               <div className="text-stone-400">Nouveaux</div>
             </div>
+            {status.enriched > 0 && (
+              <div className="bg-white rounded-lg p-3 shadow-sm">
+                <div className="font-bold text-xl text-amber-600">{status.enriched}</div>
+                <div className="text-stone-400">Enrichis</div>
+              </div>
+            )}
             <div className="bg-white rounded-lg p-3 shadow-sm">
               <div className="font-bold text-xl text-stone-400">{status.skipped}</div>
               <div className="text-stone-400">Déjà présents</div>

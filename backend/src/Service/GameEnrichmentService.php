@@ -10,6 +10,7 @@ class GameEnrichmentService
     public function __construct(
         private readonly BggApiService $bggApi,
         private readonly EntityManagerInterface $em,
+        private readonly MechanicFamilyResolver $familyResolver,
     ) {}
 
     /**
@@ -19,10 +20,15 @@ class GameEnrichmentService
      */
     public function enrichIfNeeded(Game $game): void
     {
-        $needsEnrichment = $game->getSource() === 'bgg_csv';
-        $needsResync = $game->getSource() === 'bgg_api'
-            && $game->getLastSyncedAt() !== null
-            && $game->getLastSyncedAt() < new \DateTimeImmutable('-30 days');
+        $needsEnrichment = $game->getSource() === 'bgg_csv'
+            || $game->getMechanics() === [];
+
+        $needsResync = !$needsEnrichment
+            && $game->getSource() === 'bgg_api'
+            && (
+                $game->getLastSyncedAt() === null                                        // jamais synchronisé
+                || $game->getLastSyncedAt() < new \DateTimeImmutable('-30 days')         // resync mensuel
+            );
 
         if (!$needsEnrichment && !$needsResync) {
             return;
@@ -31,7 +37,7 @@ class GameEnrichmentService
         try {
             $results = $this->bggApi->fetchGamesDetails([$game->getBggId()]);
         } catch (\Throwable) {
-            return; // BGG indisponible — on retourne les données CSV telles quelles
+            return;
         }
 
         if (empty($results)) {
@@ -44,20 +50,39 @@ class GameEnrichmentService
 
     public function hydrate(Game $game, array $data): Game
     {
-        return $game
+        $game
             ->setBggId($data['bggId'])
             ->setName($data['name'])
-            ->setDescription($data['description'])
+            // Ne pas écraser une valeur existante par null (BGG peut renvoyer vide selon les jeux)
+            ->setDescription($data['description'] ?? $game->getDescription())
             ->setMinPlayers($data['minPlayers'])
             ->setMaxPlayers($data['maxPlayers'])
             ->setPlayingTime($data['playingTime'])
-            ->setComplexity($data['complexity'])
-            ->setCategories($data['categories'])
-            ->setMechanics($data['mechanics'])
-            ->setImageUrl($data['imageUrl'])
-            ->setYearPublished($data['yearPublished'])
+            ->setComplexity($data['complexity'] > 0 ? $data['complexity'] : $game->getComplexity())
+            ->setCategories(!empty($data['categories']) ? $data['categories'] : $game->getCategories())
+            ->setMechanics(!empty($data['mechanics'])   ? $data['mechanics']   : $game->getMechanics())
+            ->setImageUrl($data['imageUrl'] ?? $game->getImageUrl())
+            ->setYearPublished($data['yearPublished'] ?? $game->getYearPublished())
             ->setRatingBgg($data['ratingBgg'] ?? $game->getRatingBgg())
+            ->setBggRank($data['bggRank']    ?? $game->getBggRank())
+            ->setUsersRated($data['usersRated'] ?? $game->getUsersRated())
+            ->setExpansionBggIds(!empty($data['expansionIds'])  ? $data['expansionIds']  : $game->getExpansionBggIds())
+            ->setImplementsBggIds(!empty($data['implementsIds']) ? $data['implementsIds'] : $game->getImplementsBggIds())
             ->setSource('bgg_api')
             ->setLastSyncedAt(new \DateTimeImmutable());
+
+        $resolved = $this->familyResolver->resolve($game->getMechanics());
+        $game->setMechanicFamilies($resolved['families']);
+        $game->setDetectedEngines($resolved['detectedEngines']);
+
+        return $game;
+    }
+
+    /** Recalcule les familles et engines d'un jeu déjà enrichi sans rappeler l'API BGG. */
+    public function recomputeFamilies(Game $game): void
+    {
+        $resolved = $this->familyResolver->resolveForGame($game);
+        $game->setMechanicFamilies($resolved['families']);
+        $game->setDetectedEngines($resolved['detectedEngines']);
     }
 }

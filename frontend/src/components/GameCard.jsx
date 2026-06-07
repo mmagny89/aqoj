@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom'
+import { familyLabel, familyColor, SUPPORT_COLOR, isEngine } from '../utils/engelstein'
 
-export default function GameCard({ game, reason, rank, onAddSession, compact = false }) {
+export default function GameCard({ game, reason, rank, onAddSession, userRating, owned }) {
   const navigate = useNavigate()
 
   const playerRange =
@@ -8,57 +9,115 @@ export default function GameCard({ game, reason, rank, onAddSession, compact = f
       ? game.minPlayers
       : `${game.minPlayers}–${game.maxPlayers}`
 
+  /* Badges mécaniques */
+  const engines  = game.displayEngines ?? []
+  const fallback = engines.length === 0
+    ? (game.mechanicFamilies ?? []).filter(f => !isEngine(f)).slice(0, 2)
+    : []
+  const badges = engines.length > 0 ? engines : fallback
+
   return (
     <div
       onClick={() => navigate(`/games/${game.id}`)}
-      className="bg-white rounded-2xl shadow-sm border border-stone-200 overflow-hidden flex cursor-pointer hover:border-amber-300 hover:shadow-md transition-all"
+      className="group bg-white rounded-2xl border border-stone-200 shadow-sm overflow-hidden flex flex-col cursor-pointer hover:border-amber-300 hover:shadow-lg transition-all duration-200"
     >
-      {game.imageUrl ? (
-        <img
-          src={game.imageUrl}
-          alt={game.name}
-          className="w-24 h-24 sm:w-32 sm:h-32 object-cover flex-shrink-0 self-center"
-        />
-      ) : (
-        <div className="w-24 sm:w-32 flex-shrink-0 bg-stone-100 flex items-center justify-center text-3xl self-center h-24 sm:h-32">
-          🎲
-        </div>
-      )}
-      <div className="p-3 sm:p-4 flex-1 min-w-0">
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
-            {rank != null && (
-              <span className="text-xs font-bold text-amber-500 block">#{rank}</span>
-            )}
-            <h3 className="font-bold text-stone-900 leading-tight">{game.name}</h3>
-            {game.yearPublished && (
-              <span className="text-xs text-stone-400">{game.yearPublished}</span>
-            )}
+      {/* ── Image ────────────────────────────────────────────────────── */}
+      <div className="relative aspect-square bg-stone-100 flex-shrink-0 overflow-hidden">
+        {game.imageUrl ? (
+          <img
+            src={game.imageUrl}
+            alt={game.name}
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center text-4xl text-stone-300">
+            🎲
           </div>
-          {game.ratingBgg != null && (
-            <div className="flex-shrink-0 text-center bg-amber-50 rounded-lg px-2 py-1">
-              <div className="text-sm font-bold text-amber-700">{game.ratingBgg.toFixed(1)}</div>
-              <div className="text-xs text-stone-400">BGG</div>
-            </div>
+        )}
+
+        {/* Note BGG — coin sup. droit */}
+        {game.ratingBgg != null && (
+          <div className="absolute top-2 right-2 bg-black/60 backdrop-blur-sm text-white text-xs font-bold px-2 py-1 rounded-lg leading-tight text-center">
+            <span className="text-amber-300">{game.ratingBgg.toFixed(1)}</span>
+            <span className="block text-[10px] opacity-70 font-normal">BGG</span>
+          </div>
+        )}
+
+        {/* Rang — coin sup. gauche */}
+        {rank != null && (
+          <div className="absolute top-2 left-2 bg-amber-500 text-white text-xs font-black px-2 py-0.5 rounded-lg">
+            #{rank}
+          </div>
+        )}
+
+        {/* Badge possédé — coin inf. gauche */}
+        {owned != null && (
+          <div className={`absolute bottom-2 left-2 text-xs font-bold px-2 py-0.5 rounded-full backdrop-blur-sm border ${
+            owned
+              ? 'bg-emerald-500/90 text-white border-emerald-400'
+              : 'bg-black/50 text-stone-300 border-stone-500'
+          }`}>
+            {owned ? '✓ Possédé' : 'Non possédé'}
+          </div>
+        )}
+
+        {/* Ma note — coin inf. droit */}
+        {userRating != null && (
+          <div className="absolute bottom-2 right-2 bg-emerald-500/90 backdrop-blur-sm text-white text-xs font-bold px-2 py-1 rounded-lg leading-tight text-center">
+            <span>{userRating}/10</span>
+            <span className="block text-[10px] opacity-80 font-normal">ma note</span>
+          </div>
+        )}
+      </div>
+
+      {/* ── Contenu ───────────────────────────────────────────────────── */}
+      <div className="p-3 flex flex-col gap-2 flex-1">
+
+        {/* Titre + année */}
+        <div>
+          <h3 className="font-bold text-stone-900 text-sm leading-tight line-clamp-2">
+            {game.name}
+          </h3>
+          {game.yearPublished && (
+            <span className="text-xs text-stone-400">{game.yearPublished}</span>
           )}
         </div>
 
-        <div className="flex flex-wrap gap-3 mt-2 text-xs text-stone-500">
-          <span>👥 {playerRange}</span>
+        {/* Méta : joueurs / durée / complexité */}
+        <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-stone-500">
+          {playerRange && <span>👥 {playerRange}</span>}
           {game.playingTime > 0 && <span>⏱ {game.playingTime} min</span>}
-          {game.complexity > 0 && <span>🧠 {game.complexity.toFixed(1)}/5</span>}
+          {game.complexity > 0 && <span>🧠 {game.complexity.toFixed(1)}</span>}
         </div>
 
+        {/* Badges mécaniques */}
+        {badges.length > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {badges.map(f => (
+              <span
+                key={f}
+                className={`text-xs px-1.5 py-0.5 rounded-full border font-medium ${
+                  engines.length > 0 ? familyColor(f) : SUPPORT_COLOR
+                }`}
+              >
+                {familyLabel(f)}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {/* Raison de recommandation */}
         {reason && (
-          <p className="mt-2 text-xs italic text-amber-800 bg-amber-50 rounded-lg px-2 py-1.5">
+          <p className="text-xs italic text-amber-800 bg-amber-50 rounded-lg px-2 py-1.5 leading-snug">
             {reason}
           </p>
         )}
 
+        {/* Enregistrer une partie */}
         {onAddSession && (
           <button
             onClick={(e) => { e.stopPropagation(); onAddSession(game) }}
-            className="mt-2 text-xs text-stone-500 hover:text-amber-600 hover:underline"
+            className="mt-auto text-xs text-stone-400 hover:text-amber-600 hover:underline text-left"
           >
             + Enregistrer une partie
           </button>

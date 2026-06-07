@@ -68,6 +68,25 @@ class Game implements \JsonSerializable
     #[ORM\Column(options: ['default' => false])]
     private bool $isExpansion = false;
 
+    #[ORM\Column(type: 'json')]
+    private array $mechanicFamilies = [];
+
+    /** Moteurs centraux détectés automatiquement (sous-ensemble de mechanicFamilies, isCentralCapable=true) */
+    #[ORM\Column(type: 'json')]
+    private array $detectedEngines = [];
+
+    /** Moteur principal validé manuellement par un admin (écrase detectedEngines pour l'affichage) */
+    #[ORM\Column(length: 50, nullable: true)]
+    private ?string $primaryEngine = null;
+
+    /** BGG IDs (string) des extensions de ce jeu */
+    #[ORM\Column(type: 'json')]
+    private array $expansionBggIds = [];
+
+    /** BGG IDs (string) des jeux dont celui-ci est une réédition/version collector */
+    #[ORM\Column(type: 'json')]
+    private array $implementsBggIds = [];
+
     public function __construct()
     {
         $this->createdAt = new \DateTimeImmutable();
@@ -94,6 +113,12 @@ class Game implements \JsonSerializable
             'bggRank' => $this->bggRank,
             'usersRated' => $this->usersRated,
             'isExpansion' => $this->isExpansion,
+            'mechanicFamilies' => $this->mechanicFamilies,
+            'detectedEngines' => $this->detectedEngines,
+            'primaryEngine' => $this->primaryEngine,
+            'displayEngines'    => $this->getDisplayEngines(),
+            'expansionBggIds'   => $this->expansionBggIds,
+            'implementsBggIds'  => $this->implementsBggIds,
         ];
     }
 
@@ -133,4 +158,24 @@ class Game implements \JsonSerializable
     public function setUsersRated(?int $usersRated): static { $this->usersRated = $usersRated; return $this; }
     public function isExpansion(): bool { return $this->isExpansion; }
     public function setIsExpansion(bool $isExpansion): static { $this->isExpansion = $isExpansion; return $this; }
+    public function getMechanicFamilies(): array { return $this->mechanicFamilies; }
+    public function setMechanicFamilies(array $families): static { $this->mechanicFamilies = $families; return $this; }
+    public function getDetectedEngines(): array { return $this->detectedEngines; }
+    public function setDetectedEngines(array $engines): static { $this->detectedEngines = $engines; return $this; }
+    public function getPrimaryEngine(): ?string { return $this->primaryEngine; }
+    public function setPrimaryEngine(?string $engine): static { $this->primaryEngine = $engine; return $this; }
+
+    public function getExpansionBggIds(): array { return $this->expansionBggIds; }
+    public function setExpansionBggIds(array $ids): static { $this->expansionBggIds = $ids; return $this; }
+    public function getImplementsBggIds(): array { return $this->implementsBggIds; }
+    public function setImplementsBggIds(array $ids): static { $this->implementsBggIds = $ids; return $this; }
+
+    /** Retourne le(s) moteur(s) à afficher : primaryEngine s'il est défini, sinon detectedEngines */
+    public function getDisplayEngines(): array
+    {
+        if ($this->primaryEngine !== null) {
+            return [$this->primaryEngine];
+        }
+        return $this->detectedEngines;
+    }
 }

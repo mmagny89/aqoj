@@ -1,5 +1,19 @@
-# Enrichissement BGG : 2h du matin, 2000 jeux les plus populaires en priorité
-0 2 * * * cd /app && php bin/console app:bgg:enrich-pending --limit=2000 >> /tmp/bgg-enrich.log 2>&1
+# ─────────────────────────────────────────────────────────────────────────────
+# CRON AQOJ
+# ─────────────────────────────────────────────────────────────────────────────
 
-# Import CSV BGG : 3h du matin, si un nouveau ZIP est disponible dans var/imports/bgg/
-0 3 * * * cd /app && php bin/console app:bgg:import-csv >> /tmp/bgg-import.log 2>&1
+# 1h00 — Resync incrémental : 300 jeux parmi les plus anciennement synchronisés.
+#         Avec ~9000 jeux → cycle complet en ~30 jours.
+#         --sleep=500 : pause 500ms entre chaque lot de 20 pour respecter BGG.
+0 1 * * * cd /app && php bin/console app:bgg:enrich-pending --mode=resync --limit=300 --sleep=500 >> /tmp/bgg-resync.log 2>&1
+
+# 2h00 — Premier enrichissement des jeux importés via CSV (source=bgg_csv).
+#         Tourne jusqu'à épuisement de la file (normalement rare en production).
+0 2 * * * cd /app && php bin/console app:bgg:enrich-pending --mode=pending --limit=200 --sleep=500 >> /tmp/bgg-enrich.log 2>&1
+
+# 3h00 — Découverte des nouveautés BGG : Hot List (top 50) + sorties de l'année.
+#         Importe uniquement les jeux absents de la base.
+0 3 * * * cd /app && php bin/console app:bgg:sync-new >> /tmp/bgg-new.log 2>&1
+
+# 4h00 — Import CSV BGG : si un nouveau ZIP est disponible dans var/imports/bgg/
+0 4 * * * cd /app && php bin/console app:bgg:import-csv >> /tmp/bgg-import-csv.log 2>&1

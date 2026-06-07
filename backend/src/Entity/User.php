@@ -29,6 +29,9 @@ class User implements \JsonSerializable
     #[ORM\JoinTable(name: 'user_game')]
     private Collection $games;
 
+    #[ORM\Column(options: ['default' => false])]
+    private bool $isAdmin = false;
+
     #[ORM\Column]
     private \DateTimeImmutable $createdAt;
 
@@ -44,6 +47,7 @@ class User implements \JsonSerializable
             'id' => $this->id,
             'email' => $this->email,
             'bggUsername' => $this->bggUsername,
+            'isAdmin' => $this->isAdmin,
             'createdAt' => $this->createdAt->format('c'),
         ];
     }
@@ -58,4 +62,6 @@ class User implements \JsonSerializable
     public function getGames(): Collection { return $this->games; }
     public function addGame(Game $game): static { if (!$this->games->contains($game)) { $this->games->add($game); } return $this; }
     public function getCreatedAt(): \DateTimeImmutable { return $this->createdAt; }
+    public function isAdmin(): bool { return $this->isAdmin; }
+    public function setIsAdmin(bool $v): static { $this->isAdmin = $v; return $this; }
 }

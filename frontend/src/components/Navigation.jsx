@@ -22,6 +22,8 @@ export default function Navigation() {
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur border-b border-stone-200 h-16 flex items-center px-4 gap-3">
+
+      {/* Logo */}
       <NavLink
         to="/"
         end
@@ -33,6 +35,7 @@ export default function Navigation() {
         🎲 AQOJ
       </NavLink>
 
+      {/* Barre de recherche */}
       <form onSubmit={handleSearch} className="flex-1 max-w-sm">
         <input
           type="search"
@@ -44,11 +47,13 @@ export default function Navigation() {
       </form>
 
       <div className="flex items-center gap-1 ml-auto">
+
+        {/* ── Menu standard ──────────────────────────────────────────── */}
         {[
-          { to: '/recommander', label: '✨', title: 'Ce soir' },
-          { to: '/ludotheque', label: '📚', title: 'Ludothèque' },
-          { to: '/parties', label: '📊', title: 'Parties' },
-          { to: '/importer', label: '⬇', title: 'BGG' },
+          { to: '/recommander', label: '✨', title: 'Ce soir on joue' },
+          { to: '/ludotheque',  label: '📚', title: 'Ludothèque' },
+          { to: '/parties',     label: '📊', title: 'Mes parties' },
+          { to: '/importer',    label: '⬇',  title: 'Importer BGG' },
         ].map(({ to, label, title }) => (
           <NavLink
             key={to}
@@ -63,9 +68,56 @@ export default function Navigation() {
           </NavLink>
         ))}
 
+        {/* ── Menu admin — séparé visuellement ───────────────────────── */}
+        {user?.isAdmin && (
+          <div className="flex items-center gap-1 ml-2 pl-2 border-l border-stone-200">
+            <span className="text-xs text-stone-400 font-semibold uppercase tracking-wide mr-1 hidden sm:inline">
+              Admin
+            </span>
+            <NavLink
+              to="/admin"
+              end
+              title="Tableau de bord"
+              className={({ isActive }) =>
+                'px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors ' +
+                (isActive
+                  ? 'bg-violet-100 text-violet-700'
+                  : 'text-violet-500 hover:bg-violet-50 hover:text-violet-700')
+              }
+            >
+              🛠
+            </NavLink>
+            <NavLink
+              to="/admin/mecaniques"
+              title="Mappings mécaniques"
+              className={({ isActive }) =>
+                'px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors ' +
+                (isActive
+                  ? 'bg-violet-100 text-violet-700'
+                  : 'text-violet-500 hover:bg-violet-50 hover:text-violet-700')
+              }
+            >
+              ⚙
+            </NavLink>
+            <NavLink
+              to="/admin/themes"
+              title="Taxonomie thématique"
+              className={({ isActive }) =>
+                'px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors ' +
+                (isActive
+                  ? 'bg-violet-100 text-violet-700'
+                  : 'text-violet-500 hover:bg-violet-50 hover:text-violet-700')
+              }
+            >
+              🏷️
+            </NavLink>
+          </div>
+        )}
+
+        {/* ── Compte utilisateur ─────────────────────────────────────── */}
         {user ? (
           <div className="flex items-center gap-2 ml-2 pl-2 border-l border-stone-200">
-            <span className="text-xs text-stone-500 max-w-[120px] truncate" title={user.email}>
+            <span className="text-xs text-stone-500 max-w-[120px] truncate hidden sm:inline" title={user.email}>
               {user.email}
             </span>
             <button
@@ -84,6 +136,7 @@ export default function Navigation() {
             Connexion
           </NavLink>
         )}
+
       </div>
     </nav>
   )

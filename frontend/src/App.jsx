@@ -11,6 +11,9 @@ import SearchPage from './pages/SearchPage'
 import GameDetailPage from './pages/GameDetailPage'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
+import AdminMechanicsPage from './pages/AdminMechanicsPage'
+import AdminDashboardPage from './pages/AdminDashboardPage'
+import AdminThemesPage from './pages/AdminThemesPage'
 
 export default function App() {
   return (
@@ -31,6 +34,15 @@ export default function App() {
             } />
             <Route path="/parties" element={
               <ProtectedRoute><SessionsPage /></ProtectedRoute>
+            } />
+            <Route path="/admin/mecaniques" element={
+              <ProtectedRoute><AdminMechanicsPage /></ProtectedRoute>
+            } />
+            <Route path="/admin" element={
+              <ProtectedRoute><AdminDashboardPage /></ProtectedRoute>
+            } />
+            <Route path="/admin/themes" element={
+              <ProtectedRoute><AdminThemesPage /></ProtectedRoute>
             } />
           </Routes>
         </main>

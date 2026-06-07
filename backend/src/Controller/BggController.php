@@ -4,6 +4,7 @@ namespace App\Controller;
 
 use App\Entity\Game;
 use App\Repository\GameRepository;
+use App\Repository\UserGameRepository;
 use App\Service\BggApiService;
 use App\Service\GameEnrichmentService;
 use App\Service\JwtService;
@@ -23,6 +24,7 @@ class BggController extends AbstractController
         JwtService $jwt,
         EntityManagerInterface $em,
         GameRepository $gameRepository,
+        UserGameRepository $userGameRepository,
     ): JsonResponse {
         $user = AuthController::extractUser($request, $jwt, $em);
         if (!$user) {
@@ -42,12 +44,12 @@ class BggController extends AbstractController
         }
 
         try {
-            $bggIds = $bggService->fetchCollectionIds($username);
+            $collectionItems = $bggService->fetchCollection($username);
         } catch (\RuntimeException $e) {
             return $this->json(['error' => $e->getMessage()], 502);
         }
 
-        if (empty($bggIds)) {
+        if (empty($collectionItems)) {
             $em->flush();
             return $this->json([
                 'imported' => 0,
@@ -56,6 +58,10 @@ class BggController extends AbstractController
                 'message' => 'Aucun jeu trouvé pour cet utilisateur BGG.',
             ]);
         }
+
+        $bggIds = array_column($collectionItems, 'bggId');
+        // Map bggId => userRating (null si non noté)
+        $userRatingsByBggId = array_column($collectionItems, 'userRating', 'bggId');
 
         // Récupérer les jeux déjà en catalogue
         $existingGames = $gameRepository->findByBggIds($bggIds);
@@ -97,14 +103,45 @@ class BggController extends AbstractController
 
         $em->flush();
 
+        // Sauvegarder les notes personnelles BGG
+        $userGameRepository->saveRatingsForUser($user, $userRatingsByBggId);
+
+        // Enrichir les jeux de la collection qui ont encore mechanics = []
+        $toEnrich = array_values(array_filter(
+            array_map(fn($id) => $existingByBggId[$id] ?? null, $bggIds),
+            fn($g) => $g !== null && $g->getMechanics() === []
+        ));
+
+        $enriched = 0;
+        foreach (array_chunk($toEnrich, 20) as $chunk) {
+            try {
+                $chunkBggIds = array_map(fn($g) => $g->getBggId(), $chunk);
+                $gamesData   = $bggService->fetchGamesDetails($chunkBggIds);
+                $dataByBggId = [];
+                foreach ($gamesData as $d) {
+                    $dataByBggId[$d['bggId']] = $d;
+                }
+                foreach ($chunk as $game) {
+                    if (isset($dataByBggId[$game->getBggId()])) {
+                        $enrichment->hydrate($game, $dataByBggId[$game->getBggId()]);
+                        $enriched++;
+                    }
+                }
+                $em->flush();
+            } catch (\RuntimeException) {
+                continue;
+            }
+        }
+
         $skipped = count($bggIds) - $imported;
 
         return $this->json([
-            'imported' => $imported,
-            'total' => count($bggIds),
-            'skipped' => $skipped,
+            'imported'  => $imported,
+            'enriched'  => $enriched,
+            'total'     => count($bggIds),
+            'skipped'   => $skipped,
             'bggUsername' => $username,
-            'message' => "{$imported} nouveaux jeux ajoutés au catalogue, {$linked} jeux liés à votre collection.",
+            'message'   => "{$imported} nouveaux jeux ajoutés, {$enriched} jeux enrichis depuis BGG, {$linked} jeux liés à votre collection.",
         ]);
     }
 }
