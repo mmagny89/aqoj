@@ -39,8 +39,13 @@ class GameController extends AbstractController
             ? ($request->query->getBoolean('played') ? true : false)
             : null;
 
-        $games       = $repository->findByUserCollection($user, $page, 50, $playedParam);
-        $total       = $repository->countUserCollection($user, $playedParam);
+        // isExpansion=1 → extensions seulement, isExpansion=0 → jeux de base seulement, absent → tous
+        $isExpansionParam = $request->query->has('isExpansion')
+            ? ($request->query->getBoolean('isExpansion') ? true : false)
+            : null;
+
+        $games       = $repository->findByUserCollection($user, $page, 50, $playedParam, $isExpansionParam);
+        $total       = $repository->countUserCollection($user, $playedParam, $isExpansionParam);
         $userRatings = $userGameRepository->getBggUserRatings($user);
 
         return $this->json([
@@ -226,6 +231,7 @@ class GameController extends AbstractController
         GameRepository $repository,
         UserGameRepository $userGameRepository,
         MechanicFamilyResolver $familyResolver,
+        GameEnrichmentService $enrichmentService,
         JwtService $jwt,
         EntityManagerInterface $em,
     ): JsonResponse {
@@ -234,7 +240,9 @@ class GameController extends AbstractController
         if (!$game) {
             return $this->json(['error' => 'Jeu introuvable'], 404);
         }
-        // Pas d'appel BGG synchrone ici — les tâches cron maintiennent les données à jour.
+
+        // Re-synchroniser si données potentiellement périmées (enrichissement initial ou resync mensuel).
+        $enrichmentService->enrichIfNeeded($game);
 
         $user = AuthController::extractUser($request, $jwt, $em);
         $bggUserRating = null;
@@ -265,12 +273,38 @@ class GameController extends AbstractController
             $primaryFamilies = array_map(fn($f) => ['family' => $f, 'isEngine' => false], $top);
         }
 
-        // Extensions : uniquement depuis la DB (les tâches cron les importent via expansion_bgg_ids)
+        // Extensions : chercher en base, puis importer les manquantes depuis BGG (max 20 à la fois)
         $expansions      = [];
         $expansionBggIds = $game->getExpansionBggIds();
         if (!empty($expansionBggIds)) {
             $ownedGameIds   = $user ? $userGameRepository->getOwnedGameIds($user) : [];
             $expansionGames = $repository->findByBggIds($expansionBggIds);
+
+            // Déterminer les BGG IDs manquants en base
+            $foundBggIds  = array_map(fn(Game $g) => $g->getBggId(), $expansionGames);
+            $missingBggIds = array_values(array_diff($expansionBggIds, $foundBggIds));
+
+            // Importer les manquants depuis BGG (limité à 20 pour ne pas bloquer la requête)
+            if (!empty($missingBggIds)) {
+                try {
+                    $bggApi = $enrichmentService->getBggApiService();
+                    $batch  = array_slice($missingBggIds, 0, 20);
+                    $details = $bggApi->fetchGamesDetails($batch);
+                    foreach ($details as $data) {
+                        $existing = $repository->findOneBy(['bggId' => $data['bggId']]);
+                        if (!$existing) {
+                            $newGame = new Game();
+                            $newGame->setIsExpansion(true);
+                            $enrichmentService->hydrate($newGame, $data);
+                            $em->persist($newGame);
+                            $expansionGames[] = $newGame;
+                        }
+                    }
+                    $em->flush();
+                } catch (\Throwable) {
+                    // Si BGG est indisponible, on continue sans les extensions manquantes
+                }
+            }
 
             foreach ($expansionGames as $exp) {
                 $expData          = $exp->jsonSerialize();
@@ -287,13 +321,73 @@ class GameController extends AbstractController
             });
         }
 
+        // Jeu de base + extensions sœurs (quand le jeu consulté est lui-même une extension)
+        $baseGames   = [];
+        $siblingExps = [];
+        if ($game->isExpansion() && !empty($game->getImplementsBggIds())) {
+            $ownedGameIds ??= $user ? $userGameRepository->getOwnedGameIds($user) : [];
+            $baseGameEntities = $repository->findByBggIds($game->getImplementsBggIds());
+
+            foreach ($baseGameEntities as $baseGame) {
+                $baseData          = $baseGame->jsonSerialize();
+                $baseData['owned'] = isset($ownedGameIds[$baseGame->getId()]);
+                $baseGames[]       = $baseData;
+
+                // Extensions sœurs = toutes les extensions du jeu de base, sauf le jeu courant
+                $siblingBggIds = array_filter(
+                    $baseGame->getExpansionBggIds(),
+                    fn($bid) => $bid !== $game->getBggId()
+                );
+                if (!empty($siblingBggIds)) {
+                    $siblings = $repository->findByBggIds(array_values($siblingBggIds));
+                    foreach ($siblings as $sib) {
+                        $sibData          = $sib->jsonSerialize();
+                        $sibData['owned'] = isset($ownedGameIds[$sib->getId()]);
+                        $siblingExps[]    = $sibData;
+                    }
+                }
+            }
+
+            // Trier les extensions sœurs : possédées en premier, puis alphabétique
+            usort($siblingExps, function ($a, $b) {
+                if ($a['owned'] !== $b['owned']) {
+                    return $b['owned'] <=> $a['owned'];
+                }
+                return strcmp($a['name'] ?? '', $b['name'] ?? '');
+            });
+        }
+
         $data = $game->jsonSerialize();
         $data['bggUserRating']    = $bggUserRating;
         $data['mechanicsByFamily'] = $mechanicsByFamily;
         $data['primaryFamilies']  = $primaryFamilies;
         $data['expansions']       = $expansions;
+        $data['baseGames']        = $baseGames;
+        $data['siblingExpansions'] = $siblingExps;
 
         return $this->json($data);
+    }
+
+    #[Route('/api/games/{id}/similar', name: 'api_game_similar', methods: ['GET'])]
+    public function similar(
+        int $id,
+        Request $request,
+        GameRepository $repository,
+        RecommendationService $recommendationService,
+    ): JsonResponse {
+        $game = $repository->find($id);
+        if (!$game) {
+            return $this->json(['error' => 'Jeu introuvable'], 404);
+        }
+
+        $limit   = max(5, min(50, (int) ($request->query->get('limit', 5))));
+        $results = $recommendationService->findSimilar($game, $limit);
+
+        return $this->json(array_map(fn($r) => [
+            ...$r['game']->jsonSerialize(),
+            'similarity' => $r['similarity'],
+            'reason'     => $r['reason'],
+        ], $results));
     }
 
 }

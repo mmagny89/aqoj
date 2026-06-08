@@ -1,11 +1,13 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { Link } from 'react-router-dom'
-import { getLibrary } from '../api'
+import { getLibrary, getUserPreferences, recomputeUserPreferences } from '../api'
 import { useAuth } from '../context/AuthContext'
 import GameCard from '../components/GameCard'
+import { familyLabel, familyColor, SUPPORT_COLOR, EXTRA_COLORS, EXTRA_FAMILIES } from '../utils/engelstein'
 
 /* ── Hook pour un onglet paginé ────────────────────────────────────────── */
-function useLibraryTab(played, active) {
+// isExpansion: true = extensions seulement, false = base seulement, null = tous
+function useLibraryTab(played, active, isExpansion = null) {
   const [games, setGames]           = useState([])
   const [userRatings, setUserRatings] = useState({})
   const [bggUsername, setBggUsername] = useState(null)
@@ -20,7 +22,7 @@ function useLibraryTab(played, active) {
   const fetchPage = useCallback(async (pageNum, replace) => {
     setLoading(true)
     try {
-      const data = await getLibrary(pageNum, played)
+      const data = await getLibrary(pageNum, played, isExpansion)
       setBggUsername(data.bggUsername)
       setTotal(data.total)
       setGames(prev => replace ? data.games : [...prev, ...data.games])
@@ -33,7 +35,16 @@ function useLibraryTab(played, active) {
       setLoading(false)
       if (replace) setInitialLoading(false)
     }
-  }, [played])
+  }, [played, isExpansion])
+
+  // Reset quand isExpansion change
+  useEffect(() => {
+    loaded.current = false
+    setGames([])
+    setPage(1)
+    setTotal(null)
+    setHasMore(true)
+  }, [isExpansion])
 
   // Chargement initial : déclenché la première fois que l'onglet devient actif
   useEffect(() => {
@@ -78,14 +89,107 @@ const TABS = [
   { key: 'unplayed', label: '🎁 Pas encore joués',   played: false, emptyIcon: '🏆', emptyMsg: 'Tous vos jeux ont été joués !',          emptyHint: null },
 ]
 
+/* ── Bloc préférences mécaniques ─────────────────────────────────────── */
+function MechanicPrefsBlock({ prefs }) {
+  if (!prefs) return null
+  const engines   = prefs.topEngines   ?? []
+  const support   = prefs.topSupport   ?? []
+  const cats      = prefs.topCategories ?? []
+  const allFams   = [...engines, ...support]
+  if (allFams.length === 0 && cats.length === 0) return null
+
+  return (
+    <div className="bg-white rounded-2xl border border-stone-200 shadow-sm p-5 mb-6 space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="font-bold text-stone-800 text-sm">Vos styles de jeu</h3>
+        <span className="text-xs text-stone-400">calculé depuis votre collection et vos parties</span>
+      </div>
+
+      {engines.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-2">⚙️ Moteurs favoris</p>
+          <div className="flex flex-wrap gap-2">
+            {engines.map((key, i) => (
+              <div key={key} className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-semibold ${familyColor(key)}`}>
+                {i === 0 && <span className="text-xs">⭐</span>}
+                {familyLabel(key)}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {support.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-2">🔧 Mécaniques de support</p>
+          <div className="flex flex-wrap gap-2">
+            {support.map(key => (
+              <span key={key} className={`px-3 py-1.5 rounded-full border text-xs font-semibold ${SUPPORT_COLOR}`}>
+                {familyLabel(key)}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {cats.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-2">🎭 Thèmes / Catégories favoris</p>
+          <div className="flex flex-wrap gap-2">
+            {cats.map(cat => (
+              <span key={cat} className="px-3 py-1.5 rounded-full border border-amber-200 bg-amber-50 text-amber-800 text-xs font-semibold">
+                {cat}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {prefs.updatedAt && (
+        <p className="text-xs text-stone-300">
+          Mis à jour le {new Date(prefs.updatedAt).toLocaleDateString('fr-FR')}
+        </p>
+      )}
+    </div>
+  )
+}
+
 export default function LibraryPage() {
-  const { user }          = useAuth()
+  const { user }     = useAuth()
   const [activeTab, setActiveTab] = useState('played')
+  const [subTab,    setSubTab]    = useState('base')  // 'base' | 'ext'
+  const [userPrefs, setUserPrefs] = useState(null)
+  const [prefsLoading, setPrefsLoading] = useState(false)
 
-  const playedTab   = useLibraryTab(true,  activeTab === 'played')
-  const unplayedTab = useLibraryTab(false, activeTab === 'unplayed')
+  // Charger les préférences, et recalculer si elles n'existent pas encore
+  useEffect(() => {
+    if (!user) return
+    getUserPreferences().then(prefs => {
+      if (prefs) {
+        setUserPrefs(prefs)
+      } else {
+        // Pas encore calculées → on déclenche le calcul automatiquement
+        setPrefsLoading(true)
+        recomputeUserPreferences()
+          .then(setUserPrefs)
+          .catch(() => {})
+          .finally(() => setPrefsLoading(false))
+      }
+    }).catch(() => {})
+  }, [user])
 
-  const tab = activeTab === 'played' ? playedTab : unplayedTab
+  // Réinitialiser le sous-onglet quand on change d'onglet principal
+  const handleTabChange = (key) => {
+    setActiveTab(key)
+    setSubTab('base')
+  }
+
+  const isExpansionFilter = subTab === 'ext' ? true : false
+
+  const playedTab   = useLibraryTab(true,  activeTab === 'played',   isExpansionFilter)
+  const unplayedTab = useLibraryTab(false, activeTab === 'unplayed', isExpansionFilter)
+
+  const tab    = activeTab === 'played' ? playedTab : unplayedTab
   const tabDef = TABS.find(t => t.key === activeTab)
 
   if (!user) {
@@ -122,30 +226,38 @@ export default function LibraryPage() {
             </p>
           )}
         </div>
-        {/* Total de l'onglet actif */}
         {tab.total !== null && (
           <span className="text-sm text-stone-400 tabular-nums">
-            {tab.total} jeu{tab.total > 1 ? 'x' : ''}
+            {tab.total} {subTab === 'ext' ? 'extension' : 'jeu'}{tab.total > 1 ? 'x' : ''}
           </span>
         )}
       </div>
 
-      {/* Onglets */}
-      <div className="flex gap-1 border-b border-stone-200 mb-5">
+      {/* Préférences mécaniques */}
+      {prefsLoading ? (
+        <div className="bg-white rounded-2xl border border-stone-200 p-4 mb-6 flex items-center gap-2 text-stone-400 text-sm">
+          <div className="w-4 h-4 border-2 border-stone-200 border-t-amber-400 rounded-full animate-spin flex-shrink-0" />
+          Calcul de vos préférences mécaniques…
+        </div>
+      ) : (
+        <MechanicPrefsBlock prefs={userPrefs} />
+      )}
+
+      {/* Onglets principaux */}
+      <div className="flex gap-1 border-b border-stone-200 mb-0">
         {TABS.map(t => (
           <button
             key={t.key}
-            onClick={() => setActiveTab(t.key)}
+            onClick={() => handleTabChange(t.key)}
             className={
-              'px-4 py-2.5 text-sm font-semibold rounded-t-xl border-b-2 transition-all ' +
+              'px-4 py-2.5 text-sm font-semibold border-b-2 transition-all ' +
               (activeTab === t.key
-                ? 'border-amber-500 text-amber-700 bg-amber-50'
-                : 'border-transparent text-stone-500 hover:text-stone-700 hover:bg-stone-50')
+                ? 'border-amber-500 text-amber-700'
+                : 'border-transparent text-stone-500 hover:text-stone-700')
             }
           >
             {t.label}
-            {/* Compteur lazy : affiché seulement une fois chargé */}
-            {(activeTab === t.key ? playedTab : unplayedTab).total !== null && (
+            {(t.key === 'played' ? playedTab : unplayedTab).total !== null && (
               <span className={
                 'ml-2 text-xs px-1.5 py-0.5 rounded-full font-bold ' +
                 (activeTab === t.key ? 'bg-amber-100 text-amber-700' : 'bg-stone-100 text-stone-400')
@@ -153,6 +265,26 @@ export default function LibraryPage() {
                 {(t.key === 'played' ? playedTab : unplayedTab).total}
               </span>
             )}
+          </button>
+        ))}
+      </div>
+
+      {/* Sous-onglets base / extensions */}
+      <div className="flex gap-2 py-3 mb-4 border-b border-stone-100">
+        {[
+          { key: 'base', label: '🎲 Jeux de base' },
+          { key: 'ext',  label: '➕ Extensions' },
+        ].map(s => (
+          <button
+            key={s.key}
+            onClick={() => setSubTab(s.key)}
+            className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
+              subTab === s.key
+                ? 'bg-amber-500 text-white border-amber-500'
+                : 'bg-white text-stone-600 border-stone-200 hover:bg-stone-50'
+            }`}
+          >
+            {s.label}
           </button>
         ))}
       </div>
@@ -167,10 +299,18 @@ export default function LibraryPage() {
       {/* Liste vide */}
       {!tab.error && tab.games.length === 0 && !tab.loading && (
         <div className="text-center py-14 text-stone-500">
-          <div className="text-5xl mb-4">{tabDef.emptyIcon}</div>
-          <p className="font-semibold text-stone-700 mb-1">{tabDef.emptyMsg}</p>
-          {tabDef.emptyHint && <p className="text-sm text-stone-400 mb-6">{tabDef.emptyHint}</p>}
-          {activeTab === 'played' && (
+          <div className="text-5xl mb-4">
+            {subTab === 'ext' ? '🧩' : tabDef.emptyIcon}
+          </div>
+          <p className="font-semibold text-stone-700 mb-1">
+            {subTab === 'ext'
+              ? 'Aucune extension dans cette catégorie.'
+              : tabDef.emptyMsg}
+          </p>
+          {subTab === 'base' && tabDef.emptyHint && (
+            <p className="text-sm text-stone-400 mb-6">{tabDef.emptyHint}</p>
+          )}
+          {activeTab === 'played' && subTab === 'base' && (
             <Link to="/importer" className="inline-block px-5 py-2.5 bg-amber-500 text-white font-bold rounded-xl hover:bg-amber-600 text-sm">
               Importer depuis BGG →
             </Link>
@@ -204,7 +344,7 @@ export default function LibraryPage() {
       {/* Fin de liste */}
       {!tab.hasMore && tab.games.length > 0 && (
         <p className="text-center text-xs text-stone-400 py-4">
-          {tab.total ?? tab.games.length} jeu{(tab.total ?? tab.games.length) > 1 ? 'x' : ''}
+          {tab.total ?? tab.games.length} {subTab === 'ext' ? 'extension' : 'jeu'}{(tab.total ?? tab.games.length) > 1 ? 's' : ''}
         </p>
       )}
     </div>

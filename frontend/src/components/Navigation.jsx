@@ -54,6 +54,7 @@ export default function Navigation() {
           { to: '/ludotheque',  label: '📚', title: 'Ludothèque' },
           { to: '/parties',     label: '📊', title: 'Mes parties' },
           { to: '/importer',    label: '⬇',  title: 'Importer BGG' },
+          { to: '/aide',        label: '❓',  title: 'Aide' },
         ].map(({ to, label, title }) => (
           <NavLink
             key={to}

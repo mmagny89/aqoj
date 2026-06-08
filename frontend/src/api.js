@@ -66,13 +66,19 @@ export const getRecommendations = (params = {}) => {
 export const getForgottenGems = () => request('/games/forgotten')
 
 export const getHomeRecommendations = () => request('/games/home-reco')
+export const getSimilarGames = (id, limit = 5) => request(`/games/${id}/similar?limit=${limit}`)
+
+// Préférences utilisateur
+export const getUserPreferences = () => request('/user/preferences')
+export const recomputeUserPreferences = () => request('/user/preferences/recompute', { method: 'POST' })
 
 // Library (collection personnelle)
 // played : true = joués (notés BGG), false = pas encore joués, undefined = tous
-export const getLibrary = (page = 1, played = undefined) => {
+export const getLibrary = (page = 1, played = undefined, isExpansion = undefined) => {
   const qs = new URLSearchParams()
   if (page > 1) qs.set('page', page)
   if (played !== undefined) qs.set('played', played ? '1' : '0')
+  if (isExpansion !== undefined) qs.set('isExpansion', isExpansion ? '1' : '0')
   const q = qs.toString()
   return request('/library' + (q ? '?' + q : ''))
 }

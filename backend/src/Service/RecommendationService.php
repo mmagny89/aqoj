@@ -72,7 +72,7 @@ class RecommendationService
 
         usort($scored, fn($a, $b) => $b['score'] <=> $a['score']);
 
-        return array_slice(array_values($scored), 0, 10);
+        return array_slice(array_values($scored), 0, 30);
     }
 
     /**
@@ -89,6 +89,7 @@ class RecommendationService
 
         $games = $this->gameRepository->findDiscoverForRecommendation(
             $user, $players, $maxTime, $families,
+            limit: 100,
             categoryKeys: $categories,
         );
 
@@ -98,7 +99,7 @@ class RecommendationService
 
         $scored = array_map(function (Game $game) use ($maxTime) {
             $score  = 0.0;
-            $rating = $game->getRatingBgg() ?? 0;
+            $rating = $this->bayesianRating($game->getRatingBgg(), $game->getUsersRated());
 
             if ($rating >= 8.0)      $score += 40;
             elseif ($rating >= 7.5)  $score += 30;
@@ -114,16 +115,17 @@ class RecommendationService
                 $score += 5;
             }
 
-            $reason = $rating >= 7.5
-                ? 'Très bien noté sur BGG (' . number_format($rating, 1) . '/10)'
-                : 'Noté ' . number_format($rating, 1) . '/10 sur BGG';
+            $rawRating = $game->getRatingBgg() ?? 0;
+            $reason = $rawRating >= 7.5
+                ? 'Très bien noté sur BGG (' . number_format($rawRating, 1) . '/10)'
+                : 'Noté ' . number_format($rawRating, 1) . '/10 sur BGG';
 
             return ['game' => $game, 'score' => $score, 'reason' => $reason];
         }, $games);
 
         usort($scored, fn($a, $b) => $b['score'] <=> $a['score']);
 
-        return array_slice(array_values($scored), 0, 10);
+        return array_slice(array_values($scored), 0, 30);
     }
 
     /**
@@ -145,7 +147,10 @@ class RecommendationService
 
         $currentYear = (int) date('Y');
 
-        // 2. Jeux récents (3 dernières années)
+        // 2. Jeux à exclure (détestés)
+        $excludeIds = $this->getDislikedGameIds($user);
+
+        // 3. Jeux récents (3 dernières années)
         $recentGames = $this->gameRepository->findDiscoverForRecommendation(
             $user,
             players:    null,
@@ -153,6 +158,7 @@ class RecommendationService
             familyKeys: $topFamilies,
             limit:      30,
             minYear:    $currentYear - 3,
+            excludeIds: $excludeIds,
         );
 
         $recent = array_slice(
@@ -160,7 +166,7 @@ class RecommendationService
             0, 10
         );
 
-        // 3. Par décennie
+        // 4. Par décennie
         $decades = [
             '2020s'    => [2020, $currentYear - 4],   // avant les "récents"
             '2010s'    => [2010, 2019],
@@ -184,6 +190,7 @@ class RecommendationService
                 limit:      20,
                 minYear:    $min,
                 maxYear:    $max,
+                excludeIds: $excludeIds,
             );
 
             if (empty($games)) {
@@ -203,10 +210,10 @@ class RecommendationService
         ];
     }
 
-    /** Récupère les 4 familles Engelstein les plus représentées dans les jeux joués/possédés. */
+    /** Récupère les 4 familles Engelstein les plus représentées dans les jeux aimés. */
     private function getUserTopFamilies(User $user): array
     {
-        // Priorité : jeux notés sur BGG (= joués et appréciés)
+        // Priorité 1 : jeux bien notés sur BGG (>= 6) — signal fort "j'aime"
         $rows = $this->conn->fetchAllAssociative(
             "SELECT family_key, COUNT(*) AS cnt
              FROM (
@@ -214,7 +221,7 @@ class RecommendationService
                  FROM user_game ug
                  JOIN game g ON g.id = ug.game_id
                  WHERE ug.user_id = ?
-                   AND ug.bgg_user_rating IS NOT NULL
+                   AND ug.bgg_user_rating >= 6
                    AND g.mechanic_families::text != '[]'
              ) sub
              GROUP BY family_key
@@ -225,7 +232,27 @@ class RecommendationService
 
         $families = array_column($rows, 'family_key');
 
-        // Fallback : toute la collection si aucun jeu noté
+        // Priorité 2 : parties aimées (rating = 5) — si pas assez de notes BGG
+        if (empty($families)) {
+            $rows = $this->conn->fetchAllAssociative(
+                "SELECT family_key, COUNT(*) AS cnt
+                 FROM (
+                     SELECT json_array_elements_text(g.mechanic_families) AS family_key
+                     FROM game_session gs
+                     JOIN game g ON g.id = gs.game_id
+                     WHERE gs.user_id = ?
+                       AND gs.rating = 5
+                       AND g.mechanic_families::text != '[]'
+                 ) sub
+                 GROUP BY family_key
+                 ORDER BY cnt DESC
+                 LIMIT 4",
+                [$user->getId()]
+            );
+            $families = array_column($rows, 'family_key');
+        }
+
+        // Fallback 3 : collection entière (hors jeux explicitement détestés)
         if (empty($families)) {
             $rows = $this->conn->fetchAllAssociative(
                 "SELECT family_key, COUNT(*) AS cnt
@@ -234,6 +261,7 @@ class RecommendationService
                      FROM user_game ug
                      JOIN game g ON g.id = ug.game_id
                      WHERE ug.user_id = ?
+                       AND (ug.bgg_user_rating IS NULL OR ug.bgg_user_rating >= 5)
                        AND g.mechanic_families::text != '[]'
                  ) sub
                  GROUP BY family_key
@@ -245,6 +273,23 @@ class RecommendationService
         }
 
         return $families;
+    }
+
+    /** IDs des jeux explicitement détestés (note BGG < 5, ou session avec rating = 1). */
+    private function getDislikedGameIds(User $user): array
+    {
+        $rows = $this->conn->fetchFirstColumn(
+            "SELECT DISTINCT game_id FROM (
+                 SELECT ug.game_id FROM user_game ug
+                 WHERE ug.user_id = ? AND ug.bgg_user_rating < 5
+                 UNION
+                 SELECT gs.game_id FROM game_session gs
+                 WHERE gs.user_id = ? AND gs.rating = 1
+             ) sub",
+            [$user->getId(), $user->getId()]
+        );
+
+        return array_map('intval', $rows);
     }
 
     /**
@@ -259,7 +304,7 @@ class RecommendationService
         $scored = array_map(function (Game $game) use ($topFamilies, $recentBoost, $currentYear): array {
             $gameFamilies = $game->getMechanicFamilies() ?? [];
             $overlap      = count(array_intersect($topFamilies, $gameFamilies));
-            $rating       = $game->getRatingBgg() ?? 0;
+            $rating       = $this->bayesianRating($game->getRatingBgg(), $game->getUsersRated());
             $year         = $game->getYearPublished();
 
             $score = ($overlap * 15) + ($rating * 3);
@@ -293,6 +338,136 @@ class RecommendationService
         usort($scored, fn($a, $b) => $b['score'] <=> $a['score']);
 
         return array_values($scored);
+    }
+
+    /**
+     * Calcule un score de similarité entre deux jeux (0-100).
+     *
+     * Pondération :
+     *   mécaniques Engelstein  40 %
+     *   catégories BGG          20 %
+     *   plage de joueurs        15 %
+     *   complexité              15 %
+     *   âge minimum             10 %
+     */
+    public function computeSimilarity(Game $ref, Game $candidate): int
+    {
+        // ── 1. Mécaniques Engelstein (40 %) ──────────────────────────────
+        $refFamilies = $ref->getMechanicFamilies();
+        $canFamilies = $candidate->getMechanicFamilies();
+        $union        = array_unique(array_merge($refFamilies, $canFamilies));
+        $mechScore    = count($union) > 0
+            ? count(array_intersect($refFamilies, $canFamilies)) / count($union)
+            : 0.0;
+
+        // ── 2. Catégories BGG (thèmes + types) (20 %) ───────────────────
+        $refCats = $ref->getCategories();
+        $canCats = $candidate->getCategories();
+        $catUnion = array_unique(array_merge($refCats, $canCats));
+        $catScore = count($catUnion) > 0
+            ? count(array_intersect($refCats, $canCats)) / count($catUnion)
+            : 0.0;
+
+        // ── 3. Plage de joueurs (15 %) ────────────────────────────────────
+        // Recouvrement des intervalles [min, max]
+        $overlapMin = max($ref->getMinPlayers(),  $candidate->getMinPlayers());
+        $overlapMax = min($ref->getMaxPlayers(),  $candidate->getMaxPlayers());
+        $unionMin   = min($ref->getMinPlayers(),  $candidate->getMinPlayers());
+        $unionMax   = max($ref->getMaxPlayers(),  $candidate->getMaxPlayers());
+        $playerScore = ($unionMax - $unionMin) > 0 && $overlapMax >= $overlapMin
+            ? ($overlapMax - $overlapMin + 1) / ($unionMax - $unionMin + 1)
+            : ($overlapMax >= $overlapMin ? 1.0 : 0.0);
+
+        // ── 4. Complexité (15 %) ─────────────────────────────────────────
+        $refComp  = $ref->getComplexity();
+        $canComp  = $candidate->getComplexity();
+        $complexScore = ($refComp > 0 && $canComp > 0)
+            ? max(0.0, 1.0 - abs($refComp - $canComp) / 4.0)   // échelle 1-5
+            : 0.5; // inconnue → neutre
+
+        // ── 5. Âge minimum (10 %) ────────────────────────────────────────
+        $refAge  = $ref->getMinAge();
+        $canAge  = $candidate->getMinAge();
+        $ageScore = ($refAge !== null && $canAge !== null)
+            ? max(0.0, 1.0 - abs($refAge - $canAge) / 10.0)
+            : 0.5;
+
+        $total = $mechScore * 0.40
+               + $catScore  * 0.20
+               + $playerScore * 0.15
+               + $complexScore * 0.15
+               + $ageScore  * 0.10;
+
+        return (int) round($total * 100);
+    }
+
+    /**
+     * Trouve les N jeux les plus similaires à un jeu donné (hors expansions).
+     * Tous jeux confondus, peu importe si l'utilisateur les possède ou non.
+     *
+     * @return array<array{game: Game, similarity: int, reason: string}>
+     */
+    public function findSimilar(Game $ref, int $limit = 5): array
+    {
+        $candidates = $this->gameRepository->findSimilarCandidates($ref, $limit * 6);
+
+        $scored = array_map(function (Game $candidate) use ($ref): array {
+            $sim    = $this->computeSimilarity($ref, $candidate);
+            $rating = $this->bayesianRating($candidate->getRatingBgg(), $candidate->getUsersRated());
+
+            // Boost note pour départager les ex-aequo
+            $score  = $sim * 100 + $rating * 0.5;
+
+            $reason = $this->buildSimilarReason($ref, $candidate, $sim);
+
+            return ['game' => $candidate, 'similarity' => $sim, 'reason' => $reason, '_score' => $score];
+        }, $candidates);
+
+        usort($scored, fn($a, $b) => $b['_score'] <=> $a['_score']);
+
+        return array_slice(
+            array_map(fn($r) => ['game' => $r['game'], 'similarity' => $r['similarity'], 'reason' => $r['reason']], $scored),
+            0, $limit
+        );
+    }
+
+    private function buildSimilarReason(Game $ref, Game $candidate, int $sim): string
+    {
+        $sharedFamilies = array_intersect($ref->getMechanicFamilies(), $candidate->getMechanicFamilies());
+        $sharedCats     = array_intersect($ref->getCategories(), $candidate->getCategories());
+
+        $parts = [];
+        if (!empty($sharedFamilies)) {
+            $labels = array_map(fn($f) => $f, array_slice(array_values($sharedFamilies), 0, 2));
+            $parts[] = 'mécaniques similaires';
+        }
+        if (!empty($sharedCats)) {
+            $parts[] = 'même univers';
+        }
+        if ($candidate->getRatingBgg() !== null && $candidate->getRatingBgg() >= 7.5) {
+            $parts[] = number_format($candidate->getRatingBgg(), 1) . '/10 BGG';
+        }
+
+        $prefix = $sim >= 80 ? 'Très proche' : ($sim >= 60 ? 'Proche' : 'Dans le même style');
+        return $prefix . ($parts ? ' · ' . implode(', ', $parts) : '');
+    }
+
+    /**
+     * Note BGG ajustée bayésienne — pénalise les jeux avec peu de votants.
+     *
+     * Formule : (votes * avg + C * mean) / (votes + C)
+     *   C    = 500  (seuil de confiance)
+     *   mean = 6.8  (moyenne globale estimée des jeux BGG enrichis)
+     */
+    private function bayesianRating(?float $ratingBgg, ?int $usersRated): float
+    {
+        if ($ratingBgg === null) {
+            return 0.0;
+        }
+        $votes = $usersRated ?? 0;
+        $C     = 500;
+        $mean  = 6.8;
+        return ($votes * $ratingBgg + $C * $mean) / ($votes + $C);
     }
 
     public function findForgottenGems(User $user): array

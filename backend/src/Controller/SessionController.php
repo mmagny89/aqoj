@@ -6,6 +6,7 @@ use App\Entity\GameSession;
 use App\Repository\GameRepository;
 use App\Repository\GameSessionRepository;
 use App\Service\JwtService;
+use App\Service\UserPreferenceService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -35,6 +36,7 @@ class SessionController extends AbstractController
         GameRepository $gameRepository,
         JwtService $jwt,
         EntityManagerInterface $em,
+        UserPreferenceService $prefService,
     ): JsonResponse {
         $user = AuthController::extractUser($request, $jwt, $em);
         if (!$user) {
@@ -72,6 +74,11 @@ class SessionController extends AbstractController
 
         $em->persist($session);
         $em->flush();
+
+        // Recalculer les préférences si la partie est aimée (signal pertinent)
+        if ($session->getRating() === 5) {
+            try { $prefService->recompute($user); } catch (\Throwable) { /* non bloquant */ }
+        }
 
         return $this->json($session, 201);
     }

@@ -19,16 +19,31 @@ Plateforme de découverte et recommandation de jeux de société, connectée à 
 ### Ludothèque personnelle
 - Import de la collection depuis BoardGameGeek (username BGG)
 - Synchronisation des notes personnelles BGG (1–10) sur chaque jeu
-- Vue en deux onglets :
+- Vue en deux onglets principaux :
   - **⭐ Déjà joués** — jeux avec une note BGG, triés par note décroissante
   - **🎁 Pas encore joués** — jeux sans note, triés alphabétiquement
+- Chaque onglet dispose de deux sous-onglets **🎲 Jeux de base** et **➕ Extensions**
 - Infinite scroll sur chaque onglet
+- **Préférences mécaniques** calculées automatiquement depuis la collection :
+  - Moteurs Engelstein dominants (ex. Construction de deck, Placement d'ouvriers…)
+  - Mécaniques de support les plus jouées
+  - Catégories BGG favorites
+  - Recalcul automatique si les préférences sont absentes
 
 ### Recommandations personnalisées
 - **Ma collection** — recommande parmi les jeux possédés, scorés par note personnelle + fraîcheur + qualité BGG
 - **À découvrir** — suggère des jeux hors collection avec un seuil de qualité BGG ≥ 6.5
-- Filtres : nombre de joueurs, durée maximale, style de jeu (14 familles)
-- Les extensions ne sont jamais suggérées dans les recommandations
+- Jusqu'à **30 résultats** par onglet, séparés en sous-onglets Jeux de base / Extensions
+- Filtres disponibles dans la barre latérale :
+  - Nombre de joueurs
+  - Durée maximale (15 min → 4h)
+  - Style / Moteur de jeu (modèle Engelstein — 6 moteurs centraux)
+  - Mécaniques de support (8 familles)
+  - Caractéristiques (Solo, Temps réel, Dextérité, Legacy)
+  - **Thèmes & univers** — catégories mappées dans l'interface admin
+  - **Types de jeu** — catégories mappées dans l'interface admin
+- Les filtres thématiques sont chargés dynamiquement depuis les mappings admin (plus de liste figée dans le code)
+- Suggestions de filtres basées sur les préférences mécaniques de l'utilisateur
 
 ### Moteur de mécaniques (modèle Engelstein)
 Chaque jeu est analysé selon 18 familles de mécaniques :
@@ -45,7 +60,24 @@ Le mapping entre mécaniques BGG et familles Engelstein est entièrement configu
 - Moteurs principaux et mécaniques de support avec les équivalents BGG
 - Caractéristiques transversales (solo, temps réel, dextérité, legacy)
 - Description, complexité (1–5), joueurs, durée, note communauté + note personnelle
-- **Section Extensions** : liste cliquable des extensions connues avec indicateur de possession (✓ possédée / non possédée), filtrée sur les extensions officielles (≥ 50 votants BGG)
+- Lien direct vers la fiche BoardGameGeek (URL adaptée : `/boardgame/` ou `/boardgameexpansion/`)
+- **Section Extensions** : liste des extensions connues avec indicateur de possession
+- **Jeux similaires** : liste avec score de similarité (mécaniques 40%, catégories 20%, joueurs 15%, complexité 15%, âge 10%), bouton "Voir 5 de plus" jusqu'à épuisement
+
+#### Fiches d'extensions
+Quand le jeu consulté est une extension :
+- Section **Jeu de base** : fiche du jeu parent avec indicateur de possession
+- Section **Autres extensions** : extensions sœurs du même jeu de base
+
+### Thématiques admin
+L'interface d'administration permet de mapper des catégories BGG brutes (en anglais) vers des thématiques françaises avec emoji, regroupées en deux sections :
+- **Thèmes & univers** : Fantastique, Science-Fiction, Horreur, Historique…
+- **Types de jeu** : Stratégie, Party Game, Coopératif…
+
+Ces mappings alimentent directement les filtres de la page Recommandations.
+
+### Page d'aide (`/aide`)
+Explications sur le fonctionnement du site, du modèle de recommandation, du modèle Engelstein, du score de similarité et du calcul de préférences mécaniques.
 
 ### Recherche
 - Recherche textuelle dans le catalogue (jusqu'à 200 résultats)
@@ -54,6 +86,7 @@ Le mapping entre mécaniques BGG et familles Engelstein est entièrement configu
 
 ### Administration
 - Gestion des mappings mécaniques BGG ↔ familles Engelstein (4 onglets : moteurs / support / extras / non mappées)
+- Gestion des thématiques BGG → labels français + emoji (groupes : thèmes / types de jeu)
 - Recalcul en masse des familles pour tous les jeux en base
 - Visualisation des mécaniques BGG non encore mappées, triées par fréquence
 
@@ -65,9 +98,6 @@ Le conteneur `cron` exécute quatre tâches automatiques chaque nuit.
 Les logs sont accessibles dans les fichiers `/tmp/bgg-*.log` du conteneur.
 
 ```
-┌────── heure
-│ ┌──── minute
-│ │
 1h00  app:bgg:enrich-pending --mode=resync  →  Resync incrémental (300 jeux/nuit)
 2h00  app:bgg:enrich-pending --mode=pending →  Premiers enrichissements CSV
 3h00  app:bgg:sync-new                      →  Nouveautés BGG (Hot List + année)
@@ -112,12 +142,115 @@ docker compose exec cron tail -50 /tmp/bgg-import-csv.log
 
 ---
 
+## Mettre à jour le catalogue depuis BGG (procédure ZIP)
+
+BGG publie périodiquement une archive complète du catalogue au format CSV.  
+Voici la procédure complète pour intégrer une mise à jour.
+
+### 1. Déposer le fichier ZIP
+
+Copier le fichier ZIP téléchargé depuis BGG dans le dossier d'imports :
+
+```bash
+cp ~/Téléchargements/bgg_export_*.zip backend/var/imports/bgg/
+# ou directement dans le conteneur :
+docker compose cp ~/Téléchargements/bgg_export_*.zip backend:/var/www/html/var/imports/bgg/
+```
+
+> Le ZIP doit contenir le fichier `boardgames_ranks.csv`. Les anciennes archives sont déplacées automatiquement dans `var/imports/bgg/processed/` après traitement.
+
+### 2. Lancer l'import CSV (jeux de base + extensions)
+
+```bash
+# Importer TOUS les jeux (jeux de base et extensions)
+docker compose exec backend php bin/console app:bgg:import-csv --include-expansions
+
+# Importer uniquement les jeux de base (sans extensions)
+docker compose exec backend php bin/console app:bgg:import-csv
+```
+
+L'import crée des entrées légères (`source=bgg_csv`) : nom, rang BGG, note, flag extension.  
+Les données complètes (mécaniques, description, image…) sont récupérées à l'étape suivante.
+
+### 3. Enrichir les nouveaux jeux via l'API BGG
+
+```bash
+# Enrichir les jeux sans données complètes (nouveaux imports CSV)
+docker compose exec backend php bin/console app:bgg:enrich-pending --mode=pending --limit=0
+```
+
+> ⚠️ BGG limite les requêtes à ~2/sec. Avec plusieurs milliers de jeux, cette étape peut prendre **plusieurs heures**. Il est préférable de la lancer en arrière-plan ou de laisser le cron nocturne s'en charger progressivement (300 jeux/nuit).
+
+```bash
+# Lancer en arrière-plan
+docker compose exec -d backend php bin/console app:bgg:enrich-pending --mode=pending --limit=0
+
+# Surveiller la progression
+docker compose exec cron tail -f /tmp/bgg-enrich.log
+```
+
+### 4. Relier les extensions à leurs jeux de base
+
+```bash
+# Lier les extensions qui n'ont pas encore de jeu de base renseigné
+docker compose exec backend php bin/console app:bgg:relink-expansions
+
+# Forcer le relinkage de TOUTES les extensions (même celles déjà liées)
+docker compose exec backend php bin/console app:bgg:relink-expansions --all
+```
+
+### 5. Vérification
+
+```bash
+# Nombre de jeux en base
+docker compose exec database psql -U app -d app -c "
+  SELECT
+    CASE WHEN is_expansion THEN 'Extensions' ELSE 'Jeux de base' END AS type,
+    COUNT(*) AS total,
+    COUNT(*) FILTER (WHERE source = 'bgg_csv')  AS stubs_csv,
+    COUNT(*) FILTER (WHERE source = 'bgg_api')  AS enrichis_api
+  FROM game
+  GROUP BY is_expansion;"
+
+# Extensions sans lien vers leur jeu de base
+docker compose exec database psql -U app -d app -c "
+  SELECT COUNT(*) FROM game
+  WHERE is_expansion = true AND implements_bgg_ids::text = '[]';"
+```
+
+---
+
 ## Commandes CLI
 
 Toutes les commandes s'exécutent dans le conteneur `backend` :
 
 ```bash
 docker compose exec backend php bin/console <commande> [options]
+```
+
+---
+
+### `app:bgg:import-csv` — Import catalogue CSV
+
+Importe le catalogue complet BGG depuis un ZIP déposé dans `backend/var/imports/bgg/`.  
+Le ZIP doit contenir le fichier `boardgames_ranks.csv` exporté depuis BGG.
+
+**Options**
+
+| Option | Description |
+|---|---|
+| `--include-expansions` | Importer aussi les extensions (par défaut : ignorées) |
+| `--dry-run` | Simuler sans écrire en base |
+
+```bash
+# Import jeux de base uniquement
+docker compose exec backend php bin/console app:bgg:import-csv
+
+# Import jeux de base + extensions
+docker compose exec backend php bin/console app:bgg:import-csv --include-expansions
+
+# Vérifier le fichier sans importer
+docker compose exec backend php bin/console app:bgg:import-csv --dry-run
 ```
 
 ---
@@ -135,21 +268,43 @@ En cas d'erreur sur un lot, il est ignoré et la commande continue.
 | `--limit` | Nombre maximum de jeux à traiter (0 = tous) | `300` |
 | `--sleep` | Pause en millisecondes entre chaque lot de 20 (min. recommandé : 2000) | `2000` |
 
-**Exemples**
-
 ```bash
+# Enrichir les 50 jeux CSV les plus populaires
+docker compose exec backend php bin/console app:bgg:enrich-pending --mode=pending --limit=50
+
+# Enrichir tout (peut prendre des heures avec un grand catalogue)
+docker compose exec backend php bin/console app:bgg:enrich-pending --mode=pending --limit=0
+
 # Resync des 300 jeux les plus anciens (équivalent tâche nuit)
 docker compose exec backend php bin/console app:bgg:enrich-pending --mode=resync --limit=300
 
-# Resync de tous les jeux (cycle complet — plusieurs heures, à éviter en production)
-# BGG rate-limite à ~2 req/sec → préférer la tâche cron quotidienne (300/nuit)
-docker compose exec backend php bin/console app:bgg:enrich-pending --mode=resync --limit=0 --sleep=2000
+# Resync de tous les jeux enrichis
+docker compose exec backend php bin/console app:bgg:enrich-pending --mode=resync --limit=0
+```
 
-# Premier enrichissement des 50 jeux CSV les plus populaires
-docker compose exec backend php bin/console app:bgg:enrich-pending --mode=pending --limit=50
+---
 
-# Resync rapide sans pause (usage dev/test uniquement)
-docker compose exec backend php bin/console app:bgg:enrich-pending --mode=resync --limit=20 --sleep=0
+### `app:bgg:relink-expansions` — Liaison extensions ↔ jeux de base
+
+Re-fetche les extensions depuis BGG pour renseigner leur champ `implements_bgg_ids` (lien vers le jeu parent).  
+À relancer après un import CSV d'extensions ou si des fiches d'extension n'affichent pas leur jeu de base.
+
+**Options**
+
+| Option | Description |
+|---|---|
+| `--all` | Re-fetche toutes les extensions, même celles déjà liées |
+| `--limit` | Nombre max d'extensions à traiter | `500` |
+
+```bash
+# Relier uniquement les extensions sans lien (cas nominal après import)
+docker compose exec backend php bin/console app:bgg:relink-expansions
+
+# Forcer le relinkage de toutes les extensions
+docker compose exec backend php bin/console app:bgg:relink-expansions --all
+
+# Traiter seulement les 100 premières (débogage)
+docker compose exec backend php bin/console app:bgg:relink-expansions --limit=100
 ```
 
 ---
@@ -163,23 +318,7 @@ Importe les jeux absents de la base détectés via :
 Ne met pas à jour les jeux déjà présents (c'est le rôle d'`enrich-pending`).
 
 ```bash
-# Lancer manuellement (identique à la tâche de 3h)
 docker compose exec backend php bin/console app:bgg:sync-new
-```
-
----
-
-### `app:bgg:import-csv` — Import catalogue CSV
-
-Importe le catalogue complet BGG depuis un ZIP déposé dans `backend/var/imports/bgg/`.  
-Le ZIP doit contenir le fichier `boardgames_ranks.csv` exporté depuis BGG.
-
-```bash
-# Lancer manuellement
-docker compose exec backend php bin/console app:bgg:import-csv
-
-# Avec un fichier spécifique
-docker compose exec backend php bin/console app:bgg:import-csv --file=var/imports/bgg/mon-export.zip
 ```
 
 ---
@@ -282,14 +421,16 @@ docker compose up --build
 
 Les dépendances PHP (`vendor/`) et Node.js (`node_modules/`) s'installent automatiquement au premier lancement.
 
-### 4. Peupler la base (optionnel)
+### 4. Peupler la base
 
 ```bash
-# Jeux populaires pour démarrer
+# Option A — quelques jeux populaires pour démarrer vite
 docker compose exec backend php bin/console app:games:seed
 
-# Ou importer depuis un CSV BGG
-docker compose exec backend php bin/console app:bgg:import-csv
+# Option B — catalogue complet depuis un ZIP BGG (voir section "Mettre à jour le catalogue")
+docker compose exec backend php bin/console app:bgg:import-csv --include-expansions
+docker compose exec backend php bin/console app:bgg:enrich-pending --mode=pending --limit=200
+docker compose exec backend php bin/console app:bgg:relink-expansions
 ```
 
 ---
@@ -344,19 +485,51 @@ aqoj/
 │
 ├── backend/                        # Symfony 8 — API JSON
 │   ├── src/
-│   │   ├── Command/                # Commandes CLI (cron + admin)
+│   │   ├── Command/                # Commandes CLI
+│   │   │   ├── ImportBggCsvCommand.php
+│   │   │   ├── EnrichGamesPendingCommand.php
+│   │   │   ├── SyncBggNewReleasesCommand.php
+│   │   │   ├── RelinkExpansionsCommand.php
+│   │   │   ├── RecomputeMechanicFamiliesCommand.php
+│   │   │   └── SeedGamesCommand.php
 │   │   ├── Controller/             # Endpoints API
-│   │   ├── Entity/                 # Entités Doctrine (Game, User, …)
+│   │   │   ├── AuthController.php
+│   │   │   ├── GameController.php
+│   │   │   ├── UserController.php
+│   │   │   └── AdminController.php
+│   │   ├── Entity/                 # Entités Doctrine
+│   │   │   ├── Game.php
+│   │   │   ├── User.php
+│   │   │   ├── UserGame.php
+│   │   │   ├── UserPreference.php
+│   │   │   └── ThemeMapping.php
 │   │   ├── Repository/             # Requêtes DB
-│   │   └── Service/                # Logique métier (BGG, recommandations, …)
+│   │   └── Service/                # Logique métier
+│   │       ├── BggApiService.php         # Appels API BGG
+│   │       ├── BggCsvImportService.php   # Import CSV
+│   │       ├── GameEnrichmentService.php # Hydratation des entités
+│   │       ├── MechanicFamilyResolver.php
+│   │       ├── RecommendationService.php
+│   │       └── UserPreferenceService.php
 │   └── migrations/                 # Migrations Doctrine
 │
 └── frontend/                       # React 18 + Vite + Tailwind v4
     └── src/
-        ├── pages/                  # Pages (Library, Recommendations, GameDetail, …)
-        ├── components/             # Composants réutilisables
-        ├── utils/engelstein.js     # Familles de mécaniques + couleurs
-        └── api.js                  # Appels API centralisés
+        ├── pages/
+        │   ├── HomePage.jsx
+        │   ├── LibraryPage.jsx        # Ludothèque (sous-onglets base/ext)
+        │   ├── RecommendationPage.jsx # Recommandations (filtres dynamiques)
+        │   ├── GameDetailPage.jsx     # Fiche jeu + extensions + similarité
+        │   ├── SearchPage.jsx
+        │   ├── HelpPage.jsx           # /aide — explication du moteur
+        │   ├── AdminPage.jsx
+        │   └── AdminThemesPage.jsx
+        ├── components/
+        │   └── GameCard.jsx           # Carte jeu (badge extension, % similarité)
+        ├── utils/
+        │   ├── engelstein.js          # Familles de mécaniques + couleurs
+        │   └── categories.js          # Catégories BGG (recherche)
+        └── api.js                     # Appels API centralisés
 ```
 
 ---

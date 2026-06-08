@@ -14,6 +14,7 @@ import RegisterPage from './pages/RegisterPage'
 import AdminMechanicsPage from './pages/AdminMechanicsPage'
 import AdminDashboardPage from './pages/AdminDashboardPage'
 import AdminThemesPage from './pages/AdminThemesPage'
+import HelpPage from './pages/HelpPage'
 
 export default function App() {
   return (
@@ -27,6 +28,7 @@ export default function App() {
             <Route path="/rechercher" element={<SearchPage />} />
             <Route path="/games/:id" element={<GameDetailPage />} />
             <Route path="/ludotheque" element={<LibraryPage />} />
+            <Route path="/aide" element={<HelpPage />} />
             <Route path="/connexion" element={<LoginPage />} />
             <Route path="/inscription" element={<RegisterPage />} />
             <Route path="/importer" element={

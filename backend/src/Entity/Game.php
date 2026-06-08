@@ -79,6 +79,20 @@ class Game implements \JsonSerializable
     #[ORM\Column(length: 50, nullable: true)]
     private ?string $primaryEngine = null;
 
+    #[ORM\Column(nullable: true)]
+    private ?int $minAge = null;
+
+    /**
+     * Nom d'origine BGG (toujours en anglais).
+     * `name` contient le nom d'affichage (FR si disponible, sinon identique à nameOriginal).
+     */
+    #[ORM\Column(length: 255, nullable: true)]
+    private ?string $nameOriginal = null;
+
+    /** Type BGG brut : 'boardgame' ou 'boardgameexpansion' */
+    #[ORM\Column(length: 30, options: ['default' => 'boardgame'])]
+    private string $bggType = 'boardgame';
+
     /** BGG IDs (string) des extensions de ce jeu */
     #[ORM\Column(type: 'json')]
     private array $expansionBggIds = [];
@@ -117,6 +131,9 @@ class Game implements \JsonSerializable
             'detectedEngines' => $this->detectedEngines,
             'primaryEngine' => $this->primaryEngine,
             'displayEngines'    => $this->getDisplayEngines(),
+            'minAge'            => $this->minAge,
+            'nameOriginal'      => $this->nameOriginal,
+            'bggType'           => $this->bggType,
             'expansionBggIds'   => $this->expansionBggIds,
             'implementsBggIds'  => $this->implementsBggIds,
         ];
@@ -169,6 +186,12 @@ class Game implements \JsonSerializable
     public function setExpansionBggIds(array $ids): static { $this->expansionBggIds = $ids; return $this; }
     public function getImplementsBggIds(): array { return $this->implementsBggIds; }
     public function setImplementsBggIds(array $ids): static { $this->implementsBggIds = $ids; return $this; }
+    public function getMinAge(): ?int { return $this->minAge; }
+    public function setMinAge(?int $minAge): static { $this->minAge = $minAge; return $this; }
+    public function getNameOriginal(): ?string { return $this->nameOriginal; }
+    public function setNameOriginal(?string $n): static { $this->nameOriginal = $n; return $this; }
+    public function getBggType(): string { return $this->bggType; }
+    public function setBggType(string $t): static { $this->bggType = $t; return $this; }
 
     /** Retourne le(s) moteur(s) à afficher : primaryEngine s'il est défini, sinon detectedEngines */
     public function getDisplayEngines(): array

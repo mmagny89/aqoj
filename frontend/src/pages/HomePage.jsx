@@ -1,9 +1,51 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { getHomeRecommendations } from '../api'
 import GameCard from '../components/GameCard'
 import { familyLabel, familyColor, isEngine } from '../utils/engelstein'
+
+/* ── Carrousel horizontal ────────────────────────────────────────────── */
+function Carousel({ items }) {
+  const ref = useRef(null)
+
+  const scroll = (dir) => {
+    ref.current?.scrollBy({ left: dir * 280, behavior: 'smooth' })
+  }
+
+  return (
+    <div className="relative group">
+      {/* Bouton gauche */}
+      <button
+        onClick={() => scroll(-1)}
+        className="absolute left-0 top-1/2 -translate-y-1/2 z-10 w-9 h-9 bg-white border border-stone-200 shadow-md rounded-full flex items-center justify-center text-stone-600 hover:bg-amber-50 hover:border-amber-300 transition-all opacity-0 group-hover:opacity-100 -translate-x-3"
+      >
+        ‹
+      </button>
+
+      {/* Piste */}
+      <div
+        ref={ref}
+        className="flex gap-3 overflow-x-auto scrollbar-hide pb-2 snap-x snap-mandatory"
+        style={{ scrollbarWidth: 'none' }}
+      >
+        {items.map(({ game, reason }) => (
+          <div key={game.id} className="flex-shrink-0 w-44 sm:w-52 snap-start">
+            <GameCard game={game} reason={reason} />
+          </div>
+        ))}
+      </div>
+
+      {/* Bouton droit */}
+      <button
+        onClick={() => scroll(1)}
+        className="absolute right-0 top-1/2 -translate-y-1/2 z-10 w-9 h-9 bg-white border border-stone-200 shadow-md rounded-full flex items-center justify-center text-stone-600 hover:bg-amber-50 hover:border-amber-300 transition-all opacity-0 group-hover:opacity-100 translate-x-3"
+      >
+        ›
+      </button>
+    </div>
+  )
+}
 
 /* ── Onglets décennie ────────────────────────────────────────────────── */
 function DecadeTabs({ byDecade }) {
@@ -157,11 +199,7 @@ export default function HomePage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-                {reco.recent.map(({ game, reason }) => (
-                  <GameCard key={game.id} game={game} reason={reason} />
-                ))}
-              </div>
+              <Carousel items={reco.recent} />
 
               <div className="mt-4 text-center">
                 <Link to="/recommander" className="text-sm text-amber-600 hover:underline font-medium">

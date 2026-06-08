@@ -53,7 +53,7 @@ class GameRepository extends ServiceEntityRepository
         array $categoryKeys = [],
     ): array {
         $conn = $this->getEntityManager()->getConnection();
-        $conditions = ['ug.user_id = ?', 'g.is_expansion = false'];
+        $conditions = ['ug.user_id = ?'];
         $params = [$user->getId()];
 
         if (!empty($familyKeys)) {
@@ -128,11 +128,11 @@ class GameRepository extends ServiceEntityRepository
         ?int $minYear = null,
         ?int $maxYear = null,
         array $categoryKeys = [],
+        array $excludeIds = [],
     ): array {
         $conn = $this->getEntityManager()->getConnection();
 
         $conditions = [
-            'g.is_expansion = false',
             'g.mechanics::text != \'[]\'',          // jeux enrichis uniquement
             'g.rating_bgg IS NOT NULL',
             'g.rating_bgg >= 6.5',
@@ -184,6 +184,14 @@ class GameRepository extends ServiceEntityRepository
             $conditions[] = '(' . implode(' OR ', $jsonClauses) . ')';
             foreach ($categoryKeys as $cat) {
                 $params[] = json_encode([$cat]);
+            }
+        }
+
+        if (!empty($excludeIds)) {
+            $placeholders = implode(',', array_fill(0, count($excludeIds), '?'));
+            $conditions[] = "g.id NOT IN ({$placeholders})";
+            foreach ($excludeIds as $id) {
+                $params[] = $id;
             }
         }
 
@@ -269,11 +277,17 @@ class GameRepository extends ServiceEntityRepository
      *                            false = pas encore notés,
      *                            null = tous
      */
-    public function findByUserCollection(User $user, int $page = 1, int $limit = 50, ?bool $played = null): array
+    public function findByUserCollection(User $user, int $page = 1, int $limit = 50, ?bool $played = null, ?bool $isExpansion = null): array
     {
         $playedClause = match ($played) {
             true  => 'AND ug.bgg_user_rating IS NOT NULL',
             false => 'AND ug.bgg_user_rating IS NULL',
+            null  => '',
+        };
+
+        $expansionClause = match ($isExpansion) {
+            true  => 'AND g.is_expansion = TRUE',
+            false => 'AND g.is_expansion = FALSE',
             null  => '',
         };
 
@@ -292,7 +306,7 @@ class GameRepository extends ServiceEntityRepository
             "SELECT ug.game_id
              FROM user_game ug
              JOIN game g ON g.id = ug.game_id
-             WHERE ug.user_id = ? {$playedClause}
+             WHERE ug.user_id = ? {$playedClause} {$expansionClause}
              ORDER BY {$orderBy}
              LIMIT ? OFFSET ?",
             [$user->getId(), $limit, ($page - 1) * $limit]
@@ -320,13 +334,27 @@ class GameRepository extends ServiceEntityRepository
         )));
     }
 
-    public function countUserCollection(User $user, ?bool $played = null): int
+    public function countUserCollection(User $user, ?bool $played = null, ?bool $isExpansion = null): int
     {
         $playedClause = match ($played) {
-            true  => 'AND bgg_user_rating IS NOT NULL',
-            false => 'AND bgg_user_rating IS NULL',
+            true  => 'AND ug.bgg_user_rating IS NOT NULL',
+            false => 'AND ug.bgg_user_rating IS NULL',
             null  => '',
         };
+
+        $expansionClause = match ($isExpansion) {
+            true  => 'AND g.is_expansion = TRUE',
+            false => 'AND g.is_expansion = FALSE',
+            null  => '',
+        };
+
+        $joinNeeded = $isExpansion !== null;
+        if ($joinNeeded) {
+            return (int) $this->getEntityManager()->getConnection()->fetchOne(
+                "SELECT COUNT(*) FROM user_game ug JOIN game g ON g.id = ug.game_id WHERE ug.user_id = ? {$playedClause} {$expansionClause}",
+                [$user->getId()]
+            );
+        }
 
         return (int) $this->getEntityManager()->getConnection()->fetchOne(
             "SELECT COUNT(*) FROM user_game WHERE user_id = ? {$playedClause}",
@@ -450,6 +478,53 @@ class GameRepository extends ServiceEntityRepository
         return array_values(array_filter(
             array_map(fn(int $id) => $indexed[$id] ?? null, array_map('intval', $ids))
         ));
+    }
+
+    /**
+     * Trouve des candidats similaires à un jeu de référence.
+     * Filtre sur les familles mécaniques pour ne pas scanner toute la table.
+     *
+     * @return Game[]
+     */
+    public function findSimilarCandidates(Game $ref, int $limit = 30): array
+    {
+        $families = $ref->getMechanicFamilies();
+        $conn     = $this->getEntityManager()->getConnection();
+
+        $conditions = [
+            'g.id != ' . (int) $ref->getId(),
+            'g.is_expansion = false',
+            'g.rating_bgg IS NOT NULL',
+            'g.rating_bgg >= 5.5',
+            'g.mechanics::text != \'[]\'',
+        ];
+        $params = [];
+
+        if (!empty($families)) {
+            $jsonClauses = array_map(fn($k) => 'g.mechanic_families::jsonb @> ?::jsonb', $families);
+            $conditions[] = '(' . implode(' OR ', $jsonClauses) . ')';
+            foreach ($families as $key) {
+                $params[] = json_encode([$key]);
+            }
+        }
+
+        $params[] = $limit;
+        $where = implode(' AND ', $conditions);
+
+        $ids = $conn->fetchFirstColumn(
+            "SELECT g.id FROM game g WHERE {$where} ORDER BY g.rating_bgg DESC NULLS LAST LIMIT ?",
+            $params
+        );
+
+        if (empty($ids)) {
+            return [];
+        }
+
+        return $this->createQueryBuilder('g')
+            ->where('g.id IN (:ids)')
+            ->setParameter('ids', $ids)
+            ->getQuery()
+            ->getResult();
     }
 
     public function findNotPlayedRecently(int $daysThreshold = 180, int $limit = 10): array

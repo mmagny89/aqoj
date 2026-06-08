@@ -94,12 +94,14 @@ export default function AdminDashboardPage() {
     </div>
   )
 
-  const { games, users, sessions, mappings } = stats
-  const g = games
-  const u = users
+  const { games, expansions, users, sessions, mappings, themes } = stats
+  const g  = games
+  const ex = expansions
+  const u  = users
   const col = users.collections
-  const s = sessions
-  const m = mappings
+  const s  = sessions
+  const m  = mappings
+  const th = themes
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-8 space-y-6">
@@ -121,11 +123,14 @@ export default function AdminDashboardPage() {
       </div>
 
       {/* ── Jeux ─────────────────────────────────────────────────────── */}
-      <Section title="Catalogue de jeux" icon="🎲">
+      <Section title="Catalogue de jeux (jeux de base)" icon="🎲">
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
-          <StatCard label="Jeux de base"  value={fmtNum(g.base_games)}  icon="🎲" color="amber" />
-          <StatCard label="Extensions"    value={fmtNum(g.expansions)}  icon="🧩" color="blue" />
-          <StatCard label="Total catalogue" value={fmtNum(g.total)}     icon="📦" color="stone" />
+          <StatCard label="Jeux de base"      value={fmtNum(g.total)}       icon="🎲" color="amber" />
+          <StatCard label="Enrichis (API BGG)" value={fmtNum(g.enriched)}   icon="✅" color="green"
+            sub={g.total > 0 ? `${Math.round(g.enriched / g.total * 100)}%` : null} />
+          <StatCard label="Stubs CSV (en attente)" value={fmtNum(g.pending)} icon="⏳"
+            color={Number(g.pending) > 0 ? 'orange' : 'green'}
+            sub={Number(g.pending) > 0 ? 'À enrichir via enrich-pending' : 'Tout est enrichi'} />
           <StatCard label="À resyncer"    value={fmtNum(g.stale_count)} icon="🔄" color={g.stale_count > 500 ? 'orange' : 'green'}
             sub={g.stale_count > 0 ? 'last_synced_at > 30 j' : 'Tout est à jour'} />
         </div>
@@ -169,6 +174,54 @@ export default function AdminDashboardPage() {
         </div>
       </Section>
 
+      {/* ── Extensions ───────────────────────────────────────────────── */}
+      <Section title="Extensions" icon="🧩">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
+          <StatCard label="Total extensions"  value={fmtNum(ex.total)}    icon="🧩" color="blue" />
+          <StatCard label="Enrichies (API BGG)" value={fmtNum(ex.enriched)} icon="✅" color="green"
+            sub={ex.total > 0 ? `${Math.round(ex.enriched / ex.total * 100)}%` : null} />
+          <StatCard label="Stubs CSV (en attente)" value={fmtNum(ex.pending)} icon="⏳"
+            color={Number(ex.pending) > 0 ? 'orange' : 'green'}
+            sub={Number(ex.pending) > 0 ? 'À enrichir via enrich-pending' : 'Tout est enrichi'} />
+          <StatCard label="À resyncer" value={fmtNum(ex.stale_count)} icon="🔄"
+            color={Number(ex.stale_count) > 200 ? 'orange' : 'green'}
+            sub="last_synced_at > 30 j" />
+        </div>
+
+        <div className="space-y-3 mb-4">
+          <ProgressBar
+            label="Liées à un jeu de base (implements_bgg_ids renseigné)"
+            value={Number(ex.linked)} max={Number(ex.total)}
+            color="green"
+          />
+          <ProgressBar
+            label="Enrichies (source = bgg_api)"
+            value={Number(ex.enriched)} max={Number(ex.total)}
+            color="blue"
+          />
+          <ProgressBar
+            label="Avec mécaniques BGG"
+            value={Number(ex.total) - Number(ex.no_mechanics)} max={Number(ex.total)}
+            color="amber"
+          />
+          <ProgressBar
+            label="Avec image"
+            value={Number(ex.total) - Number(ex.no_image)} max={Number(ex.total)}
+            color="violet"
+          />
+        </div>
+
+        {Number(ex.unlinked) > 0 && (
+          <div className="bg-orange-50 border border-orange-200 rounded-xl p-3 text-xs text-orange-700 flex items-start gap-2">
+            <span className="text-base leading-none flex-shrink-0">⚠️</span>
+            <span>
+              <strong>{fmtNum(ex.unlinked)} extensions</strong> n'ont pas de lien vers leur jeu de base.
+              Relancer : <code className="bg-orange-100 px-1 rounded font-mono">app:bgg:relink-expansions</code>
+            </span>
+          </div>
+        )}
+      </Section>
+
       {/* ── Utilisateurs ─────────────────────────────────────────────── */}
       <Section title="Utilisateurs" icon="👥">
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
@@ -210,21 +263,40 @@ export default function AdminDashboardPage() {
         </div>
       </Section>
 
-      {/* ── Mappings mécaniques ───────────────────────────────────────── */}
-      <Section title="Mappings mécaniques" icon="⚙️">
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          <StatCard label="Mappings actifs"         value={fmtNum(m.total_mappings)}         icon="✅" color="green" />
-          <StatCard label="Familles utilisées"       value={fmtNum(m.families_used)}          icon="🏷" color="blue" />
-          <StatCard label="Mécaniques BGG non mappées" value={fmtNum(m.unmapped_bgg_mechanics)} icon="⚠️"
-            color={m.unmapped_bgg_mechanics > 0 ? 'orange' : 'green'}
-            sub={m.unmapped_bgg_mechanics > 0 ? 'Visibles dans l\'onglet "Non mappées"' : 'Tout est mappé 🎉'} />
+      {/* ── Mappings mécaniques & thématiques ────────────────────────── */}
+      <Section title="Mappings" icon="⚙️">
+
+        {/* Mécaniques */}
+        <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-2">Mécaniques Engelstein</p>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-2">
+          <StatCard label="Mappings actifs"            value={fmtNum(m.total_mappings)}          icon="✅" color="green" />
+          <StatCard label="Familles utilisées"          value={fmtNum(m.families_used)}           icon="🏷" color="blue" />
+          <StatCard label="Mécaniques BGG non mappées"  value={fmtNum(m.unmapped_bgg_mechanics)}  icon="⚠️"
+            color={Number(m.unmapped_bgg_mechanics) > 0 ? 'orange' : 'green'}
+            sub={Number(m.unmapped_bgg_mechanics) > 0 ? 'Visibles dans l\'onglet "Non mappées"' : 'Tout est mappé 🎉'} />
         </div>
-        <div className="mt-3">
-          <Link to="/admin/mecaniques?tab=unmapped"
-            className="text-sm text-amber-600 hover:underline font-medium">
-            Gérer les mappings →
+        <div className="mb-5">
+          <Link to="/admin/mecaniques?tab=unmapped" className="text-sm text-amber-600 hover:underline font-medium">
+            Gérer les mappings mécaniques →
           </Link>
         </div>
+
+        {/* Thématiques */}
+        <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-2">Thématiques</p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-2">
+          <StatCard label="Catégories BGG mappées"   value={fmtNum(th.total_mappings)}          icon="✅" color="green" />
+          <StatCard label="Labels français"           value={fmtNum(th.distinct_labels)}         icon="🏷" color="amber" />
+          <StatCard label="Groupes"                   value={fmtNum(th.distinct_groups)}         icon="📂" color="blue" />
+          <StatCard label="Catégories non mappées"    value={fmtNum(th.unmapped_bgg_categories)} icon="⚠️"
+            color={Number(th.unmapped_bgg_categories) > 0 ? 'orange' : 'green'}
+            sub={Number(th.unmapped_bgg_categories) > 0 ? 'Non visibles dans les filtres' : 'Tout est mappé 🎉'} />
+        </div>
+        <div>
+          <Link to="/admin/themes" className="text-sm text-amber-600 hover:underline font-medium">
+            Gérer les thématiques →
+          </Link>
+        </div>
+
       </Section>
 
     </div>

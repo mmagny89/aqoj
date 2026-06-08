@@ -8,6 +8,7 @@ use App\Repository\UserGameRepository;
 use App\Service\BggApiService;
 use App\Service\GameEnrichmentService;
 use App\Service\JwtService;
+use App\Service\UserPreferenceService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -25,6 +26,7 @@ class BggController extends AbstractController
         EntityManagerInterface $em,
         GameRepository $gameRepository,
         UserGameRepository $userGameRepository,
+        UserPreferenceService $prefService,
     ): JsonResponse {
         $user = AuthController::extractUser($request, $jwt, $em);
         if (!$user) {
@@ -44,7 +46,20 @@ class BggController extends AbstractController
         }
 
         try {
-            $collectionItems = $bggService->fetchCollection($username);
+            // Importer jeux de base + extensions possédées
+            $baseItems      = $bggService->fetchCollection($username, false);
+            $expansionItems = $bggService->fetchCollection($username, true);
+            // Fusionner en dédoublonnant (les expansionItems contient TOUT, incluant les jeux de base)
+            $allByBggId = [];
+            foreach ($baseItems as $item) {
+                $allByBggId[$item['bggId']] = $item;
+            }
+            foreach ($expansionItems as $item) {
+                if (!isset($allByBggId[$item['bggId']])) {
+                    $allByBggId[$item['bggId']] = $item;
+                }
+            }
+            $collectionItems = array_values($allByBggId);
         } catch (\RuntimeException $e) {
             return $this->json(['error' => $e->getMessage()], 502);
         }
@@ -132,6 +147,11 @@ class BggController extends AbstractController
                 continue;
             }
         }
+
+        // Recalculer les préférences après import
+        try {
+            $prefService->recompute($user);
+        } catch (\Throwable) { /* non bloquant */ }
 
         $skipped = count($bggIds) - $imported;
 

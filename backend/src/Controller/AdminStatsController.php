@@ -28,8 +28,6 @@ class AdminStatsController extends AbstractController
         $games = $conn->fetchAssociative("
             SELECT
                 COUNT(*)                                                    AS total,
-                COUNT(*) FILTER (WHERE is_expansion = false)               AS base_games,
-                COUNT(*) FILTER (WHERE is_expansion = true)                AS expansions,
                 COUNT(*) FILTER (WHERE source = 'bgg_api')                 AS enriched,
                 COUNT(*) FILTER (WHERE source = 'bgg_csv')                 AS pending,
                 COUNT(*) FILTER (WHERE mechanics::text = '[]')             AS no_mechanics,
@@ -44,6 +42,25 @@ class AdminStatsController extends AbstractController
                     AND (last_synced_at IS NULL OR last_synced_at < NOW() - INTERVAL '30 days')
                 )                                                           AS stale_count
             FROM game
+            WHERE is_expansion = false
+        ");
+
+        // ── Extensions ───────────────────────────────────────────────────────
+        $expansions = $conn->fetchAssociative("
+            SELECT
+                COUNT(*)                                                        AS total,
+                COUNT(*) FILTER (WHERE source = 'bgg_api')                     AS enriched,
+                COUNT(*) FILTER (WHERE source = 'bgg_csv')                     AS pending,
+                COUNT(*) FILTER (WHERE implements_bgg_ids::text != '[]')       AS linked,
+                COUNT(*) FILTER (WHERE implements_bgg_ids::text  = '[]')       AS unlinked,
+                COUNT(*) FILTER (WHERE mechanics::text = '[]')                 AS no_mechanics,
+                COUNT(*) FILTER (WHERE image_url IS NULL)                      AS no_image,
+                COUNT(*) FILTER (
+                    WHERE source = 'bgg_api'
+                    AND (last_synced_at IS NULL OR last_synced_at < NOW() - INTERVAL '30 days')
+                )                                                               AS stale_count
+            FROM game
+            WHERE is_expansion = true
         ");
 
         // ── Utilisateurs ─────────────────────────────────────────────────────
@@ -101,11 +118,32 @@ class AdminStatsController extends AbstractController
             WHERE mm.bgg_mechanic IS NULL
         ");
 
+        // ── Mappings thématiques ──────────────────────────────────────────────
+        $themes = $conn->fetchAssociative("
+            SELECT
+                COUNT(*)                            AS total_mappings,
+                COUNT(DISTINCT theme_label)         AS distinct_labels,
+                COUNT(DISTINCT theme_group)         AS distinct_groups
+            FROM theme_mapping
+        ");
+
+        $unmappedThemes = $conn->fetchOne("
+            SELECT COUNT(DISTINCT sub.category)
+            FROM (
+                SELECT json_array_elements_text(categories) AS category
+                FROM game WHERE categories::text != '[]'
+            ) sub
+            LEFT JOIN theme_mapping tm ON tm.bgg_category = sub.category
+            WHERE tm.bgg_category IS NULL
+        ");
+
         return $this->json([
-            'games'    => $games,
-            'users'    => array_merge($users, ['collections' => $collections]),
-            'sessions' => $sessions,
-            'mappings' => array_merge($mappings, ['unmapped_bgg_mechanics' => (int) $unmapped]),
+            'games'      => $games,
+            'expansions' => $expansions,
+            'users'      => array_merge($users, ['collections' => $collections]),
+            'sessions'   => $sessions,
+            'mappings'   => array_merge($mappings, ['unmapped_bgg_mechanics' => (int) $unmapped]),
+            'themes'     => array_merge($themes,   ['unmapped_bgg_categories' => (int) $unmappedThemes]),
             'generated_at' => (new \DateTimeImmutable())->format('c'),
         ]);
     }

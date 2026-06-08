@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import { familyLabel, familyColor, SUPPORT_COLOR, isEngine } from '../utils/engelstein'
 
-export default function GameCard({ game, reason, rank, onAddSession, userRating, owned }) {
+export default function GameCard({ game, reason, rank, onAddSession, userRating, owned, similarity }) {
   const navigate = useNavigate()
 
   const playerRange =
@@ -35,13 +35,17 @@ export default function GameCard({ game, reason, rank, onAddSession, userRating,
           </div>
         )}
 
-        {/* Note BGG — coin sup. droit */}
-        {game.ratingBgg != null && (
+        {/* Note BGG — coin sup. droit (ou % similarité si fourni) */}
+        {similarity != null ? (
+          <div className="absolute top-2 right-2 bg-amber-500 text-white text-xs font-black px-2 py-1 rounded-lg leading-tight text-center shadow">
+            {similarity}%
+          </div>
+        ) : game.ratingBgg != null ? (
           <div className="absolute top-2 right-2 bg-black/60 backdrop-blur-sm text-white text-xs font-bold px-2 py-1 rounded-lg leading-tight text-center">
             <span className="text-amber-300">{game.ratingBgg.toFixed(1)}</span>
             <span className="block text-[10px] opacity-70 font-normal">BGG</span>
           </div>
-        )}
+        ) : null}
 
         {/* Rang — coin sup. gauche */}
         {rank != null && (
@@ -78,9 +82,16 @@ export default function GameCard({ game, reason, rank, onAddSession, userRating,
           <h3 className="font-bold text-stone-900 text-sm leading-tight line-clamp-2">
             {game.name}
           </h3>
-          {game.yearPublished && (
-            <span className="text-xs text-stone-400">{game.yearPublished}</span>
-          )}
+          <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+            {game.yearPublished && (
+              <span className="text-xs text-stone-400">{game.yearPublished}</span>
+            )}
+            {game.isExpansion && (
+              <span className="text-[10px] bg-stone-100 text-stone-500 border border-stone-200 px-1.5 py-0.5 rounded-full font-medium leading-none">
+                Extension
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Méta : joueurs / durée / complexité */}

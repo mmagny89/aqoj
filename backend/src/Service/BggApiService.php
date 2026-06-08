@@ -33,17 +33,21 @@ class BggApiService
      *
      * @return array<array{bggId: string, userRating: float|null}>
      */
-    public function fetchCollection(string $username): array
+    /**
+     * Récupère la collection BGG d'un utilisateur.
+     * @param bool $includeExpansions  true = inclure les extensions possédées
+     */
+    public function fetchCollection(string $username, bool $includeExpansions = false): array
     {
+        $query = ['username' => $username, 'own' => 1, 'stats' => 1];
+        if (!$includeExpansions) {
+            $query['excludesubtype'] = 'boardgameexpansion';
+        }
+
         for ($attempt = 0; $attempt < 5; $attempt++) {
             $response = $this->httpClient->request('GET', self::BASE_URL . '/collection', [
                 'headers' => $this->headers(),
-                'query' => [
-                    'username'       => $username,
-                    'own'            => 1,
-                    'excludesubtype' => 'boardgameexpansion',
-                    'stats'          => 1,  // inclut les notes utilisateur
-                ],
+                'query'   => $query,
                 'timeout' => 30,
             ]);
 
@@ -67,12 +71,14 @@ class BggApiService
 
                 $items = [];
                 foreach ($xml->item as $item) {
-                    $ratingRaw = (string) ($item->stats->rating['value'] ?? 'N/A');
+                    $ratingRaw  = (string) ($item->stats->rating['value'] ?? 'N/A');
                     $userRating = is_numeric($ratingRaw) ? (float) $ratingRaw : null;
+                    $subtype    = (string) ($item['subtype'] ?? 'boardgame');
 
                     $items[] = [
-                        'bggId'      => (string) $item['objectid'],
-                        'userRating' => $userRating,
+                        'bggId'       => (string) $item['objectid'],
+                        'userRating'  => $userRating,
+                        'isExpansion' => $subtype === 'boardgameexpansion',
                     ];
                 }
 
@@ -242,10 +248,40 @@ class BggApiService
 
     private function parseGameXml(SimpleXMLElement $item): array
     {
-        $name = '';
+        $bggType  = (string) $item['type'];   // 'boardgame' | 'boardgameexpansion'
+        $name     = '';
+        $nameFr   = null;
+        $altNames = [];
+
         foreach ($item->name as $nameEl) {
-            if ((string) $nameEl['type'] === 'primary') {
-                $name = (string) $nameEl['value'];
+            $type  = (string) $nameEl['type'];
+            $value = $this->sanitizeUtf8((string) $nameEl['value']);
+            if ($type === 'primary') {
+                $name = $value;
+            } elseif ($type === 'alternate') {
+                $altNames[] = $value;
+            }
+        }
+
+        // Détection du nom français : STRICTE pour éviter les faux positifs
+        // (espagnol, italien, portugais ont aussi des accents et articles similaires).
+        // On ne considère comme français que les noms qui contiennent des marqueurs
+        // UNIQUEMENT français : "édition française", "version française", "francaise",
+        // ou des mots spécifiques au ludique FR : "jeu de ", "joueurs", "boîte".
+        foreach ($altNames as $alt) {
+            $lower = mb_strtolower($alt);
+            if (
+                stripos($lower, 'édition française') !== false ||
+                stripos($lower, 'edition française') !== false ||
+                stripos($lower, 'édition francaise') !== false ||
+                stripos($lower, 'edition francaise') !== false ||
+                stripos($lower, 'version française') !== false ||
+                stripos($lower, 'version francaise') !== false ||
+                preg_match('/\bjoueurs?\b/u', $lower) ||
+                preg_match('/\bjeu de\b/u', $lower) ||
+                preg_match('/\bboîte\b/u', $lower)
+            ) {
+                $nameFr = $alt;
                 break;
             }
         }
@@ -254,6 +290,7 @@ class BggApiService
         $mechanics       = [];
         $expansionIds    = [];
         $implementsIds   = [];  // BGG IDs des jeux dont celui-ci est une réédition
+        $baseGameIds     = [];  // BGG IDs des jeux de base (si cette fiche est une extension)
 
         foreach ($item->link as $link) {
             $type    = (string) $link['type'];
@@ -266,7 +303,11 @@ class BggApiService
             } elseif ($type === 'boardgamemechanic') {
                 $mechanics[] = $value;
             } elseif ($type === 'boardgameexpansion' && !$inbound) {
+                // Extension d'un jeu de base → liste des extensions du jeu courant
                 $expansionIds[] = $linkId;
+            } elseif ($type === 'boardgameexpansion' && $inbound) {
+                // Ce jeu EST une extension → ID(s) du(des) jeu(x) de base
+                $baseGameIds[] = $linkId;
             } elseif ($type === 'boardgameimplementation' && $inbound) {
                 $implementsIds[] = $linkId;
             }
@@ -290,6 +331,7 @@ class BggApiService
         $ratingRaw   = (float) $item->statistics->ratings->average['value'];
         $weightRaw   = (float) $item->statistics->ratings->averageweight['value'];
         $usersRated  = (int)   $item->statistics->ratings->usersrated['value'];
+        $minAge      = (int)   $item->minage['value'];
 
         // Rang BGG global (type "boardgame")
         $bggRank = null;
@@ -305,7 +347,10 @@ class BggApiService
 
         return [
             'bggId'        => (string) $item['id'],
+            'bggType'      => in_array($bggType, ['boardgame', 'boardgameexpansion'], true) ? $bggType : 'boardgame',
             'name'         => $this->sanitizeUtf8($name ?: 'Unknown'),
+            'nameFr'       => $nameFr,
+            'minAge'       => $minAge > 0 ? $minAge : null,
             'description'  => $description ?: null,
             'minPlayers'   => max(1, (int) $item->minplayers['value']),
             'maxPlayers'   => max(1, (int) $item->maxplayers['value']),
@@ -320,6 +365,7 @@ class BggApiService
             'usersRated'      => $usersRated > 0 ? $usersRated : null,
             'expansionIds'    => $expansionIds,
             'implementsIds'   => $implementsIds,
+            'baseGameIds'     => $baseGameIds,
         ];
     }
 

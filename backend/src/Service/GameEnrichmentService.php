@@ -3,6 +3,7 @@
 namespace App\Service;
 
 use App\Entity\Game;
+use App\Repository\GameRepository;
 use Doctrine\ORM\EntityManagerInterface;
 
 class GameEnrichmentService
@@ -11,6 +12,7 @@ class GameEnrichmentService
         private readonly BggApiService $bggApi,
         private readonly EntityManagerInterface $em,
         private readonly MechanicFamilyResolver $familyResolver,
+        private readonly GameRepository $gameRepository,
     ) {}
 
     /**
@@ -50,10 +52,19 @@ class GameEnrichmentService
 
     public function hydrate(Game $game, array $data): Game
     {
+        $originalName = $data['name'];
+        $nameFr       = $data['nameFr'] ?? null;
+        // Le nom d'affichage : FR si détecté, sinon nom original BGG
+        $displayName  = $nameFr ?: $originalName;
+
+        $bggType = $data['bggType'] ?? 'boardgame';
+
         $game
             ->setBggId($data['bggId'])
-            ->setName($data['name'])
-            // Ne pas écraser une valeur existante par null (BGG peut renvoyer vide selon les jeux)
+            ->setName($displayName)
+            ->setNameOriginal($originalName)
+            ->setBggType($bggType)
+            ->setIsExpansion($bggType === 'boardgameexpansion')
             ->setDescription($data['description'] ?? $game->getDescription())
             ->setMinPlayers($data['minPlayers'])
             ->setMaxPlayers($data['maxPlayers'])
@@ -66,8 +77,13 @@ class GameEnrichmentService
             ->setRatingBgg($data['ratingBgg'] ?? $game->getRatingBgg())
             ->setBggRank($data['bggRank']    ?? $game->getBggRank())
             ->setUsersRated($data['usersRated'] ?? $game->getUsersRated())
+            ->setMinAge($data['minAge'] ?? $game->getMinAge())
             ->setExpansionBggIds(!empty($data['expansionIds'])  ? $data['expansionIds']  : $game->getExpansionBggIds())
-            ->setImplementsBggIds(!empty($data['implementsIds']) ? $data['implementsIds'] : $game->getImplementsBggIds())
+            ->setImplementsBggIds($this->buildImplementsIds(
+                $data['baseGameIds']   ?? [],
+                $data['implementsIds'] ?? [],
+                $game->getImplementsBggIds()
+            ))
             ->setSource('bgg_api')
             ->setLastSyncedAt(new \DateTimeImmutable());
 
@@ -75,7 +91,46 @@ class GameEnrichmentService
         $game->setMechanicFamilies($resolved['families']);
         $game->setDetectedEngines($resolved['detectedEngines']);
 
+        // Si c'est une extension, lier le(s) jeu(x) de base
+        if ($bggType === 'boardgameexpansion' && !empty($data['baseGameIds'])) {
+            $this->linkToBaseGames($game, $data['baseGameIds']);
+        }
+
         return $game;
+    }
+
+    /**
+     * Met à jour les jeux de base pour qu'ils incluent l'extension dans leur expansionBggIds.
+     */
+    private function linkToBaseGames(Game $expansion, array $baseGameBggIds): void
+    {
+        foreach ($baseGameBggIds as $baseId) {
+            $baseGame = $this->gameRepository->findOneBy(['bggId' => $baseId]);
+            if ($baseGame === null) {
+                continue;
+            }
+            $current = $baseGame->getExpansionBggIds();
+            if (!in_array($expansion->getBggId(), $current, true)) {
+                $baseGame->setExpansionBggIds(array_values(array_unique([...$current, $expansion->getBggId()])));
+            }
+        }
+    }
+
+    /**
+     * Construit la liste d'IDs implements_bgg_ids en fusionnant :
+     * - baseGameIds   : IDs du jeu de base (pour les extensions BGG)
+     * - implementsIds : IDs de re-implémentations
+     * Si les deux nouvelles sources sont vides, on conserve la valeur existante.
+     */
+    private function buildImplementsIds(array $baseGameIds, array $implementsIds, array $existing): array
+    {
+        $merged = array_values(array_unique(array_merge($baseGameIds, $implementsIds)));
+        return !empty($merged) ? $merged : $existing;
+    }
+
+    public function getBggApiService(): BggApiService
+    {
+        return $this->bggApi;
     }
 
     /** Recalcule les familles et engines d'un jeu déjà enrichi sans rappeler l'API BGG. */
