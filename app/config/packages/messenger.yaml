@@ -1,0 +1,6 @@
+framework:
+    messenger:
+        # Aucune file asynchrone : le service `worker` ne consomme que le planificateur
+        # (scheduler_default), qui exécute ses messages à la volée.
+        transports:
+            sync: 'sync://'

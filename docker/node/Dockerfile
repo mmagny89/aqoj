@@ -1,10 +1,8 @@
-FROM node:24-alpine
-
-COPY docker/node/entrypoint.sh /usr/local/bin/entrypoint.sh
-RUN chmod +x /usr/local/bin/entrypoint.sh
-
-WORKDIR /app
-
+# syntax=docker/dockerfile:1
+# Serveur de developpement uniquement — le build de production est une
+# etape du Dockerfile PHP (frontend_builder), pas de ce fichier.
+ARG NODE_VERSION
+FROM node:${NODE_VERSION}
+WORKDIR /frontend
 EXPOSE 5173
-
-ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "5173"]
