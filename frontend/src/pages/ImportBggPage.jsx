@@ -13,7 +13,7 @@ export default function ImportBggPage() {
     if (user?.bggUsername && !username) {
       setUsername(user.bggUsername)
     }
-  }, [user])
+  }, [user, username])
 
   const handleImport = async (e) => {
     e.preventDefault()

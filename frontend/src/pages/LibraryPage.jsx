@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { getLibrary, getUserPreferences, recomputeUserPreferences } from '../api'
 import { useAuth } from '../context/AuthContext'
 import GameCard from '../components/GameCard'
-import { familyLabel, familyColor, SUPPORT_COLOR, EXTRA_COLORS, EXTRA_FAMILIES } from '../utils/engelstein'
+import { familyLabel, familyColor, SUPPORT_COLOR } from '../utils/engelstein'
 
 /* ── Hook pour un onglet paginé ────────────────────────────────────────── */
 // isExpansion: true = extensions seulement, false = base seulement, null = tous

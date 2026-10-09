@@ -68,8 +68,8 @@ class MechanicFamilyResolver
         arsort($engineCounts);
 
         return [
-            'families'        => array_values(array_keys($families)),
-            'detectedEngines' => array_values(array_keys($engineCounts)),
+            'families'        => array_keys($families),
+            'detectedEngines' => array_keys($engineCounts),
         ];
     }
 

@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import { getGame, createSession, getSimilarGames } from '../api'
 import GameCard from '../components/GameCard'
 import { familyLabel, familyColor, isEngine, isExtra, SUPPORT_COLOR } from '../utils/engelstein'
-import { groupCategories, categoryInfo } from '../utils/categories'
+import { groupCategories } from '../utils/categories'
 
 /* ── Complexité visuelle ─────────────────────────────────────────────── */
 function ComplexityBar({ value }) {
@@ -152,7 +152,6 @@ export default function GameDetailPage() {
   const [similarGames,  setSimilarGames]  = useState(null)
   const [similarLimit,  setSimilarLimit]  = useState(5)
   const [similarLoading, setSimilarLoading] = useState(false)
-  const [similarTotal,  setSimilarTotal]  = useState(null)
 
   const [showSessionForm, setShowSessionForm] = useState(false)
   const [sessionForm, setSessionForm] = useState({ playersCount: 4, rating: null, note: '' })

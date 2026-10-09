@@ -110,7 +110,7 @@ class GameEnrichmentService
             }
             $current = $baseGame->getExpansionBggIds();
             if (!in_array($expansion->getBggId(), $current, true)) {
-                $baseGame->setExpansionBggIds(array_values(array_unique([...$current, $expansion->getBggId()])));
+                $baseGame->setExpansionBggIds(array_keys(array_flip([...$current, $expansion->getBggId()])));
             }
         }
     }

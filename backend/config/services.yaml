@@ -23,3 +23,14 @@ services:
     App\Service\JwtService:
         arguments:
             $jwtSecret: '%env(JWT_SECRET)%'
+
+when@test:
+    services:
+        # Aucun appel réel à BGG pendant les tests : toute requête échoue comme une panne réseau.
+        test.bgg_http_client:
+            class: Symfony\Component\HttpClient\MockHttpClient
+
+        App\Service\BggApiService:
+            arguments:
+                $httpClient: '@test.bgg_http_client'
+                $bggToken: ''

@@ -109,7 +109,14 @@ class BggApiService
 
     private function parseXml(string $body): SimpleXMLElement
     {
-        $xml = simplexml_load_string($body);
+        $previous = libxml_use_internal_errors(true);
+        try {
+            // LIBXML_NONET : aucune ressource externe chargée depuis une réponse distante.
+            $xml = simplexml_load_string($body, options: LIBXML_NONET);
+        } finally {
+            libxml_clear_errors();
+            libxml_use_internal_errors($previous);
+        }
         if ($xml === false) {
             throw new BggApiException('Réponse XML invalide de BGG.');
         }
@@ -344,14 +351,15 @@ class BggApiService
             $imageUrl = 'https:' . $imageUrl;
         }
 
-        $ratingRaw   = (float) $item->statistics->ratings->average['value'];
-        $weightRaw   = (float) $item->statistics->ratings->averageweight['value'];
-        $usersRated  = (int)   $item->statistics->ratings->usersrated['value'];
+        $ratings     = $item->statistics?->ratings;
+        $ratingRaw   = (float) ($ratings?->average['value'] ?? 0);
+        $weightRaw   = (float) ($ratings?->averageweight['value'] ?? 0);
+        $usersRated  = (int)   ($ratings?->usersrated['value'] ?? 0);
         $minAge      = (int)   $item->minage['value'];
 
         // Rang BGG global (type "boardgame")
         $bggRank = null;
-        foreach ($item->statistics->ratings->ranks->rank ?? [] as $rank) {
+        foreach ($ratings?->ranks->rank ?? [] as $rank) {
             if ((string) $rank['name'] === 'boardgame') {
                 $rankVal = (string) $rank['value'];
                 if (is_numeric($rankVal)) {

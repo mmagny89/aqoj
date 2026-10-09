@@ -232,11 +232,11 @@ class AdminMechanicMappingController extends AbstractController
 
                 $casesFamilies[]  = 'WHEN id = ? THEN ?::jsonb';
                 $paramsFamilies[] = $row['id'];
-                $paramsFamilies[] = json_encode(array_values(array_keys($families)));
+                $paramsFamilies[] = json_encode(array_keys($families));
 
                 $casesEngines[]  = 'WHEN id = ? THEN ?::jsonb';
                 $paramsEngines[] = $row['id'];
-                $paramsEngines[] = json_encode(array_values(array_keys($engineCounts)));
+                $paramsEngines[] = json_encode(array_keys($engineCounts));
 
                 $ids[] = $row['id'];
                 $count++;

@@ -72,7 +72,7 @@ class RecommendationService
 
         usort($scored, fn($a, $b) => $b['score'] <=> $a['score']);
 
-        return array_slice(array_values($scored), 0, 30);
+        return array_slice($scored, 0, 30);
     }
 
     /**
@@ -125,7 +125,7 @@ class RecommendationService
 
         usort($scored, fn($a, $b) => $b['score'] <=> $a['score']);
 
-        return array_slice(array_values($scored), 0, 30);
+        return array_slice($scored, 0, 30);
     }
 
     /**
@@ -178,7 +178,7 @@ class RecommendationService
         $byDecade = [];
         foreach ($decades as $label => [$min, $max]) {
             // On saute la décennie 2020 si $min > $max (cas où currentYear - 4 < 2020)
-            if ($min !== null && $max !== null && $min > $max) {
+            if ($min > $max) {
                 continue;
             }
 
@@ -302,7 +302,7 @@ class RecommendationService
         $currentYear = (int) date('Y');
 
         $scored = array_map(function (Game $game) use ($topFamilies, $recentBoost, $currentYear): array {
-            $gameFamilies = $game->getMechanicFamilies() ?? [];
+            $gameFamilies = $game->getMechanicFamilies();
             $overlap      = count(array_intersect($topFamilies, $gameFamilies));
             $rating       = $this->bayesianRating($game->getRatingBgg(), $game->getUsersRated());
             $year         = $game->getYearPublished();
@@ -337,7 +337,7 @@ class RecommendationService
 
         usort($scored, fn($a, $b) => $b['score'] <=> $a['score']);
 
-        return array_values($scored);
+        return $scored;
     }
 
     /**

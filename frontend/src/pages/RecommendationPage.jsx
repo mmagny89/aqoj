@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { getRecommendations, getUserPreferences, getThemeMappings } from '../api'
 import GameCard from '../components/GameCard'
 import { useAuth } from '../context/AuthContext'
-import { ENGINES, SUPPORT_FAMILIES, EXTRA_FAMILIES, familyLabel, familyColor, SUPPORT_COLOR, EXTRA_COLORS } from '../utils/engelstein'
+import { ENGINES, SUPPORT_FAMILIES, EXTRA_FAMILIES, familyLabel, familyColor, EXTRA_COLORS } from '../utils/engelstein'
 
 const ENGINE_ICONS = {
   worker_placement: '🏗️', deck_building: '🃏', engine_building: '⚙️',

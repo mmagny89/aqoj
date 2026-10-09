@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { getSessions, createSession, getGames } from '../api'
 
-function RatingButton({ value, selected, onClick, children }) {
+function RatingButton({ selected, onClick, children }) {
   return (
     <button
       type="button"

@@ -39,7 +39,7 @@ class UserGameRepository
     /**
      * Retourne le set des gameId (int) possédés par l'utilisateur.
      *
-     * @return array<int, true>  clés = gameId, valeurs = true (isset-friendly)
+     * @return array<int, int>  clés = gameId (à tester avec isset)
      */
     public function getOwnedGameIds(User $user): array
     {
