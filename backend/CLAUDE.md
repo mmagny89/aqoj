@@ -12,7 +12,11 @@ Symfony 8.1, PHP 8.4, Doctrine, PostgreSQL. Pas de Flex : configuration manuelle
 - Dans un `Command`, ne pas nommer une méthode `run()` (déjà définie, publique, dans `Command`).
 
 ## API et accès
-- Authentification par JWT HS256 (24 h) maison : `AuthController::extractUser()` ; chaque route protégée doit l'appeler. Les routes admin répondent 403 sans administrateur — `tests/Functional/AccessControlTest.php` les liste, y ajouter toute nouvelle route admin.
+- Authentification par JWT HS256 (24 h), portée par le pare-feu `api` (`security.yaml`, `App\Security\JwtAuthenticator`). Un jeton absent, expiré ou illisible laisse la requête **anonyme** : les routes publiques (catalogue, recherche) répondent toujours.
+- `access_control` est le garde-fou central : `^/api/admin` exige `ROLE_ADMIN`, et `^/api/(auth/me|bgg|sessions|user)` exige `ROLE_USER` (401 anonyme, 403 sinon, en JSON). Toute nouvelle route privée entre dans ce fichier — une route sous `/api/admin` est protégée d'office.
+- Les contrôleurs gardent leurs propres contrôles (`AuthController::extractUser()`, `isAdmin()`) en seconde ligne et pour les routes à identité facultative (`/api/games*`, qui marquent les jeux possédés).
+- `tests/Functional/AccessControlTest.php` liste les routes admin : y ajouter toute nouvelle route admin.
+- Limitation : `login` (5 essais par quart d'heure pour une même paire adresse + e-mail), `login_ip` (20 par adresse), `register` (5 par heure et par adresse), réponse 429 avec `Retry-After`. L'adresse vient de `X-Forwarded-For` (`trusted_proxies: private_ranges`, donc valable derrière Caddy seulement). Stockage dans `cache.rate_limiter` (fichiers) : à déplacer sur un stockage partagé si le back passe à plusieurs instances.
 - Le front est servi sur la même origine ; CORS limité à `CORS_ALLOW_ORIGIN`.
 
 ## Tests et analyse

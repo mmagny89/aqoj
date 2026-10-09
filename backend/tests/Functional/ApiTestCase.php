@@ -7,6 +7,16 @@ use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 
 abstract class ApiTestCase extends WebTestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // Les compteurs de limitation (tentatives de connexion, inscriptions) ne doivent pas déborder d'un test à l'autre.
+        static::bootKernel();
+        static::getContainer()->get('cache.rate_limiter')->clear();
+        static::ensureKernelShutdown();
+    }
+
     /**
      * @param array<string, mixed>|null $body
      *

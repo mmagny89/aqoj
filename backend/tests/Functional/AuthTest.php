@@ -54,4 +54,41 @@ final class AuthTest extends ApiTestCase
 
         self::assertResponseStatusCodeSame(401);
     }
+
+    public function testLesEssaisDeConnexionRepetesSontLimites(): void
+    {
+        $client = static::createClient();
+
+        for ($i = 0; $i < 5; $i++) {
+            $this->call($client, 'POST', '/api/auth/login', ['email' => 'cible@example.test', 'password' => 'faux-' . $i]);
+            self::assertResponseStatusCodeSame(401);
+        }
+
+        $this->call($client, 'POST', '/api/auth/login', ['email' => 'cible@example.test', 'password' => 'faux-encore']);
+
+        self::assertResponseStatusCodeSame(429);
+        self::assertResponseHasHeader('Retry-After');
+    }
+
+    public function testLesInscriptionsRepeteesDUneMemeAdresseSontLimitees(): void
+    {
+        $client = static::createClient();
+
+        for ($i = 0; $i < 5; $i++) {
+            $this->register($client, "inscrit{$i}@example.test");
+        }
+
+        $this->call($client, 'POST', '/api/auth/register', ['email' => 'trop@example.test', 'password' => 'mot-de-passe-solide']);
+
+        self::assertResponseStatusCodeSame(429);
+    }
+
+    public function testUnTokenPerimeNeCasseLesRoutesPubliques(): void
+    {
+        $client = static::createClient();
+
+        $this->call($client, 'GET', '/api/health', token: 'jeton.illisible.xyz');
+
+        self::assertResponseIsSuccessful();
+    }
 }

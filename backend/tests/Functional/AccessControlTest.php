@@ -24,7 +24,7 @@ final class AccessControlTest extends ApiTestCase
 
         $this->call($client, $method, $uri);
 
-        self::assertResponseStatusCodeSame(403);
+        self::assertResponseStatusCodeSame(401);
     }
 
     #[DataProvider('routesAdmin')]
@@ -33,9 +33,10 @@ final class AccessControlTest extends ApiTestCase
         $client = static::createClient();
         $token = $this->register($client, 'ordinaire@example.test');
 
-        $this->call($client, $method, $uri, token: $token);
+        $body = $this->call($client, $method, $uri, token: $token);
 
         self::assertResponseStatusCodeSame(403);
+        self::assertSame('Accès refusé.', $body['error']);
     }
 
     public function testLesSessionsDeJeuExigentUneAuthentification(): void

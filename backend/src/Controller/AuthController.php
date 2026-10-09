@@ -9,6 +9,8 @@ use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\RateLimiter\RateLimiterFactoryInterface;
+use Symfony\Component\RateLimiter\RateLimit;
 use Symfony\Component\Routing\Attribute\Route;
 
 class AuthController extends AbstractController
@@ -19,7 +21,13 @@ class AuthController extends AbstractController
         UserRepository $userRepository,
         EntityManagerInterface $em,
         JwtService $jwt,
+        RateLimiterFactoryInterface $registerLimiter,
     ): JsonResponse {
+        $limit = $registerLimiter->create($request->getClientIp() ?? 'inconnue')->consume();
+        if (!$limit->isAccepted()) {
+            return $this->tooManyAttempts($limit);
+        }
+
         $data = json_decode($request->getContent(), true);
         $email = trim(strtolower($data['email'] ?? ''));
         $password = $data['password'] ?? '';
@@ -54,14 +62,27 @@ class AuthController extends AbstractController
         Request $request,
         UserRepository $userRepository,
         JwtService $jwt,
+        RateLimiterFactoryInterface $loginLimiter,
+        RateLimiterFactoryInterface $loginIpLimiter,
     ): JsonResponse {
         $data = json_decode($request->getContent(), true);
         $email = trim(strtolower($data['email'] ?? ''));
         $password = $data['password'] ?? '';
 
+        // Chaque essai compte, réussi ou non : un limiteur qui ne compterait que les échecs
+        // se laisserait contourner en alternant avec un compte valide.
+        $ip = $request->getClientIp() ?? 'inconnue';
+        $limit = $loginIpLimiter->create($ip)->consume();
+        $limitPair = $loginLimiter->create($ip . '|' . $email)->consume();
+        if (!$limit->isAccepted() || !$limitPair->isAccepted()) {
+            return $this->tooManyAttempts($limitPair->isAccepted() ? $limit : $limitPair);
+        }
+
         $user = $userRepository->findByEmail($email);
 
-        if (!$user || !password_verify($password, $user->getPasswordHash())) {
+        // password_verify même si le compte n'existe pas : le temps de réponse ne révèle pas l'e-mail.
+        $hash = $user?->getPasswordHash() ?? '$2y$12$0123456789012345678901uJ0Tn1Q2yQ7Z3b2m0m5c0m0m0m0m0m0';
+        if (!password_verify($password, $hash) || !$user) {
             return $this->json(['error' => 'E-mail ou mot de passe incorrect.'], 401);
         }
 
@@ -69,6 +90,17 @@ class AuthController extends AbstractController
             'token' => $jwt->generateToken($user),
             'user' => $user,
         ]);
+    }
+
+    private function tooManyAttempts(RateLimit $limit): JsonResponse
+    {
+        $wait = max(1, $limit->getRetryAfter()->getTimestamp() - time());
+
+        return $this->json(
+            ['error' => 'Trop de tentatives. Réessayez dans quelques minutes.'],
+            429,
+            ['Retry-After' => (string) $wait],
+        );
     }
 
     #[Route('/api/auth/me', name: 'api_auth_me', methods: ['GET'])]
