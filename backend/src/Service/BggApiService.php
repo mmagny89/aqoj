@@ -3,11 +3,32 @@
 namespace App\Service;
 
 use SimpleXMLElement;
+use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
+/**
+ * Client BGG (xmlapi2). Toutes les requêtes passent par request() : cadence
+ * minimale entre deux appels et nouvelles tentatives espacées y sont réglées
+ * une seule fois.
+ *
+ * En CLI (cron), on respecte les 5 s demandées par BGG et on insiste en cas
+ * d'attente (202), de limitation (429) ou d'erreur serveur. Dans une requête
+ * web, on n'attend presque pas et on n'insiste pas : mieux vaut échouer vite
+ * que bloquer un joueur.
+ */
 class BggApiService
 {
     private const BASE_URL = 'https://boardgamegeek.com/xmlapi2';
+
+    /** Au-delà, l'API répond 400 « Cannot load more than 20 items ». */
+    public const MAX_IDS = 20;
+
+    private const CLI_INTERVAL = 5.0;
+    private const WEB_INTERVAL = 1.0;
+    private const CLI_ATTEMPTS = 5;
+    private const RETRY_BASE_SECONDS = 10;
+
+    private float $lastCallAt = 0.0;
 
     public function __construct(
         private readonly HttpClientInterface $httpClient,
@@ -28,14 +49,80 @@ class BggApiService
         return $headers;
     }
 
+    private function isCli(): bool
+    {
+        return PHP_SAPI === 'cli';
+    }
+
+    /**
+     * GET sur l'API, corps de la réponse en cas de 200.
+     *
+     * Réessaie (en espaçant) les statuts 202, 429, 5xx et les erreurs réseau,
+     * dans la limite de $maxAttempts. Les autres statuts lèvent aussitôt.
+     *
+     * @throws BggApiException code = statut HTTP, 0 si BGG est injoignable
+     */
+    private function request(string $path, array $query, int $timeout, int $maxAttempts, int $retryBase): string
+    {
+        for ($attempt = 1; ; $attempt++) {
+            $this->throttle();
+
+            try {
+                $response = $this->httpClient->request('GET', self::BASE_URL . $path, [
+                    'headers' => $this->headers(),
+                    'query'   => $query,
+                    'timeout' => $timeout,
+                ]);
+                $status = $response->getStatusCode();
+                if ($status === 200) {
+                    return $response->getContent();
+                }
+            } catch (TransportExceptionInterface $e) {
+                $status = 0;
+                if ($attempt >= $maxAttempts) {
+                    throw new BggApiException('BGG injoignable : ' . $e->getMessage(), 0, $e);
+                }
+            }
+
+            $retryable = $status === 0 || $status === 202 || $status === 429 || $status >= 500;
+            if (!$retryable) {
+                throw new BggApiException("BGG a refusé la demande (HTTP {$status}).", $status);
+            }
+            if ($attempt >= $maxAttempts) {
+                throw new BggApiException("BGG reste indisponible après {$attempt} tentative(s) (HTTP {$status}).", $status);
+            }
+
+            sleep($retryBase * $attempt);
+        }
+    }
+
+    /** Garantit l'intervalle minimal entre deux appels du même processus. */
+    private function throttle(): void
+    {
+        $interval = $this->isCli() ? self::CLI_INTERVAL : self::WEB_INTERVAL;
+        $wait = $this->lastCallAt + $interval - microtime(true);
+        if ($wait > 0) {
+            usleep((int) ($wait * 1_000_000));
+        }
+        $this->lastCallAt = microtime(true);
+    }
+
+    private function parseXml(string $body): SimpleXMLElement
+    {
+        $xml = simplexml_load_string($body);
+        if ($xml === false) {
+            throw new BggApiException('Réponse XML invalide de BGG.');
+        }
+
+        return $xml;
+    }
+
     /**
      * Récupère la collection BGG d'un utilisateur avec les notes personnelles.
+     * Un seul appel suffit : chaque item porte son sous-type (isExpansion).
      *
-     * @return array<array{bggId: string, userRating: float|null}>
-     */
-    /**
-     * Récupère la collection BGG d'un utilisateur.
      * @param bool $includeExpansions  true = inclure les extensions possédées
+     * @return array<array{bggId: string, userRating: float|null, isExpansion: bool}>
      */
     public function fetchCollection(string $username, bool $includeExpansions = false): array
     {
@@ -44,51 +131,28 @@ class BggApiService
             $query['excludesubtype'] = 'boardgameexpansion';
         }
 
-        for ($attempt = 0; $attempt < 5; $attempt++) {
-            $response = $this->httpClient->request('GET', self::BASE_URL . '/collection', [
-                'headers' => $this->headers(),
-                'query'   => $query,
-                'timeout' => 30,
-            ]);
-
-            $statusCode = $response->getStatusCode();
-
-            if ($statusCode === 202) {
-                sleep(3);
-                continue;
+        // BGG prépare les grosses collections en différé (202) : on patiente 3 s, 5 fois, même en web.
+        try {
+            $body = $this->request('/collection', $query, 30, 5, 3);
+        } catch (BggApiException $e) {
+            if ($e->getCode() === 401) {
+                throw new BggApiException("Collection BGG privée ou utilisateur introuvable. Vérifiez que votre collection est publique sur boardgamegeek.com.", 401, $e);
             }
-
-            if ($statusCode === 401) {
-                throw new \RuntimeException("Collection BGG privée ou utilisateur introuvable. Vérifiez que votre collection est publique sur boardgamegeek.com.");
-            }
-
-            if ($statusCode === 200) {
-                $xml = simplexml_load_string($response->getContent());
-
-                if ($xml === false) {
-                    throw new \RuntimeException('Invalid XML response from BGG');
-                }
-
-                $items = [];
-                foreach ($xml->item as $item) {
-                    $ratingRaw  = (string) ($item->stats->rating['value'] ?? 'N/A');
-                    $userRating = is_numeric($ratingRaw) ? (float) $ratingRaw : null;
-                    $subtype    = (string) ($item['subtype'] ?? 'boardgame');
-
-                    $items[] = [
-                        'bggId'       => (string) $item['objectid'],
-                        'userRating'  => $userRating,
-                        'isExpansion' => $subtype === 'boardgameexpansion',
-                    ];
-                }
-
-                return $items;
-            }
-
-            throw new \RuntimeException("BGG API returned status {$statusCode}");
+            throw $e;
         }
 
-        throw new \RuntimeException('BGG API timeout: collection not ready after retries');
+        $items = [];
+        foreach ($this->parseXml($body)->item as $item) {
+            $ratingRaw = (string) ($item->stats->rating['value'] ?? 'N/A');
+
+            $items[] = [
+                'bggId'       => (string) $item['objectid'],
+                'userRating'  => is_numeric($ratingRaw) ? (float) $ratingRaw : null,
+                'isExpansion' => (string) ($item['subtype'] ?? 'boardgame') === 'boardgameexpansion',
+            ];
+        }
+
+        return $items;
     }
 
     /**
@@ -98,23 +162,10 @@ class BggApiService
      */
     public function fetchHotList(): array
     {
-        $response = $this->httpClient->request('GET', self::BASE_URL . '/hot', [
-            'headers' => $this->headers(),
-            'query'   => ['type' => 'boardgame'],
-            'timeout' => 15,
-        ]);
-
-        if ($response->getStatusCode() !== 200) {
-            throw new \RuntimeException('BGG Hot List returned HTTP ' . $response->getStatusCode());
-        }
-
-        $xml = simplexml_load_string($response->getContent());
-        if ($xml === false) {
-            throw new \RuntimeException('Invalid XML from BGG hot list');
-        }
+        $body = $this->request('/hot', ['type' => 'boardgame'], 15, $this->isCli() ? 3 : 1, self::RETRY_BASE_SECONDS);
 
         $ids = [];
-        foreach ($xml->item as $item) {
+        foreach ($this->parseXml($body)->item as $item) {
             $ids[] = (string) $item['id'];
         }
 
@@ -129,25 +180,11 @@ class BggApiService
      */
     public function searchByYear(string $query, int $minYear): array
     {
-        $response = $this->httpClient->request('GET', self::BASE_URL . '/search', [
-            'headers' => $this->headers(),
-            'query'   => ['query' => $query, 'type' => 'boardgame'],
-            'timeout' => 15,
-        ]);
-
-        if ($response->getStatusCode() !== 200) {
-            return [];
-        }
-
-        $xml = simplexml_load_string($response->getContent());
-        if ($xml === false) {
-            return [];
-        }
+        $xml = $this->search($query);
 
         $ids = [];
         foreach ($xml->item as $item) {
-            $pubYear = (int) ($item->yearpublished['value'] ?? 0);
-            if ($pubYear >= $minYear) {
+            if ((int) ($item->yearpublished['value'] ?? 0) >= $minYear) {
                 $ids[] = (string) $item['id'];
             }
         }
@@ -155,95 +192,100 @@ class BggApiService
         return $ids;
     }
 
-    /** @deprecated Utiliser fetchCollection() qui retourne aussi les notes utilisateur */
-    public function fetchCollectionIds(string $username): array
+    /**
+     * Les 8 premiers IDs BGG correspondant à un terme.
+     *
+     * @return string[]
+     * @throws BggApiException
+     */
+    public function searchByQuery(string $query): array
     {
-        return array_column($this->fetchCollection($username), 'bggId');
+        $ids = [];
+        foreach ($this->search($query)->item as $item) {
+            $ids[] = (string) $item['id'];
+        }
+
+        return array_slice($ids, 0, 8);
     }
 
+    /** @throws BggApiException */
+    private function search(string $query): SimpleXMLElement
+    {
+        return $this->parseXml(
+            $this->request('/search', ['query' => $query, 'type' => 'boardgame'], 15, $this->isCli() ? 3 : 1, self::RETRY_BASE_SECONDS)
+        );
+    }
+
+    /**
+     * Détails de 20 jeux au plus par appel. Un jeu absent de la réponse (supprimé
+     * chez BGG) ou illisible est simplement absent du résultat : à l'appelant de
+     * le dater (GameRepository::markFetchAttempted) pour ne pas le redemander.
+     *
+     * @param string[] $bggIds
+     * @return array<int, array<string, mixed>>
+     * @throws BggApiException
+     */
     public function fetchGamesDetails(array $bggIds): array
     {
         if (empty($bggIds)) {
             return [];
         }
+        if (count($bggIds) > self::MAX_IDS) {
+            throw new \InvalidArgumentException(sprintf('Un appel thing porte de 1 à %d identifiants.', self::MAX_IDS));
+        }
 
-        // Retry avec backoff exponentiel sur les 429 (rate-limit BGG)
-        $waits = [10, 30, 60]; // secondes d'attente entre tentatives
+        $body = $this->request(
+            '/thing',
+            ['id' => implode(',', $bggIds), 'stats' => 1, 'versions' => 1],
+            30,
+            $this->isCli() ? self::CLI_ATTEMPTS : 1,
+            self::RETRY_BASE_SECONDS,
+        );
 
-        foreach ([null, ...$waits] as $attempt => $waitBefore) {
-            if ($waitBefore !== null) {
-                sleep($waitBefore);
+        $games = [];
+        foreach ($this->parseXml($body)->item as $item) {
+            try {
+                $games[] = $this->parseGameXml($item);
+            } catch (\Throwable) {
+                continue;
             }
+        }
 
-            $response = $this->httpClient->request('GET', self::BASE_URL . '/thing', [
-                'headers' => $this->headers(),
-                'query'   => ['id' => implode(',', $bggIds), 'stats' => 1],
-                'timeout' => 30,
-            ]);
+        return $games;
+    }
 
-            $status = $response->getStatusCode();
+    /**
+     * Titre français : celui de l'édition monolingue française la plus récente
+     * (`thing?versions=1`). Une édition multilingue garde le plus souvent le titre
+     * anglais, et les noms alternatifs mélangent toutes les langues : aucun des
+     * deux n'est fiable.
+     */
+    private function frenchTitle(SimpleXMLElement $item): ?string
+    {
+        $title = null;
+        $titleYear = -1;
 
-            if ($status === 429) {
-                if ($waitBefore === 60) {
-                    // Dernière tentative échouée
-                    throw new \RuntimeException('BGG rate-limit (429) persistant après 3 tentatives.');
+        foreach ($item->versions->item ?? [] as $version) {
+            $languages = [];
+            foreach ($version->link as $link) {
+                if ((string) $link['type'] === 'language') {
+                    $languages[] = (string) $link['value'];
                 }
-                // On laisse la boucle faire la prochaine itération avec son délai
+            }
+            if ($languages !== ['French']) {
                 continue;
             }
 
-            if ($status !== 200) {
-                throw new \RuntimeException("BGG API returned HTTP {$status}");
+            // BGG échappe certaines apostrophes et double parfois les espaces.
+            $name = trim((string) preg_replace('/\s+/u', ' ', str_replace("\\'", "'", (string) ($version->canonicalname['value'] ?? ''))));
+            $year = (int) ($version->yearpublished['value'] ?? 0);
+            if ($name !== '' && $year > $titleYear) {
+                $title = $this->sanitizeUtf8($name);
+                $titleYear = $year;
             }
-
-            $xml = simplexml_load_string($response->getContent());
-            if ($xml === false) {
-                throw new \RuntimeException('Invalid XML response from BGG');
-            }
-
-            $games = [];
-            foreach ($xml->item as $item) {
-                try {
-                    $games[] = $this->parseGameXml($item);
-                } catch (\Throwable) {
-                    continue;
-                }
-            }
-
-            return $games;
         }
 
-        // Ne devrait jamais être atteint
-        throw new \RuntimeException('BGG fetchGamesDetails : toutes les tentatives ont échoué.');
-    }
-
-    public function searchByQuery(string $query): array
-    {
-        try {
-            $response = $this->httpClient->request('GET', self::BASE_URL . '/search', [
-                'headers' => $this->headers(),
-                'query' => ['query' => $query, 'type' => 'boardgame'],
-                'timeout' => 15,
-            ]);
-
-            if ($response->getStatusCode() !== 200) {
-                return [];
-            }
-
-            $xml = simplexml_load_string($response->getContent());
-            if ($xml === false) {
-                return [];
-            }
-
-            $ids = [];
-            foreach ($xml->item as $item) {
-                $ids[] = (string) $item['id'];
-            }
-
-            return array_slice($ids, 0, 8);
-        } catch (\Throwable) {
-            return [];
-        }
+        return $title;
     }
 
     private function parseGameXml(SimpleXMLElement $item): array
@@ -251,40 +293,14 @@ class BggApiService
         $bggType  = (string) $item['type'];   // 'boardgame' | 'boardgameexpansion'
         $name     = '';
         $nameFr   = null;
-        $altNames = [];
 
         foreach ($item->name as $nameEl) {
-            $type  = (string) $nameEl['type'];
-            $value = $this->sanitizeUtf8((string) $nameEl['value']);
-            if ($type === 'primary') {
-                $name = $value;
-            } elseif ($type === 'alternate') {
-                $altNames[] = $value;
+            if ((string) $nameEl['type'] === 'primary') {
+                $name = $this->sanitizeUtf8((string) $nameEl['value']);
             }
         }
 
-        // Détection du nom français : STRICTE pour éviter les faux positifs
-        // (espagnol, italien, portugais ont aussi des accents et articles similaires).
-        // On ne considère comme français que les noms qui contiennent des marqueurs
-        // UNIQUEMENT français : "édition française", "version française", "francaise",
-        // ou des mots spécifiques au ludique FR : "jeu de ", "joueurs", "boîte".
-        foreach ($altNames as $alt) {
-            $lower = mb_strtolower($alt);
-            if (
-                stripos($lower, 'édition française') !== false ||
-                stripos($lower, 'edition française') !== false ||
-                stripos($lower, 'édition francaise') !== false ||
-                stripos($lower, 'edition francaise') !== false ||
-                stripos($lower, 'version française') !== false ||
-                stripos($lower, 'version francaise') !== false ||
-                preg_match('/\bjoueurs?\b/u', $lower) ||
-                preg_match('/\bjeu de\b/u', $lower) ||
-                preg_match('/\bboîte\b/u', $lower)
-            ) {
-                $nameFr = $alt;
-                break;
-            }
-        }
+        $nameFr = $this->frenchTitle($item);
 
         $categories      = [];
         $mechanics       = [];

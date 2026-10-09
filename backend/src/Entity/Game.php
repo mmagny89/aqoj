@@ -59,6 +59,10 @@ class Game implements \JsonSerializable
     #[ORM\Column(nullable: true)]
     private ?\DateTimeImmutable $lastSyncedAt = null;
 
+    /** Dernier appel BGG à son sujet, réussi ou non : évite de rappeler à chaque passage un jeu absent de la réponse. */
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $lastFetchAttemptAt = null;
+
     #[ORM\Column(nullable: true)]
     private ?int $bggRank = null;
 
@@ -169,6 +173,8 @@ class Game implements \JsonSerializable
     public function setSource(string $source): static { $this->source = $source; return $this; }
     public function getLastSyncedAt(): ?\DateTimeImmutable { return $this->lastSyncedAt; }
     public function setLastSyncedAt(\DateTimeImmutable $dt): static { $this->lastSyncedAt = $dt; return $this; }
+    public function getLastFetchAttemptAt(): ?\DateTimeImmutable { return $this->lastFetchAttemptAt; }
+    public function setLastFetchAttemptAt(\DateTimeImmutable $dt): static { $this->lastFetchAttemptAt = $dt; return $this; }
     public function getBggRank(): ?int { return $this->bggRank; }
     public function setBggRank(?int $bggRank): static { $this->bggRank = $bggRank; return $this; }
     public function getUsersRated(): ?int { return $this->usersRated; }

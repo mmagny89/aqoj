@@ -3,7 +3,9 @@
 namespace App\Command;
 
 use App\Repository\GameRepository;
+use App\Service\BggApiException;
 use App\Service\BggApiService;
+use App\Service\BggJobLock;
 use App\Service\GameEnrichmentService;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\Persistence\ManagerRegistry;
@@ -27,8 +29,15 @@ use Symfony\Component\Console\Style\SymfonyStyle;
  *              Priorité aux jeux les plus anciennement synchronisés (last_synced_at ASC NULLS FIRST).
  *              Avec --limit=300 et ~9000 jeux : cycle complet en ~30 jours.
  *
- * Les deux modes traitent par lots de 20 IDs (limite recommandée par l'API BGG).
- * En cas d'erreur sur un lot, on loggue et on continue — la tâche ne tombe jamais en rade.
+ * Les deux modes traitent par lots de 20 IDs (limite de l'API BGG). La cadence
+ * (5 s entre deux appels) et les nouvelles tentatives sont réglées par BggApiService.
+ *
+ * Chaque lot est enregistré dès qu'il est traité : une tâche interrompue reprend
+ * sur les jeux restants. Un jeu absent de la réponse est daté quand même
+ * (last_fetch_attempt_at), sinon il reviendrait en tête de chaque passage. Si BGG
+ * reste indisponible, la tâche s'arrête : insister sur les lots suivants ne ferait
+ * que durcir la limitation.
+ * Un verrou empêche deux passages simultanés (avec app:bgg:sync-new notamment).
  */
 #[AsCommand(
     name: 'app:bgg:enrich-pending',
@@ -36,14 +45,13 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 )]
 class EnrichGamesPendingCommand extends Command
 {
-    private const BATCH_SIZE = 20;
-
     public function __construct(
         private readonly GameRepository $repository,
         private readonly BggApiService $bggApi,
         private readonly GameEnrichmentService $enrichment,
         private readonly EntityManagerInterface $em,
         private readonly ManagerRegistry $doctrine,
+        private readonly BggJobLock $lock,
     ) {
         parent::__construct();
     }
@@ -64,13 +72,6 @@ class EnrichGamesPendingCommand extends Command
                 InputOption::VALUE_REQUIRED,
                 'Nombre maximum de jeux à traiter (0 = tous — attention : peut prendre plusieurs heures)',
                 300
-            )
-            ->addOption(
-                'sleep',
-                null,
-                InputOption::VALUE_REQUIRED,
-                'Pause en ms entre chaque lot de 20 jeux (min. recommandé : 2000 pour éviter le rate-limit BGG)',
-                2000
             );
     }
 
@@ -79,13 +80,26 @@ class EnrichGamesPendingCommand extends Command
         $io      = new SymfonyStyle($input, $output);
         $mode    = $input->getOption('mode');
         $limit   = max(0, (int) $input->getOption('limit'));
-        $sleepUs = max(0, (int) $input->getOption('sleep')) * 1000;
 
         if (!in_array($mode, ['pending', 'resync'], true)) {
             $io->error("Mode invalide : {$mode}. Valeurs : pending, resync.");
             return Command::FAILURE;
         }
 
+        if (!$this->lock->acquire()) {
+            $io->warning('Une autre tâche BGG est déjà en cours : ce passage est sauté.');
+            return Command::SUCCESS;
+        }
+
+        try {
+            return $this->enrich($io, $output, $mode, $limit);
+        } finally {
+            $this->lock->release();
+        }
+    }
+
+    private function enrich(SymfonyStyle $io, OutputInterface $output, string $mode, int $limit): int
+    {
         $io->title("Enrichissement BGG — mode : {$mode}");
 
         $bggIds = $mode === 'pending'
@@ -99,7 +113,7 @@ class EnrichGamesPendingCommand extends Command
             return Command::SUCCESS;
         }
 
-        $io->text(sprintf('%d jeux à traiter (lots de %d)…', $total, self::BATCH_SIZE));
+        $io->text(sprintf('%d jeux à traiter (lots de %d)…', $total, BggApiService::MAX_IDS));
 
         $progressBar = new ProgressBar($output, $total);
         $progressBar->setFormat(' %current%/%max% [%bar%] %percent:3s%% — écoulé: %elapsed:6s%  restant: ~%remaining:6s%');
@@ -107,7 +121,7 @@ class EnrichGamesPendingCommand extends Command
 
         $enriched = 0;
         $errors   = 0;
-        $batches  = array_chunk($bggIds, self::BATCH_SIZE);
+        $batches  = array_chunk($bggIds, BggApiService::MAX_IDS);
 
         foreach ($batches as $i => $chunk) {
             try {
@@ -118,6 +132,9 @@ class EnrichGamesPendingCommand extends Command
                 }
 
                 $apiResults = $this->bggApi->fetchGamesDetails($chunk);
+
+                // Date tout le lot, y compris les jeux que BGG n'a pas renvoyés.
+                $this->repository->markFetchAttempted($chunk);
 
                 foreach ($apiResults as $data) {
                     $game = $byBggId[$data['bggId']] ?? null;
@@ -132,6 +149,11 @@ class EnrichGamesPendingCommand extends Command
                 // Libère la mémoire Doctrine après chaque lot
                 $this->em->clear();
 
+            } catch (BggApiException $e) {
+                // BGG indisponible ou limitant : les lots déjà traités sont acquis, la suite attend le prochain passage.
+                $progressBar->clear();
+                $io->error('Arrêt : ' . $e->getMessage());
+                return Command::FAILURE;
             } catch (\Throwable $e) {
                 $errors += count($chunk);
                 $io->newLine();
@@ -147,9 +169,6 @@ class EnrichGamesPendingCommand extends Command
 
             $progressBar->advance(count($chunk));
 
-            if ($i < count($batches) - 1 && $sleepUs > 0) {
-                usleep($sleepUs);
-            }
         }
 
         $progressBar->finish();

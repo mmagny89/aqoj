@@ -4,7 +4,9 @@ namespace App\Command;
 
 use App\Entity\Game;
 use App\Repository\GameRepository;
+use App\Service\BggApiException;
 use App\Service\BggApiService;
+use App\Service\BggJobLock;
 use App\Service\GameEnrichmentService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -21,6 +23,9 @@ use Symfony\Component\Console\Style\SymfonyStyle;
  *   2. BGG Top 100 de l'année en cours (/xmlapi2/search?type=boardgame&query=*)
  *      — filtré sur yearPublished = année courante
  *
+ *   3. Extensions citées par des jeux enrichis mais absentes de la base (la fiche d'un
+ *      jeu ne va plus les chercher chez BGG pendant la requête du joueur).
+ *
  * Pour chaque jeu découvert absent de la base : enrichissement complet immédiat.
  * Les jeux déjà présents sont ignorés (ils seront resynchronisés par app:bgg:enrich-pending --mode=resync).
  */
@@ -30,13 +35,15 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 )]
 class SyncBggNewReleasesCommand extends Command
 {
-    private const BGG_API = 'https://boardgamegeek.com/xmlapi2';
+    /** Extensions citées mais absentes de la base, importées à chaque passage au plus. */
+    private const MISSING_EXPANSIONS_PER_RUN = 100;
 
     public function __construct(
         private readonly GameRepository $repository,
         private readonly BggApiService $bggApi,
         private readonly GameEnrichmentService $enrichment,
         private readonly EntityManagerInterface $em,
+        private readonly BggJobLock $lock,
     ) {
         parent::__construct();
     }
@@ -44,6 +51,21 @@ class SyncBggNewReleasesCommand extends Command
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $io = new SymfonyStyle($input, $output);
+
+        if (!$this->lock->acquire()) {
+            $io->warning('Une autre tâche BGG est déjà en cours : ce passage est sauté.');
+            return Command::SUCCESS;
+        }
+
+        try {
+            return $this->discover($io);
+        } finally {
+            $this->lock->release();
+        }
+    }
+
+    private function discover(SymfonyStyle $io): int
+    {
         $io->title('Sync BGG — nouvelles sorties');
 
         $discovered = [];
@@ -67,7 +89,6 @@ class SyncBggNewReleasesCommand extends Command
                 $found = $this->bggApi->searchByYear($term, $currentYear);
                 $newIds = array_merge($newIds, $found);
                 if (count($newIds) >= 100) break;
-                usleep(300_000);
             }
             $newIds = array_values(array_unique($newIds));
             $io->text(sprintf('%d jeux publiés en %d trouvés sur BGG.', count($newIds), $currentYear));
@@ -79,14 +100,14 @@ class SyncBggNewReleasesCommand extends Command
         // ── Dédoublonnage et filtrage des inconnus ───────────────────────────
         $uniqueIds = array_values(array_unique($discovered));
 
-        if (empty($uniqueIds)) {
-            $io->warning('Aucun ID BGG récupéré.');
-            return Command::SUCCESS;
-        }
-
         // On ne garde que les IDs absents de notre base
         $existingIds = $this->repository->findExistingBggIds($uniqueIds);
         $newIds      = array_values(array_diff($uniqueIds, $existingIds));
+
+        // ── 3. Extensions citées mais absentes ───────────────────────────────
+        $missingExpansions = $this->repository->findMissingExpansionBggIds(self::MISSING_EXPANSIONS_PER_RUN);
+        $io->text(sprintf('%d extension(s) citée(s) mais absente(s) de la base.', count($missingExpansions)));
+        $newIds = array_values(array_unique([...$newIds, ...$missingExpansions]));
 
         $io->text(sprintf(
             '%d IDs récupérés, %d déjà en base → %d nouveaux à importer.',
@@ -118,11 +139,13 @@ class SyncBggNewReleasesCommand extends Command
                 }
                 $this->em->flush();
                 $this->em->clear();
+            } catch (BggApiException $e) {
+                $io->error('Arrêt : ' . $e->getMessage());
+                return Command::FAILURE;
             } catch (\Throwable $e) {
                 $errors += count($chunk);
                 $io->warning('Erreur lot : ' . $e->getMessage());
             }
-            usleep(500_000); // 0.5s entre les lots pour respecter le rate-limit BGG
         }
 
         $io->success(sprintf('%d nouveaux jeux importés, %d erreurs.', $imported, $errors));

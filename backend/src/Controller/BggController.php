@@ -17,6 +17,8 @@ use Symfony\Component\Routing\Attribute\Route;
 
 class BggController extends AbstractController
 {
+    private const MAX_SYNC_ENRICH = 100;
+
     #[Route('/api/bgg/import', name: 'api_bgg_import', methods: ['POST'])]
     public function import(
         Request $request,
@@ -46,20 +48,8 @@ class BggController extends AbstractController
         }
 
         try {
-            // Importer jeux de base + extensions possédées
-            $baseItems      = $bggService->fetchCollection($username, false);
-            $expansionItems = $bggService->fetchCollection($username, true);
-            // Fusionner en dédoublonnant (les expansionItems contient TOUT, incluant les jeux de base)
-            $allByBggId = [];
-            foreach ($baseItems as $item) {
-                $allByBggId[$item['bggId']] = $item;
-            }
-            foreach ($expansionItems as $item) {
-                if (!isset($allByBggId[$item['bggId']])) {
-                    $allByBggId[$item['bggId']] = $item;
-                }
-            }
-            $collectionItems = array_values($allByBggId);
+            // Un seul appel : la collection complète, extensions comprises (chaque item porte son sous-type).
+            $collectionItems = $bggService->fetchCollection($username, true);
         } catch (\RuntimeException $e) {
             return $this->json(['error' => $e->getMessage()], 502);
         }
@@ -93,7 +83,8 @@ class BggController extends AbstractController
             try {
                 $gamesData = $bggService->fetchGamesDetails($chunk);
             } catch (\RuntimeException) {
-                continue;
+                // BGG indisponible : insister aggraverait la limitation. Les jeux manquants seront repris par le cron.
+                break;
             }
 
             foreach ($gamesData as $gameData) {
@@ -121,11 +112,13 @@ class BggController extends AbstractController
         // Sauvegarder les notes personnelles BGG
         $userGameRepository->saveRatingsForUser($user, $userRatingsByBggId);
 
-        // Enrichir les jeux de la collection qui ont encore mechanics = []
-        $toEnrich = array_values(array_filter(
+        // Enrichir les jeux de la collection qui ont encore mechanics = [] : les 100 premiers seulement
+        // (5 appels), pour que les préférences calculées ci-dessous reposent sur des données ;
+        // le reste passe en tête de file du cron (app:bgg:enrich-pending), qui sert d'abord les jeux possédés.
+        $toEnrich = array_slice(array_values(array_filter(
             array_map(fn($id) => $existingByBggId[$id] ?? null, $bggIds),
             fn($g) => $g !== null && $g->getMechanics() === []
-        ));
+        )), 0, self::MAX_SYNC_ENRICH);
 
         $enriched = 0;
         foreach (array_chunk($toEnrich, 20) as $chunk) {
@@ -144,7 +137,7 @@ class BggController extends AbstractController
                 }
                 $em->flush();
             } catch (\RuntimeException) {
-                continue;
+                break;
             }
         }
 

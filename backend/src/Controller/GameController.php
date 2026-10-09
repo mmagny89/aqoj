@@ -10,12 +10,13 @@ use App\Service\MechanicFamilyResolver;
 use App\Service\GameEnrichmentService;
 use App\Service\JwtService;
 use App\Service\RecommendationService;
-// Note : BggApiService et GameEnrichmentService restent utilisés dans search()
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Contracts\Cache\CacheInterface;
+use Symfony\Contracts\Cache\ItemInterface;
 
 class GameController extends AbstractController
 {
@@ -152,6 +153,7 @@ class GameController extends AbstractController
         UserGameRepository $userGameRepository,
         BggApiService $bggService,
         GameEnrichmentService $enrichment,
+        CacheInterface $cache,
         JwtService $jwt,
         EntityManagerInterface $em,
     ): JsonResponse {
@@ -179,29 +181,36 @@ class GameController extends AbstractController
         if ($query !== '') {
             $localResults = $repository->searchByName($query);
 
-            // Fallback BGG si résultats insuffisants
-            if (count($localResults) < 3) {
-                try {
-                    $bggIds = $bggService->searchByQuery($query);
-
-                    if (!empty($bggIds)) {
-                        $existingIds = $repository->findExistingBggIds($bggIds);
-                        $newIds = array_values(array_diff($bggIds, $existingIds));
-
-                        if (!empty($newIds)) {
-                            $gamesData = $bggService->fetchGamesDetails(array_slice($newIds, 0, 5));
-
-                            foreach ($gamesData as $gameData) {
-                                $game = $enrichment->hydrate(new Game(), $gameData);
-                                $em->persist($game);
+            // Fallback BGG si résultats insuffisants. Une même recherche n'interroge BGG qu'une
+            // fois par jour (résultat vide compris) ; en cas d'échec, on retente dans 10 minutes.
+            if (count($localResults) < 3 && mb_strlen($query) >= 3) {
+                $imported = $cache->get(
+                    'bgg_search_' . md5(mb_strtolower($query)),
+                    function (ItemInterface $item) use ($query, $repository, $bggService, $enrichment, $em): int {
+                        $item->expiresAfter(86400);
+                        try {
+                            $bggIds = $bggService->searchByQuery($query);
+                            $newIds = array_values(array_diff($bggIds, $repository->findExistingBggIds($bggIds)));
+                            if ($newIds === []) {
+                                return 0;
                             }
 
+                            foreach ($bggService->fetchGamesDetails(array_slice($newIds, 0, 5)) as $gameData) {
+                                $em->persist($enrichment->hydrate(new Game(), $gameData));
+                            }
                             $em->flush();
-                            $localResults = $repository->searchByName($query);
+
+                            return count($newIds);
+                        } catch (\Throwable) {
+                            // BGG indisponible — on retourne les résultats locaux
+                            $item->expiresAfter(600);
+                            return 0;
                         }
-                    }
-                } catch (\Throwable) {
-                    // BGG indisponible — on retourne les résultats locaux
+                    },
+                );
+
+                if ($imported > 0) {
+                    $localResults = $repository->searchByName($query);
                 }
             }
 
@@ -241,7 +250,7 @@ class GameController extends AbstractController
             return $this->json(['error' => 'Jeu introuvable'], 404);
         }
 
-        // Re-synchroniser si données potentiellement périmées (enrichissement initial ou resync mensuel).
+        // Premier enrichissement d'une fiche encore vide (un essai par jour au plus) ; le resync périodique est au cron.
         $enrichmentService->enrichIfNeeded($game);
 
         $user = AuthController::extractUser($request, $jwt, $em);
@@ -273,39 +282,15 @@ class GameController extends AbstractController
             $primaryFamilies = array_map(fn($f) => ['family' => $f, 'isEngine' => false], $top);
         }
 
-        // Extensions : chercher en base, puis importer les manquantes depuis BGG (max 20 à la fois)
+        // Extensions présentes en base
         $expansions      = [];
         $expansionBggIds = $game->getExpansionBggIds();
         if (!empty($expansionBggIds)) {
             $ownedGameIds   = $user ? $userGameRepository->getOwnedGameIds($user) : [];
             $expansionGames = $repository->findByBggIds($expansionBggIds);
 
-            // Déterminer les BGG IDs manquants en base
-            $foundBggIds  = array_map(fn(Game $g) => $g->getBggId(), $expansionGames);
-            $missingBggIds = array_values(array_diff($expansionBggIds, $foundBggIds));
-
-            // Importer les manquants depuis BGG (limité à 20 pour ne pas bloquer la requête)
-            if (!empty($missingBggIds)) {
-                try {
-                    $bggApi = $enrichmentService->getBggApiService();
-                    $batch  = array_slice($missingBggIds, 0, 20);
-                    $details = $bggApi->fetchGamesDetails($batch);
-                    foreach ($details as $data) {
-                        $existing = $repository->findOneBy(['bggId' => $data['bggId']]);
-                        if (!$existing) {
-                            $newGame = new Game();
-                            $newGame->setIsExpansion(true);
-                            $enrichmentService->hydrate($newGame, $data);
-                            $em->persist($newGame);
-                            $expansionGames[] = $newGame;
-                        }
-                    }
-                    $em->flush();
-                } catch (\Throwable) {
-                    // Si BGG est indisponible, on continue sans les extensions manquantes
-                }
-            }
-
+            // Les extensions absentes de la base sont importées par le cron (app:bgg:sync-new),
+            // jamais pendant la requête d'un joueur.
             foreach ($expansionGames as $exp) {
                 $expData          = $exp->jsonSerialize();
                 $expData['owned'] = isset($ownedGameIds[$exp->getId()]);

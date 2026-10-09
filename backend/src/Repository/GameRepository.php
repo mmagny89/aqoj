@@ -4,6 +4,7 @@ namespace App\Repository;
 
 use App\Entity\Game;
 use App\Entity\User;
+use Doctrine\DBAL\ArrayParameterType;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
@@ -248,15 +249,26 @@ class GameRepository extends ServiceEntityRepository
      */
     public function searchByName(string $query, int $limit = 200): array
     {
-        return $this->createQueryBuilder('g')
-            ->where('LOWER(g.name) LIKE LOWER(:query)')
-            ->setParameter('query', '%' . addcslashes($query, '%_') . '%')
-            // Jeux de base en premier, puis par note BGG décroissante
-            ->orderBy('g.isExpansion', 'ASC')
-            ->addOrderBy('g.ratingBgg', 'DESC')
-            ->setMaxResults($limit)
-            ->getQuery()
-            ->getResult();
+        // Titre affiché (français si connu) et titre original, sans accents ni casse.
+        $ids = $this->getEntityManager()->getConnection()->fetchFirstColumn(
+            "SELECT id FROM game
+             WHERE unaccent(LOWER(name)) LIKE unaccent(LOWER(:q))
+                OR unaccent(LOWER(COALESCE(name_original, ''))) LIKE unaccent(LOWER(:q))
+             -- Jeux de base en premier, puis par note BGG décroissante
+             ORDER BY is_expansion ASC, rating_bgg DESC NULLS LAST
+             LIMIT :limit",
+            ['q' => '%' . addcslashes($query, '%_\\') . '%', 'limit' => $limit],
+        );
+        if ($ids === []) {
+            return [];
+        }
+
+        $games = [];
+        foreach ($this->findBy(['id' => $ids]) as $game) {
+            $games[$game->getId()] = $game;
+        }
+
+        return array_values(array_filter(array_map(fn($id) => $games[$id] ?? null, $ids)));
     }
 
     public function findByBggIds(array $bggIds): array
@@ -363,14 +375,20 @@ class GameRepository extends ServiceEntityRepository
     }
 
     /**
-     * Jeux en attente de premier enrichissement (source = bgg_csv, jamais passés par l'API BGG).
-     * Priorité : rang BGG croissant (les jeux populaires d'abord).
+     * Jeux du CSV à enrichir pour la première fois. Les jeux déjà demandés à BGG
+     * depuis moins de 7 jours (absents de la réponse, ou lot en erreur) sont
+     * écartés ; ceux que des joueurs possèdent passent avant le reste du classement.
+     *
+     * @return string[]  bggIds
      */
     public function findPendingEnrichmentIds(int $limit): array
     {
-        $sql = 'SELECT bgg_id FROM game WHERE source = ? AND bgg_id IS NOT NULL
-                ORDER BY bgg_rank ASC NULLS LAST, rating_bgg DESC NULLS LAST';
-        $params = ['bgg_csv'];
+        $sql = "SELECT g.bgg_id FROM game g
+                WHERE g.source = 'bgg_csv' AND g.bgg_id IS NOT NULL
+                  AND (g.last_fetch_attempt_at IS NULL OR g.last_fetch_attempt_at < NOW() - INTERVAL '7 days')
+                ORDER BY EXISTS (SELECT 1 FROM user_game ug WHERE ug.game_id = g.id) DESC,
+                         g.bgg_rank ASC NULLS LAST, g.rating_bgg DESC NULLS LAST";
+        $params = [];
 
         if ($limit > 0) {
             $sql .= ' LIMIT ?';
@@ -381,7 +399,9 @@ class GameRepository extends ServiceEntityRepository
     }
 
     /**
-     * Jeux à resyncer (source = bgg_api) : jamais synchronisés OU les plus anciens en premier.
+     * Jeux à resyncer (source = bgg_api) : seulement ceux dont la dernière synchro
+     * est périmée — 30 jours pour un jeu classé, 90 pour les autres — les plus
+     * anciens d'abord. Un jeu déjà demandé depuis moins de 7 jours est écarté.
      * Utilisé par la tâche cron de resync quotidien incrémental.
      *
      * @return string[]  bggIds
@@ -392,6 +412,9 @@ class GameRepository extends ServiceEntityRepository
             SELECT bgg_id FROM game
             WHERE source = 'bgg_api'
               AND bgg_id IS NOT NULL
+              AND (last_synced_at IS NULL
+                   OR last_synced_at < NOW() - CASE WHEN bgg_rank IS NOT NULL THEN INTERVAL '30 days' ELSE INTERVAL '90 days' END)
+              AND (last_fetch_attempt_at IS NULL OR last_fetch_attempt_at < NOW() - INTERVAL '7 days')
             ORDER BY last_synced_at ASC NULLS FIRST
         ";
         $params = [];
@@ -402,6 +425,40 @@ class GameRepository extends ServiceEntityRepository
         }
 
         return $this->getEntityManager()->getConnection()->fetchFirstColumn($sql, $params);
+    }
+
+    /**
+     * Date l'appel BGG de ces jeux, qu'il ait rapporté quelque chose ou non.
+     *
+     * @param string[] $bggIds
+     */
+    public function markFetchAttempted(array $bggIds): void
+    {
+        if ($bggIds === []) {
+            return;
+        }
+
+        $this->getEntityManager()->getConnection()->executeStatement(
+            'UPDATE game SET last_fetch_attempt_at = NOW() WHERE bgg_id IN (?)',
+            [$bggIds],
+            [ArrayParameterType::STRING],
+        );
+    }
+
+    /**
+     * Extensions citées par des jeux déjà enrichis mais absentes de la base.
+     *
+     * @return string[]  bggIds
+     */
+    public function findMissingExpansionBggIds(int $limit): array
+    {
+        return $this->getEntityManager()->getConnection()->fetchFirstColumn(
+            "SELECT DISTINCT e.bgg_id
+             FROM game g, jsonb_array_elements_text(g.expansion_bgg_ids::jsonb) AS e(bgg_id)
+             WHERE NOT EXISTS (SELECT 1 FROM game x WHERE x.bgg_id = e.bgg_id)
+             LIMIT ?",
+            [$limit],
+        );
     }
 
     /**

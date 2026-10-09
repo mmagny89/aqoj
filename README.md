@@ -95,6 +95,7 @@ Explications sur le fonctionnement du site, du modèle de recommandation, du mod
 ## Tâches CRON
 
 Le conteneur `cron` exécute quatre tâches automatiques chaque nuit.  
+Aucun appel BGG n'est fait pendant la requête d'un joueur, hormis trois exceptions bornées : l'import de sa collection, le premier enrichissement d'une fiche encore vide (un essai par jour et par jeu) et le repli de la recherche textuelle (mis en cache 24 h).  
 Les logs sont accessibles dans les fichiers `/tmp/bgg-*.log` du conteneur.
 
 ```
@@ -179,7 +180,7 @@ Les données complètes (mécaniques, description, image…) sont récupérées 
 docker compose exec backend php bin/console app:bgg:enrich-pending --mode=pending --limit=0
 ```
 
-> ⚠️ BGG limite les requêtes à ~2/sec. Avec plusieurs milliers de jeux, cette étape peut prendre **plusieurs heures**. Il est préférable de la lancer en arrière-plan ou de laisser le cron nocturne s'en charger progressivement (300 jeux/nuit).
+> ⚠️ La cadence est fixée à un appel de 20 jeux toutes les 5 s (≈ 4 jeux/s). Avec plusieurs milliers de jeux, cette étape peut prendre **plusieurs heures**. Il est préférable de la lancer en arrière-plan ou de laisser le cron nocturne s'en charger progressivement (300 jeux/nuit).
 
 ```bash
 # Lancer en arrière-plan
@@ -258,7 +259,13 @@ docker compose exec backend php bin/console app:bgg:import-csv --dry-run
 ### `app:bgg:enrich-pending` — Enrichissement / resync BGG
 
 Enrichit ou resynchronise les jeux depuis l'API BGG, par lots de 20.  
-En cas d'erreur sur un lot, il est ignoré et la commande continue.
+La cadence (5 s entre deux appels) et les nouvelles tentatives (202, 429, 5xx) sont réglées par `BggApiService` ;
+un verrou PostgreSQL empêche deux tâches BGG de tourner en même temps (la seconde est sautée).
+Chaque lot est enregistré dès qu'il est traité : une commande interrompue reprend sur les jeux restants.
+Si BGG reste indisponible, la commande s'arrête (code de sortie non nul) plutôt que d'insister.
+
+- `pending` : jeux possédés par un joueur d'abord, puis par rang BGG ; un jeu que BGG n'a pas renvoyé n'est redemandé qu'après 7 jours (`game.last_fetch_attempt_at`).
+- `resync` : seulement les jeux périmés — 30 jours si classés, 90 sinon.
 
 **Options**
 
@@ -266,7 +273,6 @@ En cas d'erreur sur un lot, il est ignoré et la commande continue.
 |---|---|---|
 | `--mode` | `pending` (CSV → API) ou `resync` (refresh des jeux existants) | `pending` |
 | `--limit` | Nombre maximum de jeux à traiter (0 = tous) | `300` |
-| `--sleep` | Pause en millisecondes entre chaque lot de 20 (min. recommandé : 2000) | `2000` |
 
 ```bash
 # Enrichir les 50 jeux CSV les plus populaires

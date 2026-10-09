@@ -16,37 +16,35 @@ class GameEnrichmentService
     ) {}
 
     /**
-     * Enrichit le jeu avec les données complètes de l'API BGG si besoin.
-     * Un jeu issu uniquement du CSV (source = 'bgg_csv') n'a pas encore
-     * de description, d'image ni de données de joueurs — on les récupère ici.
+     * Premier enrichissement à la demande, pour un joueur qui ouvre la fiche d'un
+     * jeu issu du CSV (ni description, ni image, ni mécaniques). Le rafraîchissement
+     * périodique, lui, appartient au cron (app:bgg:enrich-pending --mode=resync).
+     *
+     * Un seul essai par jour et par jeu, réussi ou non : sans cela, un jeu absent
+     * de BGG ou une panne rappellerait l'API à chaque consultation.
      */
     public function enrichIfNeeded(Game $game): void
     {
-        $needsEnrichment = $game->getSource() === 'bgg_csv'
-            || $game->getMechanics() === [];
-
-        $needsResync = !$needsEnrichment
-            && $game->getSource() === 'bgg_api'
-            && (
-                $game->getLastSyncedAt() === null                                        // jamais synchronisé
-                || $game->getLastSyncedAt() < new \DateTimeImmutable('-30 days')         // resync mensuel
-            );
-
-        if (!$needsEnrichment && !$needsResync) {
+        if ($game->getSource() !== 'bgg_csv' && $game->getMechanics() !== []) {
             return;
         }
+
+        $lastAttempt = $game->getLastFetchAttemptAt();
+        if ($lastAttempt !== null && $lastAttempt > new \DateTimeImmutable('-1 day')) {
+            return;
+        }
+
+        $game->setLastFetchAttemptAt(new \DateTimeImmutable());
 
         try {
             $results = $this->bggApi->fetchGamesDetails([$game->getBggId()]);
+            if ($results !== []) {
+                $this->hydrate($game, $results[0]);
+            }
         } catch (\Throwable) {
-            return;
+            // BGG indisponible : la fiche s'affiche avec ce qu'on a déjà.
         }
 
-        if (empty($results)) {
-            return;
-        }
-
-        $this->hydrate($game, $results[0]);
         $this->em->flush();
     }
 
@@ -85,7 +83,8 @@ class GameEnrichmentService
                 $game->getImplementsBggIds()
             ))
             ->setSource('bgg_api')
-            ->setLastSyncedAt(new \DateTimeImmutable());
+            ->setLastSyncedAt($now = new \DateTimeImmutable())
+            ->setLastFetchAttemptAt($now);
 
         $resolved = $this->familyResolver->resolve($game->getMechanics());
         $game->setMechanicFamilies($resolved['families']);
@@ -126,11 +125,6 @@ class GameEnrichmentService
     {
         $merged = array_values(array_unique(array_merge($baseGameIds, $implementsIds)));
         return !empty($merged) ? $merged : $existing;
-    }
-
-    public function getBggApiService(): BggApiService
-    {
-        return $this->bggApi;
     }
 
     /** Recalcule les familles et engines d'un jeu déjà enrichi sans rappeler l'API BGG. */
