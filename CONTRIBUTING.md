@@ -10,7 +10,7 @@ Ouvrez une issue avec le gabarit adapté. Pour une faille de sécurité, voir
 
 ## Proposer du code
 
-1. Environnement : [`README.md`](README.md), puis `docker compose up -d --wait`.
+1. Environnement : [`README.md`](README.md), puis `make up` ; infrastructure : [`README.docker.md`](README.docker.md).
 2. Branche tirée de `develop` : `feat/*`, `fix/*`, `docs/*`, `refactor/*`,
    `chore/*`.
 3. Commits en [Conventional Commits](https://www.conventionalcommits.org/fr/v1.0.0/),
@@ -25,4 +25,4 @@ Ouvrez une issue avec le gabarit adapté. Pour une faille de sécurité, voir
 6. Demande de fusion vers `develop`, jamais vers `main`.
 
 Un appel à BoardGameGeek ne se fait jamais pendant la requête d'un joueur :
-voir `backend/CLAUDE.md`.
+voir `app/CLAUDE.md`.
