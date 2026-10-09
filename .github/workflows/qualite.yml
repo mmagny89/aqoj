@@ -1,4 +1,4 @@
-name: Qualité
+name: Qualité et déploiement
 
 on:
   push:

@@ -1,12 +1,22 @@
 # À quoi on joue
 
+[![Qualité et déploiement](https://github.com/mmagny89/aqoj/actions/workflows/qualite.yml/badge.svg?branch=develop)](https://github.com/mmagny89/aqoj/actions/workflows/qualite.yml)
+[![Version](https://img.shields.io/github/v/tag/mmagny89/aqoj?label=version&sort=semver)](CHANGELOG.md)
+![PHP](https://img.shields.io/badge/PHP-8.4-777BB4?logo=php&logoColor=white)
+![Symfony](https://img.shields.io/badge/Symfony-8.1-000000?logo=symfony&logoColor=white)
+![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?logo=tailwindcss&logoColor=white)
+[![Licence propriétaire](https://img.shields.io/badge/licence-propri%C3%A9taire-lightgrey)](LICENSE)
+[![Conventional Commits](https://img.shields.io/badge/Conventional_Commits-1.0.0-fe5196?logo=conventionalcommits&logoColor=white)](https://www.conventionalcommits.org/fr/v1.0.0/)
+
 Plateforme de découverte et recommandation de jeux de société, connectée à BoardGameGeek.
 
 ## Stack technique
 
 | Couche | Technologie |
 |---|---|
-| Backend | Symfony 8 — API JSON (PHP 8.4) |
+| Backend | Symfony 8.1 — API JSON (PHP 8.4) |
 | Frontend | React 18 + Vite 6 + TailwindCSS v4 |
 | Base de données | PostgreSQL 16 |
 | Reverse proxy | Caddy 2 (HTTPS automatique en production) |
@@ -587,3 +597,13 @@ docker compose up --build -d
 Caddy gère automatiquement le certificat TLS (Let's Encrypt), la redirection HTTP → HTTPS et son renouvellement.
 
 > **Prérequis prod** : ports 80 et 443 ouverts, DNS du domaine pointant vers l'IP du serveur avant le premier démarrage.
+
+---
+
+## Projet
+
+[`CHANGELOG.md`](CHANGELOG.md) · [`CONTRIBUTING.md`](CONTRIBUTING.md) · [`SECURITY.md`](SECURITY.md) · [`LICENSE`](LICENSE)
+
+Qualité : `make qualite` (PHPStan, PHPUnit, ESLint, Vitest) ; la même chaîne tourne dans GitHub Actions.
+
+Les données de jeux viennent de [BoardGameGeek](https://boardgamegeek.com).

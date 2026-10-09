@@ -1,0 +1,48 @@
+# Mises a jour de dependances, groupees par semaine pour limiter le bruit.
+# Les PR visent develop : main ne recoit que ce qui y a ete valide.
+version: 2
+updates:
+  - package-ecosystem: composer
+    directory: /backend
+    target-branch: develop
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: chore
+      include: scope
+    groups:
+      symfony:
+        patterns: ['symfony/*']
+      doctrine:
+        patterns: ['doctrine/*']
+
+  - package-ecosystem: npm
+    directory: /frontend
+    target-branch: develop
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: chore
+      include: scope
+    groups:
+      react:
+        patterns: ['react', 'react-dom', 'react-router*', '@types/react*']
+      outillage:
+        patterns: ['vite', '@vitejs/*', 'eslint*', 'vitest', '@testing-library/*', 'tailwindcss', '@tailwindcss/*']
+
+  - package-ecosystem: github-actions
+    directory: /
+    target-branch: develop
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: ci
+
+  - package-ecosystem: docker
+    directory: /docker/php
+    target-branch: develop
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: chore
+      include: scope
