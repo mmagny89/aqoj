@@ -1,0 +1,65 @@
+# Configuration nominale, mode headless / meme origine. Voir
+# Caddyfile.bootstrap pour la configuration de secours.
+{
+{$CADDY_GLOBAL_OPTIONS}
+
+frankenphp {
+worker {
+file /app/public/index.php
+{$FRANKENPHP_WORKER_CONFIG}
+}
+}
+
+admin unix//run/caddy/admin.sock
+
+# Metriques Prometheus natives de Caddy (conventions, section 9b).
+# Option GLOBALE : la forme `servers { metrics }` est depreciee.
+metrics
+}
+
+# Ecoute interne dediee aux metriques. JAMAIS publiee sur l'hote :
+# elle n'est jointe que depuis le reseau `monitoring`.
+:2020 {
+metrics
+}
+
+{$SERVER_NAME:localhost} {
+encode zstd br gzip
+log
+
+# En-tetes de securite, sur toutes les reponses. defer : appliques aussi
+# aux reponses d'erreur, ou Caddy remettrait Server. Pas de HSTS ici : le TLS
+# est termine par le proxy, et un HSTS servi en developpement sur localhost
+# s'imposerait a tous les projets locaux. La Content-Security-Policy depend
+# des ressources du projet : a poser dans le Caddyfile du projet.
+header {
+defer
+X-Content-Type-Options nosniff
+X-Frame-Options DENY
+Referrer-Policy strict-origin-when-cross-origin
+Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()"
+-Server
+-X-Powered-By
+}
+
+respond /health 200
+
+# Prefixe d'API : jamais dans le fallback SPA, sinon une 404 d'API
+# renvoie une page HTML au lieu d'une erreur exploitable. Memes raisons pour
+# le profileur Symfony et les assets publics des bundles (page de doc
+# d'API Platform).
+@php path {$API_PREFIX:/api}* /_profiler* /_wdt* /bundles/*
+handle @php {
+root * /app/public
+php_server
+}
+
+handle {
+# CSP du front seulement : le profileur Symfony (dev) a besoin de scripts en ligne. Le build de
+# production de Vite n'emet ni script en ligne ni eval. Images des jeux : CDN de BoardGameGeek.
+header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://*.geekdo-images.com; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+root * /srv/frontend
+try_files {path} /index.html
+file_server
+}
+}

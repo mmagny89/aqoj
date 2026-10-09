@@ -1,0 +1,44 @@
+framework:
+    secret: '%env(APP_SECRET)%'
+    http_method_override: false
+    handle_all_throwables: true
+
+    # API stateless — pas de sessions
+    session:
+        enabled: false
+
+    # Pas de protection CSRF pour une API stateless
+    csrf_protection: false
+
+    php_errors:
+        log: true
+
+    # Vide en dev ; private_ranges derrière Traefik (staging, prod) : l'adresse du client vient de X-Forwarded-For.
+    trusted_proxies: '%env(default::SYMFONY_TRUSTED_PROXIES)%'
+    trusted_headers: ['x-forwarded-for', 'x-forwarded-proto', 'x-forwarded-host', 'x-forwarded-port']
+
+    rate_limiter:
+        # Essais de connexion : 5 par quart d'heure pour un même e-mail depuis une même adresse,
+        # 20 par quart d'heure pour une même adresse (balayage de comptes).
+        login:
+            policy: sliding_window
+            limit: 5
+            interval: '15 minutes'
+        login_ip:
+            policy: sliding_window
+            limit: 20
+            interval: '15 minutes'
+        register:
+            policy: sliding_window
+            limit: 5
+            interval: '1 hour'
+
+when@test:
+    framework:
+        test: true
+        cache:
+            pools:
+                # Fichiers, pour que l'état des limiteurs survive au redémarrage du noyau entre deux requêtes ;
+                # les tests le vident (ApiTestCase::setUp).
+                cache.rate_limiter:
+                    adapter: cache.adapter.filesystem

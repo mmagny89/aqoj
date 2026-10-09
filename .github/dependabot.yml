@@ -3,7 +3,7 @@
 version: 2
 updates:
   - package-ecosystem: composer
-    directory: /backend
+    directory: /app
     target-branch: develop
     schedule:
       interval: weekly
