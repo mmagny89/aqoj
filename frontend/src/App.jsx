@@ -15,6 +15,10 @@ import AdminMechanicsPage from './pages/AdminMechanicsPage'
 import AdminDashboardPage from './pages/AdminDashboardPage'
 import AdminThemesPage from './pages/AdminThemesPage'
 import HelpPage from './pages/HelpPage'
+import LegalNoticePage from './pages/LegalNoticePage'
+import PrivacyPage from './pages/PrivacyPage'
+import AccountPage from './pages/AccountPage'
+import Footer from './components/Footer'
 
 export default function App() {
   return (
@@ -29,6 +33,11 @@ export default function App() {
             <Route path="/games/:id" element={<GameDetailPage />} />
             <Route path="/ludotheque" element={<LibraryPage />} />
             <Route path="/aide" element={<HelpPage />} />
+            <Route path="/mentions-legales" element={<LegalNoticePage />} />
+            <Route path="/confidentialite" element={<PrivacyPage />} />
+            <Route path="/compte" element={
+              <ProtectedRoute><AccountPage /></ProtectedRoute>
+            } />
             <Route path="/connexion" element={<LoginPage />} />
             <Route path="/inscription" element={<RegisterPage />} />
             <Route path="/importer" element={
@@ -48,6 +57,7 @@ export default function App() {
             } />
           </Routes>
         </main>
+        <Footer />
       </div>
     </AuthProvider>
   )

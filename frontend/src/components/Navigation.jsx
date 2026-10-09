@@ -118,9 +118,13 @@ export default function Navigation() {
         {/* ── Compte utilisateur ─────────────────────────────────────── */}
         {user ? (
           <div className="flex items-center gap-2 ml-2 pl-2 border-l border-stone-200">
-            <span className="text-xs text-stone-500 max-w-[120px] truncate hidden sm:inline" title={user.email}>
+            <NavLink
+              to="/compte"
+              title="Mon compte"
+              className="text-xs text-stone-500 hover:text-amber-700 hover:underline max-w-[120px] truncate hidden sm:inline"
+            >
               {user.email}
-            </span>
+            </NavLink>
             <button
               onClick={handleLogout}
               title="Se déconnecter"

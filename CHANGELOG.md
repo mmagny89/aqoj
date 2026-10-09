@@ -17,7 +17,8 @@ version devient le texte de sa release GitHub.
   français que l'original, sans tenir compte des accents ni de la casse.
 - Garde-fous de sécurité : limitation des tentatives de connexion et
   d'inscription.
-- Mentions légales, politique de confidentialité et logo « Powered by BGG ».
+- Mentions légales, politique de confidentialité et mention « Powered by BGG » avec lien retour, en pied de page.
+- **Mon compte** : téléchargement de ses données (JSON) et suppression définitive du compte, avec confirmation par mot de passe.
 
 ### Modifié
 

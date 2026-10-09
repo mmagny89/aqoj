@@ -83,6 +83,12 @@ export const getLibrary = (page = 1, played = undefined, isExpansion = undefined
   return request('/library' + (q ? '?' + q : ''))
 }
 
+// Compte (RGPD)
+export const exportAccount = () => request('/user/export')
+
+export const deleteAccount = (password) =>
+  request('/user/account', { method: 'DELETE', body: JSON.stringify({ password }) })
+
 // BGG import
 export const importBgg = (username) =>
   request('/bgg/import', { method: 'POST', body: JSON.stringify({ username }) })

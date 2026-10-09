@@ -607,3 +607,7 @@ Caddy gère automatiquement le certificat TLS (Let's Encrypt), la redirection HT
 Qualité : `make qualite` (PHPStan, PHPUnit, ESLint, Vitest) ; la même chaîne tourne dans GitHub Actions.
 
 Les données de jeux viennent de [BoardGameGeek](https://boardgamegeek.com).
+
+Pages légales : l'éditeur, le contact et l'hébergeur s'affichent depuis `frontend/src/legal.js`, lu dans les variables de build
+`VITE_PUBLISHER_NAME`, `VITE_CONTACT_EMAIL`, `VITE_HOST_NAME` et `VITE_HOST_ADDRESS`. Tant qu'elles manquent, les pages affichent
+« [à renseigner avant la mise en ligne] » : à renseigner avant toute mise en ligne.

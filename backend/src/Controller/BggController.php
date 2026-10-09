@@ -51,7 +51,10 @@ class BggController extends AbstractController
             // Un seul appel : la collection complète, extensions comprises (chaque item porte son sous-type).
             $collectionItems = $bggService->fetchCollection($username, true);
         } catch (\RuntimeException $e) {
-            return $this->json(['error' => $e->getMessage()], 502);
+            // Seul le refus d'accès (collection privée) est expliqué ; le reste ne détaille pas BGG au client.
+            $message = $e->getCode() === 401 ? $e->getMessage() : 'BoardGameGeek est momentanément indisponible. Réessayez plus tard.';
+
+            return $this->json(['error' => $message], 502);
         }
 
         if (empty($collectionItems)) {
