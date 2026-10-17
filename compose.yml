@@ -109,21 +109,6 @@ services:
       timeout: 5s
       retries: 10
 
-  # Sans profil ici (conventions, section 9) : les overrides staging/prod
-  # lui en ajoutent un, jamais l'inverse.
-  ember:
-    container_name: aqoj-${ENV:?ENV est requis — suffixe des noms de conteneurs, reseau et volumes. Le declarer dans le fichier de secrets (ENV=prod) ou le .env racine (ENV=dev)}-ember
-    image: ghcr.io/alexandre-daubois/ember:${EMBER_VERSION}
-    restart: unless-stopped
-    environment:
-      EMBER_ADDR: unix//run/caddy/admin.sock
-    volumes:
-      - aqoj-caddy-admin:/run/caddy
-    networks:
-      - aqoj
-    depends_on:
-      - php
-
   # Developpement uniquement : compose.staging.yml et compose.prod.yml
   # n'ajoutent jamais ce service (headless-react.md, section 5).
   node:

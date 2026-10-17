@@ -18,7 +18,7 @@ metrics
 }
 
 # Ecoute interne dediee aux metriques. JAMAIS publiee sur l'hote :
-# elle n'est jointe que depuis le reseau `monitoring`.
+# elle n'est jointe que depuis le reseau du projet.
 :2020 {
 metrics
 }
