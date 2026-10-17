@@ -243,7 +243,7 @@ make console cmd="cache:clear"   # Commande Symfony
 
 ```
 aqoj/
-├── compose.yml                     # Socle commun (php, worker, database, ember)
+├── compose.yml                     # Socle commun (php, worker, database)
 ├── compose.{dev,staging,prod}.yml  # Un override par environnement
 ├── .env                            # Variables Compose (commité, sans secret)
 ├── .env.{staging,prod}.local.dist  # Modèles de secrets de déploiement

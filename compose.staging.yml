@@ -51,13 +51,6 @@ services:
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET est requis en staging (secret des jetons de session) — fournir via --env-file .env.staging.local}
       BGG_TOKEN: ${BGG_TOKEN:?BGG_TOKEN est requis en staging (jeton de l'API BGG) — fournir via --env-file .env.staging.local}
 
-  ember:
-    profiles: [observability]
-    ports:
-      - "127.0.0.1:${EMBER_PORT}:9191"
-    networks:
-      - aqoj
-
 networks:
   aqoj:
   traefik:

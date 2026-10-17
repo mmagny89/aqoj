@@ -51,13 +51,6 @@ services:
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET est requis en prod (secret des jetons de session) — fournir via --env-file .env.prod.local}
       BGG_TOKEN: ${BGG_TOKEN:?BGG_TOKEN est requis en prod (jeton de l'API BGG) — fournir via --env-file .env.prod.local}
 
-  ember:
-    profiles: [observability]
-    ports:
-      - "127.0.0.1:${EMBER_PORT}:9191"
-    networks:
-      - aqoj
-
 networks:
   aqoj:
   traefik:
