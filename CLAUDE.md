@@ -4,7 +4,7 @@ Plateforme de découverte et de recommandation de jeux de société, alimentée 
 - Résumés chargés selon le dossier : `app/CLAUDE.md` (back), `frontend/CLAUDE.md` (front). Fonctionnalités et procédures d'exploitation (tâches planifiées, import CSV) : `README.md` ; infrastructure : `README.docker.md`.
 
 ## État
-- **Local seulement** : ni préproduction ni production en service. Les fichiers `compose.staging.yml`, `compose.prod.yml` et `outils/` sont prêts ; il reste à préparer le serveur (Traefik, secrets) puis à poser la variable de dépôt `DEPLOIEMENT_ACTIF` pour activer le déploiement du workflow.
+- **Local seulement** : ni préproduction ni production en service. Les fichiers `compose.staging.yml`, `compose.prod.yml` et `outils/` sont prêts ; il reste à préparer le serveur (Traefik, secrets) puis à poser les variables de dépôt `DEPLOIEMENT_PROD` et `DEPLOIEMENT_STAGING` (valeur `oui`) pour activer les déploiements du workflow.
 - Symfony 8.1 (API en contrôleurs, Doctrine, PostgreSQL 18) sur FrankenPHP en mode worker ; React 18 + Vite + Tailwind v4 en headless, même origine.
 
 ## Infrastructure — règle qui fait autorité

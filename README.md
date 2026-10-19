@@ -344,7 +344,7 @@ L'image de production embarque le build statique du front (`frontend/dist` → `
 COMPOSE_FILE=compose.yml TARGET=prod docker compose build php
 ```
 
-Déploiement : `README.docker.md` (infrastructure) et `outils/` (déploiement, secrets). Le job de déploiement du workflow `.github/workflows/qualite.yml` ne s'active qu'une fois la variable de dépôt `DEPLOIEMENT_ACTIF` posée à `true`.
+Déploiement : `README.docker.md` (infrastructure) et `outils/` (déploiement, secrets). Les jobs de déploiement du workflow `.github/workflows/qualite.yml` ne s'activent qu'une fois posées les variables de dépôt `DEPLOIEMENT_PROD` (pour `main`) et `DEPLOIEMENT_STAGING` (pour `develop`), à `oui`. Le détail de ce qui se configure dans GitHub : `GITHUB.md`.
 
 ---
 
