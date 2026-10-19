@@ -18,6 +18,8 @@ services:
         NODE_VERSION: ${NODE_VERSION}
     image: aqoj-php:${TARGET}
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@database:5432/${POSTGRES_DB}?serverVersion=${POSTGRES_VERSION}&charset=utf8
       RUN_MIGRATIONS: ${RUN_MIGRATIONS}
@@ -59,6 +61,8 @@ services:
         NODE_VERSION: ${NODE_VERSION}
     image: aqoj-php:${TARGET}
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
     # Sans --time-limit : un passage d'enrichissement BGG dure longtemps et serait coupé en plein
     # vol. C'est restart: unless-stopped qui relève le consommateur après la limite mémoire.
     command: php bin/console messenger:consume scheduler_default --memory-limit=256M
@@ -92,6 +96,8 @@ services:
     container_name: aqoj-${ENV:?ENV est requis — suffixe des noms de conteneurs, reseau et volumes. Le declarer dans le fichier de secrets (ENV=prod) ou le .env racine (ENV=dev)}-database
     image: postgres:${POSTGRES_VERSION}-alpine
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
