@@ -1,0 +1,36 @@
+parameters:
+
+services:
+    _defaults:
+        autowire: true
+        autoconfigure: true
+
+    App\:
+        resource: '../src/'
+        exclude:
+            - '../src/DependencyInjection/'
+            - '../src/Entity/'
+            - '../src/Kernel.php'
+
+    App\Command\ImportBggCsvCommand:
+        arguments:
+            $projectDir: '%kernel.project_dir%'
+
+    App\Service\BggApiService:
+        arguments:
+            $bggToken: '%env(BGG_TOKEN)%'
+
+    App\Service\JwtService:
+        arguments:
+            $jwtSecret: '%env(JWT_SECRET)%'
+
+when@test:
+    services:
+        # Aucun appel réel à BGG pendant les tests : toute requête échoue comme une panne réseau.
+        test.bgg_http_client:
+            class: Symfony\Component\HttpClient\MockHttpClient
+
+        App\Service\BggApiService:
+            arguments:
+                $httpClient: '@test.bgg_http_client'
+                $bggToken: ''

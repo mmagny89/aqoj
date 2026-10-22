@@ -1,0 +1,84 @@
+import { useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import { login as apiLogin } from '../api'
+import { useAuth } from '../context/AuthContext'
+
+export default function LoginPage() {
+  const { login } = useAuth()
+  const navigate = useNavigate()
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState(null)
+  const [loading, setLoading] = useState(false)
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    setError(null)
+    setLoading(true)
+    try {
+      const data = await apiLogin(email, password)
+      login(data.token, data.user)
+      navigate('/', { replace: true })
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="min-h-[80vh] flex items-center justify-center px-4">
+      <div className="w-full max-w-sm">
+        <h1 className="text-3xl font-black text-stone-900 mb-2">Connexion</h1>
+        <p className="text-stone-500 text-sm mb-8">
+          Pas encore de compte ?{' '}
+          <Link to="/inscription" className="text-amber-600 hover:underline font-medium">
+            Créer un compte
+          </Link>
+        </p>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-semibold text-stone-700 mb-1">E-mail</label>
+            <input
+              type="email"
+              autoComplete="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-amber-400 text-sm"
+              placeholder="you@example.com"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-semibold text-stone-700 mb-1">Mot de passe</label>
+            <input
+              type="password"
+              autoComplete="current-password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-amber-400 text-sm"
+              placeholder="••••••••"
+            />
+          </div>
+
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl p-3 text-sm">
+              {error}
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full py-3 bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-white font-bold rounded-xl transition-colors"
+          >
+            {loading ? 'Connexion…' : 'Se connecter'}
+          </button>
+        </form>
+      </div>
+    </div>
+  )
+}

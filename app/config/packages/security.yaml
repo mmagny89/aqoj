@@ -1,0 +1,20 @@
+security:
+    providers:
+        app_user:
+            entity:
+                class: App\Entity\User
+                property: email
+
+    firewalls:
+        api:
+            pattern: ^/api
+            stateless: true
+            access_denied_handler: App\Security\JsonAccessDeniedHandler
+            custom_authenticators:
+                - App\Security\JwtAuthenticator
+
+    # Garde-fou central : une route d'administration est protégée même si son contrôleur oublie le contrôle.
+    # Les routes ouvertes (santé, authentification, catalogue, recherche) restent publiques.
+    access_control:
+        - { path: ^/api/admin, roles: ROLE_ADMIN }
+        - { path: ^/api/(auth/me|bgg|sessions|user), roles: ROLE_USER }

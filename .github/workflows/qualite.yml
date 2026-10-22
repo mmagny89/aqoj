@@ -1,0 +1,264 @@
+# Portes qualite et deploiement.
+#
+# Portes : skill ci-pipeline-standards, ordre par cout croissant.
+# Contraintes d'infrastructure : .claude/rules/stack-conventions.md, section 22.
+name: Qualité et déploiement
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+# Le code applicatif vit dans app/, la racine ne porte que l'infrastructure
+# (section 1). Le job de deploiement, qui ne fait aucun checkout, remet ce
+# chemin a la racine.
+defaults:
+  run:
+    working-directory: app
+
+env:
+  # Suit PHP_VERSION du .env racine — jamais plus recente que l'image de
+  # production. Toute montee de version touche les deux fichiers.
+  PHP_VERSION: '8.5'
+
+  # La CI n'utilise pas Docker Compose : rien n'injecte les variables du
+  # conteneur. Sans celles-ci, le post-install-cmd de Composer echoue sur
+  # « Environment variable not found », y compris dans les etapes qui ne
+  # touchent jamais la base.
+  APP_ENV: test
+  DATABASE_URL: 'postgresql://app:app@127.0.0.1:5432/app?serverVersion=18&charset=utf8'
+  MAILER_DSN: 'null://null'
+  MAILER_FROM: 'noreply@aqoj.test'
+
+jobs:
+  qualite:
+    name: Portes qualite
+    runs-on: ubuntu-latest
+    # Suit POSTGRES_VERSION du .env racine, comme PHP_VERSION ci-dessus.
+    services:
+      database:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: app
+          POSTGRES_PASSWORD: app
+          POSTGRES_DB: app
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U app"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ env.PHP_VERSION }}
+          extensions: pdo_pgsql, intl, zip, apcu
+          coverage: none
+
+      - name: Cache des dependances Composer
+        uses: actions/cache@v4
+        with:
+          path: app/vendor
+          key: composer-${{ runner.os }}-php${{ env.PHP_VERSION }}-${{ hashFiles('app/composer.lock') }}
+          restore-keys: composer-${{ runner.os }}-php${{ env.PHP_VERSION }}-
+
+      - name: Installation des dependances
+        run: composer install --prefer-dist --no-progress --no-interaction
+
+      - name: Coherence de composer.json
+        run: composer validate --strict --no-check-publish
+
+      - name: Lints Symfony
+        run: |
+          php bin/console lint:yaml config
+          php bin/console lint:container
+
+      # Bloquant : « cmd || true » avalerait une vulnerabilite connue.
+      - name: Audit des dependances
+        run: composer audit
+
+      - name: Analyse statique
+        run: |
+          # phpstan-symfony lit le conteneur compile en environnement dev, chemin fige dans
+          # phpstan.neon. La CI tournant en APP_ENV=test, var/cache/dev n'existe pas sans ce rechauffage.
+          php bin/console cache:warmup --env=dev
+          vendor/bin/phpstan analyse --no-progress --error-format=github
+
+      # Les tests fonctionnels touchent la base : le schema de test (suffixe _test
+      # de Doctrine) se construit par les migrations, comme en production. Sans
+      # cette etape, tout test qui ecrit echoue sur « relation ... does not exist »,
+      # alors que la base de developpement, elle, est a jour.
+      - name: Base de test
+        run: |
+          php bin/console doctrine:database:create --env=test --if-not-exists --no-interaction
+          php bin/console doctrine:migrations:migrate --env=test --no-interaction
+
+      - name: Tests
+        run: vendor/bin/phpunit
+
+  # Pas d'etape « doctrine:schema:validate » : le schema evolue par migrations SQL ecrites a la main et
+  # s'ecarte des mappings (colonne user_game.bgg_user_rating hors entite, identifiants, index). A rattraper
+  # avant de rendre ce controle bloquant.
+
+  frontend:
+    name: Front (React)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm audit --omit=dev --audit-level=high
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+
+  deploiement-prod:
+    name: Deploiement
+    needs: [qualite, frontend]
+    # Deux gardes cumulees, jamais une seule :
+    #   - la branche, et jamais une pull request : une PR d'un depot tiers
+    #     deploierait du code non relu ;
+    #   - la variable de depot DEPLOIEMENT_PROD, comparee a « oui ».
+    #     Absente, GitHub la rend comme une chaine vide et le job est
+    #     ignore : ne rien deployer est le defaut. Une variable plutot
+    #     qu'un secret — elle se lit dans un `if:`, sans rien de confidentiel.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.DEPLOIEMENT_PROD == 'oui'
+    runs-on: ubuntu-latest
+
+    # Deux deploiements simultanes visent le meme stack sur l'hote : on
+    # attend son tour, on ne coupe jamais un deploiement en cours.
+    concurrency:
+      group: deploiement-${{ github.ref_name }}
+      cancel-in-progress: false
+
+    defaults:
+      run:
+        working-directory: .
+
+    steps:
+      # GitHub remplace un secret absent par une chaine vide sans rien
+      # signaler : ssh "@" produit alors une page d'usage illisible au lieu
+      # d'une erreur.
+      - name: Controler la presence des secrets
+        env:
+          HOTE: ${{ secrets.DEPLOIEMENT_HOTE }}
+          UTILISATEUR: ${{ secrets.DEPLOIEMENT_UTILISATEUR }}
+          CLE: ${{ secrets.DEPLOIEMENT_CLE_PRIVEE }}
+          EMPREINTES: ${{ secrets.DEPLOIEMENT_KNOWN_HOSTS }}
+        run: |
+          manquants=""
+          [ -n "$HOTE" ]        || manquants="$manquants DEPLOIEMENT_HOTE"
+          [ -n "$UTILISATEUR" ] || manquants="$manquants DEPLOIEMENT_UTILISATEUR"
+          [ -n "$CLE" ]         || manquants="$manquants DEPLOIEMENT_CLE_PRIVEE"
+          [ -n "$EMPREINTES" ]  || manquants="$manquants DEPLOIEMENT_KNOWN_HOSTS"
+          if [ -n "$manquants" ]; then
+            echo "Secrets manquants :$manquants" >&2
+            echo "Les poser avec : sh outils/installer-deploiement.sh projet prod" >&2
+            exit 1
+          fi
+
+      - name: Preparer SSH
+        env:
+          CLE: ${{ secrets.DEPLOIEMENT_CLE_PRIVEE }}
+          EMPREINTES: ${{ secrets.DEPLOIEMENT_KNOWN_HOSTS }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$CLE" > ~/.ssh/id_deploiement
+          chmod 600 ~/.ssh/id_deploiement
+          # Empreinte epinglee, jamais StrictHostKeyChecking=no : ce serait
+          # accepter n'importe quel serveur a cette adresse.
+          printf '%s\n' "$EMPREINTES" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      # La logique vit sur l'hote : la cle est restreinte a ce seul script
+      # par une forced command dans authorized_keys.
+      - name: Declencher le deploiement
+        env:
+          HOTE: ${{ secrets.DEPLOIEMENT_HOTE }}
+          UTILISATEUR: ${{ secrets.DEPLOIEMENT_UTILISATEUR }}
+        run: |
+          ssh -i ~/.ssh/id_deploiement \
+              -o IdentitiesOnly=yes \
+              -o BatchMode=yes \
+              "$UTILISATEUR@$HOTE" deployer
+
+  deploiement-staging:
+    name: Deploiement - staging
+    needs: [qualite, frontend]
+    # Deux gardes cumulees, jamais une seule :
+    #   - la branche, et jamais une pull request : une PR d'un depot tiers
+    #     deploierait du code non relu ;
+    #   - la variable de depot DEPLOIEMENT_STAGING, comparee a « oui ».
+    #     Absente, GitHub la rend comme une chaine vide et le job est
+    #     ignore : ne rien deployer est le defaut. Une variable plutot
+    #     qu'un secret — elle se lit dans un `if:`, sans rien de confidentiel.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop' && vars.DEPLOIEMENT_STAGING == 'oui'
+    runs-on: ubuntu-latest
+
+    # Deux deploiements simultanes visent le meme stack sur l'hote : on
+    # attend son tour, on ne coupe jamais un deploiement en cours.
+    concurrency:
+      group: deploiement-${{ github.ref_name }}
+      cancel-in-progress: false
+
+    defaults:
+      run:
+        working-directory: .
+
+    steps:
+      # GitHub remplace un secret absent par une chaine vide sans rien
+      # signaler : ssh "@" produit alors une page d'usage illisible au lieu
+      # d'une erreur.
+      - name: Controler la presence des secrets
+        env:
+          HOTE: ${{ secrets.STAGING_DEPLOIEMENT_HOTE }}
+          UTILISATEUR: ${{ secrets.STAGING_DEPLOIEMENT_UTILISATEUR }}
+          CLE: ${{ secrets.STAGING_DEPLOIEMENT_CLE_PRIVEE }}
+          EMPREINTES: ${{ secrets.STAGING_DEPLOIEMENT_KNOWN_HOSTS }}
+        run: |
+          manquants=""
+          [ -n "$HOTE" ]        || manquants="$manquants STAGING_DEPLOIEMENT_HOTE"
+          [ -n "$UTILISATEUR" ] || manquants="$manquants STAGING_DEPLOIEMENT_UTILISATEUR"
+          [ -n "$CLE" ]         || manquants="$manquants STAGING_DEPLOIEMENT_CLE_PRIVEE"
+          [ -n "$EMPREINTES" ]  || manquants="$manquants STAGING_DEPLOIEMENT_KNOWN_HOSTS"
+          if [ -n "$manquants" ]; then
+            echo "Secrets manquants :$manquants" >&2
+            echo "Les poser avec : sh outils/installer-deploiement.sh projet staging" >&2
+            exit 1
+          fi
+
+      - name: Preparer SSH
+        env:
+          CLE: ${{ secrets.STAGING_DEPLOIEMENT_CLE_PRIVEE }}
+          EMPREINTES: ${{ secrets.STAGING_DEPLOIEMENT_KNOWN_HOSTS }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$CLE" > ~/.ssh/id_deploiement
+          chmod 600 ~/.ssh/id_deploiement
+          # Empreinte epinglee, jamais StrictHostKeyChecking=no : ce serait
+          # accepter n'importe quel serveur a cette adresse.
+          printf '%s\n' "$EMPREINTES" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      # La logique vit sur l'hote : la cle est restreinte a ce seul script
+      # par une forced command dans authorized_keys.
+      - name: Declencher le deploiement
+        env:
+          HOTE: ${{ secrets.STAGING_DEPLOIEMENT_HOTE }}
+          UTILISATEUR: ${{ secrets.STAGING_DEPLOIEMENT_UTILISATEUR }}
+        run: |
+          ssh -i ~/.ssh/id_deploiement \
+              -o IdentitiesOnly=yes \
+              -o BatchMode=yes \
+              "$UTILISATEUR@$HOTE" deployer

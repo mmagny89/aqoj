@@ -1,79 +1,150 @@
-services:
-  caddy:
-    image: caddy:2-alpine
-    ports:
-      - "80:80"
-      - "443:443"
-      - "443:443/udp"   # HTTP/3 (QUIC) en prod
-    volumes:
-      - ./docker/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data       # certs Let's Encrypt — doit persister en prod
-      - caddy_config:/config
-    environment:
-      SERVER_NAME: ${SERVER_NAME:-http://:80}
-      CADDY_EMAIL: ${CADDY_EMAIL:-}
-    depends_on:
-      - backend
-      - frontend
-    networks:
-      - app
-    restart: unless-stopped
+# Socle commun a tous les environnements (conventions, section 1). Genere
+# par .claude/scripts/setup-symfony.sh.
+name: aqoj-${ENV:?ENV est requis — suffixe des noms de conteneurs, reseau et volumes. Le declarer dans le fichier de secrets (ENV=prod) ou le .env racine (ENV=dev)}
 
-  backend:
+services:
+  php:
+    container_name: aqoj-${ENV:?ENV est requis — suffixe des noms de conteneurs, reseau et volumes. Le declarer dans le fichier de secrets (ENV=prod) ou le .env racine (ENV=dev)}-php
     build:
       context: .
       dockerfile: docker/php/Dockerfile
-    volumes:
-      - ./backend:/app
+      target: ${TARGET}
+      args:
+        PHP_VERSION: ${PHP_VERSION}
+        FRANKENPHP_VERSION: ${FRANKENPHP_VERSION}
+        PHP_EXTENSION_INSTALLER_VERSION: ${PHP_EXTENSION_INSTALLER_VERSION}
+        USER_ID: ${USER_ID}
+        GROUP_ID: ${GROUP_ID}
+        NODE_VERSION: ${NODE_VERSION}
+    image: aqoj-php:${TARGET}
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
     environment:
-      # DATABASE_URL est construit ici car il dépend du hostname Docker "database"
-      # et des vars POSTGRES_* définies dans le .env.local racine.
-      # Les autres vars Symfony (APP_ENV, APP_SECRET...) viennent de backend/.env.local
-      # via le volume mount — Symfony les lit directement.
-      DATABASE_URL: postgresql://${POSTGRES_USER:-app}:${POSTGRES_PASSWORD:-app}@database:5432/${POSTGRES_DB:-app}?serverVersion=16&charset=utf8
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@database:5432/${POSTGRES_DB}?serverVersion=${POSTGRES_VERSION}&charset=utf8
+      RUN_MIGRATIONS: ${RUN_MIGRATIONS}
+      # Section 8b — la recette Flex depose MAILER_DSN=null://null, un
+      # transport qui accepte chaque message et le jette sans un mot.
+      MAILER_DSN: ${MAILER_DSN:?MAILER_DSN manquant — transport des emails, a declarer dans le fichier de secrets}
+      MAILER_FROM: ${MAILER_FROM:?MAILER_FROM manquant — adresse expeditrice des emails}
+      # Section 4 — sans elle, derriere un proxy qui termine le TLS, Symfony
+      # ignore X-Forwarded-Proto et fabrique ses URL en http:// sur un site
+      # en https. Sans deux-points avant le « ? » : la valeur vide est
+      # legitime en developpement, c'est l'oubli qui doit echouer.
+      SYMFONY_TRUSTED_PROXIES: ${SYMFONY_TRUSTED_PROXIES?SYMFONY_TRUSTED_PROXIES non declaree — vide en dev, private_ranges derriere un proxy}
+      API_PREFIX: ${API_PREFIX}
+      ALERT_EMAIL: ${ALERT_EMAIL:?ALERT_EMAIL manquante — destinataire des alertes d'echec de tache planifiee}
+    volumes:
+      - aqoj-caddy-data:/data
+      - aqoj-caddy-config:/config
+      - aqoj-caddy-admin:/run/caddy
+    networks:
+      - aqoj
     depends_on:
       database:
         condition: service_healthy
-    networks:
-      - app
-    restart: unless-stopped
 
-  frontend:
+  # Planificateur : les tâches BGG de la nuit (app/src/Scheduler/MainSchedule.php).
+  # Même image et même build que « php » : aucun Dockerfile ni stage supplémentaire.
+  worker:
+    container_name: aqoj-${ENV:?ENV est requis — suffixe des noms de conteneurs, reseau et volumes. Le declarer dans le fichier de secrets (ENV=prod) ou le .env racine (ENV=dev)}-worker
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+      target: ${TARGET}
+      args:
+        PHP_VERSION: ${PHP_VERSION}
+        FRANKENPHP_VERSION: ${FRANKENPHP_VERSION}
+        PHP_EXTENSION_INSTALLER_VERSION: ${PHP_EXTENSION_INSTALLER_VERSION}
+        USER_ID: ${USER_ID}
+        GROUP_ID: ${GROUP_ID}
+        NODE_VERSION: ${NODE_VERSION}
+    image: aqoj-php:${TARGET}
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    # Sans --time-limit : un passage d'enrichissement BGG dure longtemps et serait coupé en plein
+    # vol. C'est restart: unless-stopped qui relève le consommateur après la limite mémoire.
+    command: php bin/console messenger:consume scheduler_default --memory-limit=256M
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@database:5432/${POSTGRES_DB}?serverVersion=${POSTGRES_VERSION}&charset=utf8
+      # En dur, quel que soit l'environnement : avec la valeur du .env, php et worker joueraient
+      # doctrine:migrations:migrate en parallèle au démarrage (docker/php/docker-entrypoint.sh).
+      RUN_MIGRATIONS: 0
+      MAILER_DSN: ${MAILER_DSN:?MAILER_DSN manquant — transport des emails, a declarer dans le fichier de secrets}
+      MAILER_FROM: ${MAILER_FROM:?MAILER_FROM manquant — adresse expeditrice des emails}
+      # C'est le worker qui exécute les tâches et qui alerte : sans cette variable, un
+      # enrichissement raté ne laisse qu'une ligne dans « docker logs ».
+      ALERT_EMAIL: ${ALERT_EMAIL:?ALERT_EMAIL manquante — destinataire des alertes d'echec de tache planifiee}
+      SYMFONY_TRUSTED_PROXIES: ${SYMFONY_TRUSTED_PROXIES?SYMFONY_TRUSTED_PROXIES non declaree — vide en dev, private_ranges derriere un proxy}
+      API_PREFIX: ${API_PREFIX}
+      BGG_RESYNC_CRON: ${BGG_RESYNC_CRON}
+      BGG_PENDING_CRON: ${BGG_PENDING_CRON}
+      BGG_SYNC_NEW_CRON: ${BGG_SYNC_NEW_CRON}
+      BGG_IMPORT_CSV_CRON: ${BGG_IMPORT_CSV_CRON}
+    # Le Dockerfile déclare un HEALTHCHECK qui sonde /health via Caddy : un worker n'en sert
+    # aucun, et « up -d --wait » resterait bloqué.
+    healthcheck:
+      disable: true
+    networks:
+      - aqoj
+    depends_on:
+      database:
+        condition: service_healthy
+
+  database:
+    container_name: aqoj-${ENV:?ENV est requis — suffixe des noms de conteneurs, reseau et volumes. Le declarer dans le fichier de secrets (ENV=prod) ou le .env racine (ENV=dev)}-database
+    image: postgres:${POSTGRES_VERSION}-alpine
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      # PostgreSQL 18+ : monter le repertoire parent, pas .../data
+      # (conventions, section 16 — verifier a chaque montee de version
+      # majeure, ce chemin n'est pas garanti stable).
+      - aqoj-database-data:/var/lib/postgresql
+    networks:
+      - aqoj
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Developpement uniquement : compose.staging.yml et compose.prod.yml
+  # n'ajoutent jamais ce service (headless-react.md, section 5).
+  node:
+    container_name: aqoj-${ENV:?ENV est requis — suffixe des noms de conteneurs, reseau et volumes. Le declarer dans le fichier de secrets (ENV=prod) ou le .env racine (ENV=dev)}-node
+    # Profil : serveur de dev du front, jamais demarre en staging/prod ni sur
+    # un frontend/ vide (conventions, section 19).
+    profiles: [frontend]
     build:
       context: .
       dockerfile: docker/node/Dockerfile
+      args:
+        NODE_VERSION: ${NODE_VERSION}
     volumes:
-      - ./frontend:/app
-      - frontend_node_modules:/app/node_modules
+      - ./frontend:/frontend
+      - aqoj-node-modules:/frontend/node_modules
     networks:
-      - app
-    restart: unless-stopped
-
-  database:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB:-app}
-      POSTGRES_USER: ${POSTGRES_USER:-app}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-app}
-    ports:
-      - "127.0.0.1:5432:5432"  # exposé uniquement sur localhost (PHPStorm, DBeaver…)
-    volumes:
-      - db_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-app} -d ${POSTGRES_DB:-app}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - app
-    restart: unless-stopped
+      - aqoj
 
 networks:
-  app:
-    driver: bridge
+  aqoj:
+    name: aqoj-${ENV:?ENV est requis — suffixe des noms de conteneurs, reseau et volumes. Le declarer dans le fichier de secrets (ENV=prod) ou le .env racine (ENV=dev)}
 
 volumes:
-  db_data:
-  caddy_data:
-  caddy_config:
-  frontend_node_modules:
+  aqoj-caddy-data:
+    name: aqoj-${ENV:?ENV est requis — suffixe des noms de conteneurs, reseau et volumes. Le declarer dans le fichier de secrets (ENV=prod) ou le .env racine (ENV=dev)}-caddy-data
+  aqoj-caddy-config:
+    name: aqoj-${ENV:?ENV est requis — suffixe des noms de conteneurs, reseau et volumes. Le declarer dans le fichier de secrets (ENV=prod) ou le .env racine (ENV=dev)}-caddy-config
+  aqoj-caddy-admin:
+    name: aqoj-${ENV:?ENV est requis — suffixe des noms de conteneurs, reseau et volumes. Le declarer dans le fichier de secrets (ENV=prod) ou le .env racine (ENV=dev)}-caddy-admin
+  aqoj-database-data:
+    name: aqoj-${ENV:?ENV est requis — suffixe des noms de conteneurs, reseau et volumes. Le declarer dans le fichier de secrets (ENV=prod) ou le .env racine (ENV=dev)}-database-data
+  aqoj-node-modules:
+    name: aqoj-${ENV:?ENV est requis — suffixe des noms de conteneurs, reseau et volumes. Le declarer dans le fichier de secrets (ENV=prod) ou le .env racine (ENV=dev)}-node-modules

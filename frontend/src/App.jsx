@@ -1,35 +1,64 @@
-import { useState, useEffect } from 'react'
+import { Routes, Route } from 'react-router-dom'
+import { AuthProvider } from './context/AuthContext'
+import Navigation from './components/Navigation'
+import ProtectedRoute from './components/ProtectedRoute'
+import HomePage from './pages/HomePage'
+import RecommendationPage from './pages/RecommendationPage'
+import ImportBggPage from './pages/ImportBggPage'
+import LibraryPage from './pages/LibraryPage'
+import SessionsPage from './pages/SessionsPage'
+import SearchPage from './pages/SearchPage'
+import GameDetailPage from './pages/GameDetailPage'
+import LoginPage from './pages/LoginPage'
+import RegisterPage from './pages/RegisterPage'
+import AdminMechanicsPage from './pages/AdminMechanicsPage'
+import AdminDashboardPage from './pages/AdminDashboardPage'
+import AdminThemesPage from './pages/AdminThemesPage'
+import HelpPage from './pages/HelpPage'
+import LegalNoticePage from './pages/LegalNoticePage'
+import PrivacyPage from './pages/PrivacyPage'
+import AccountPage from './pages/AccountPage'
+import Footer from './components/Footer'
 
-function App() {
-  const [apiStatus, setApiStatus] = useState(null)
-
-  useEffect(() => {
-    fetch('/api/health')
-      .then((res) => {
-        if (!res.ok) throw new Error('API non disponible')
-        return res.json()
-      })
-      .then((data) => setApiStatus(data.status))
-      .catch(() => setApiStatus('error'))
-  }, [])
-
+export default function App() {
   return (
-    <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center">
-      <h1 className="text-6xl font-bold text-white tracking-tight select-none">
-        A quoi on joue
-      </h1>
-
-      {apiStatus && (
-        <p
-          className={`mt-6 text-sm font-mono ${
-            apiStatus === 'ok' ? 'text-emerald-400' : 'text-red-400'
-          }`}
-        >
-          api: {apiStatus}
-        </p>
-      )}
-    </div>
+    <AuthProvider>
+      <div className="min-h-screen bg-stone-50 text-stone-900">
+        <Navigation />
+        <main className="pt-16">
+          <Routes>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/recommander" element={<RecommendationPage />} />
+            <Route path="/rechercher" element={<SearchPage />} />
+            <Route path="/games/:id" element={<GameDetailPage />} />
+            <Route path="/ludotheque" element={<LibraryPage />} />
+            <Route path="/aide" element={<HelpPage />} />
+            <Route path="/mentions-legales" element={<LegalNoticePage />} />
+            <Route path="/confidentialite" element={<PrivacyPage />} />
+            <Route path="/compte" element={
+              <ProtectedRoute><AccountPage /></ProtectedRoute>
+            } />
+            <Route path="/connexion" element={<LoginPage />} />
+            <Route path="/inscription" element={<RegisterPage />} />
+            <Route path="/importer" element={
+              <ProtectedRoute><ImportBggPage /></ProtectedRoute>
+            } />
+            <Route path="/parties" element={
+              <ProtectedRoute><SessionsPage /></ProtectedRoute>
+            } />
+            <Route path="/admin/mecaniques" element={
+              <ProtectedRoute><AdminMechanicsPage /></ProtectedRoute>
+            } />
+            <Route path="/admin" element={
+              <ProtectedRoute><AdminDashboardPage /></ProtectedRoute>
+            } />
+            <Route path="/admin/themes" element={
+              <ProtectedRoute><AdminThemesPage /></ProtectedRoute>
+            } />
+          </Routes>
+        </main>
+        <Footer />
+      </div>
+    </AuthProvider>
   )
 }
-
-export default App

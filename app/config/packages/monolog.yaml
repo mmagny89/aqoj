@@ -1,0 +1,81 @@
+monolog:
+    channels:
+        - deprecation
+        # Canal des tâches planifiées : c'est lui que surveille l'alerte par e-mail.
+        - jobs
+
+when@dev:
+    monolog:
+        handlers:
+            main:
+                type: stream
+                path: "%kernel.logs_dir%/%kernel.environment%.log"
+                level: debug
+                channels: ["!event"]
+            console:
+                type: console
+                process_psr_3_messages: false
+                channels: ["!event", "!doctrine", "!console"]
+
+when@test:
+    monolog:
+        handlers:
+            # Sans « deduplication » : il ne relâche ses messages qu'à la fermeture du gestionnaire,
+            # ce qu'un test ne déclenche pas. Ce que le test vérifie : une erreur du canal « jobs »
+            # part bien par e-mail ; l'anti-rafale se lit dans la configuration.
+            alerte_courriel:
+                type: symfony_mailer
+                from_email: '%env(MAILER_FROM)%'
+                to_email: '%env(ALERT_EMAIL)%'
+                subject: '[aqoj] Alerte : %%message%%'
+                level: error
+                channels: ['jobs', 'messenger']
+                formatter: monolog.formatter.html
+                content_type: text/html
+            main:
+                type: fingers_crossed
+                action_level: error
+                handler: nested
+                excluded_http_codes: [404, 405]
+                channels: ["!event"]
+            nested:
+                type: stream
+                path: "%kernel.logs_dir%/%kernel.environment%.log"
+                level: debug
+
+when@prod: &prod
+    monolog:
+        handlers:
+            # Une tâche planifiée qui échoue ne doit pas passer inaperçue : le worker tourne sans
+            # surveillance. « deduplication » limite l'envoi à un message par heure pour une même
+            # erreur, sinon une tâche en boucle noierait la boîte.
+            alerte_taches:
+                type: deduplication
+                handler: alerte_courriel
+                time: 3600
+                channels: ['jobs', 'messenger']
+            alerte_courriel:
+                type: symfony_mailer
+                from_email: '%env(MAILER_FROM)%'
+                to_email: '%env(ALERT_EMAIL)%'
+                subject: '[aqoj] Alerte : %%message%%'
+                level: error
+                formatter: monolog.formatter.html
+                content_type: text/html
+            main:
+                type: fingers_crossed
+                action_level: error
+                handler: nested
+                excluded_http_codes: [404, 405]
+                buffer_size: 50
+            nested:
+                type: stream
+                path: php://stderr
+                level: debug
+                formatter: monolog.formatter.json
+            console:
+                type: console
+                process_psr_3_messages: false
+                channels: ["!event", "!doctrine"]
+
+when@staging: *prod
