@@ -7,6 +7,7 @@
 ARG PHP_VERSION
 ARG FRANKENPHP_VERSION
 ARG PHP_EXTENSION_INSTALLER_VERSION
+ARG NODE_VERSION
 
 # Stage intermediaire pour rendre PHP_EXTENSION_INSTALLER_VERSION utilisable
 # dans un COPY --from= : la variable expansion n'est pas supportee
@@ -56,7 +57,7 @@ CMD ["frankenphp", "run", "--config", "/etc/caddy/Caddyfile"]
 # ---------------------------------------------------------------------------
 # frontend_builder — build statique du front React. Tolerant a un frontend/
 # vide (application pas encore installee), meme logique que app/ pour PHP.
-FROM node:22-bookworm AS frontend_builder
+FROM node:${NODE_VERSION} AS frontend_builder
 WORKDIR /frontend
 COPY frontend/package*.jso[n] ./
 RUN if [ -f package.json ]; then npm ci; fi
