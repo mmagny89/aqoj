@@ -14,6 +14,9 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.js'],
     css: false,
+    // Node 25+ expose un localStorage expérimental (indéfini sans --localstorage-file)
+    // qui masque celui de jsdom.
+    execArgv: ['--no-experimental-webstorage'],
   },
   server: {
     // 0.0.0.0 : l'écoute par défaut sur localhost ne sort pas du conteneur.
