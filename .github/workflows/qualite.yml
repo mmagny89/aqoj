@@ -1,7 +1,8 @@
 # Portes qualite et deploiement.
 #
-# Portes : skill ci-pipeline-standards, ordre par cout croissant.
-# Contraintes d'infrastructure : .claude/rules/stack-conventions.md, section 22.
+# Une porte = un job, nomme par ce qu'il prouve (skill ci-pipeline-standards).
+# Les portes s'enchainent par cout croissant, et celles qui ne se doivent rien
+# tournent en parallele. Contraintes d'infrastructure : section ci/qualite.
 name: Qualité et déploiement
 
 on:
@@ -11,15 +12,16 @@ on:
     branches: [main, develop]
 
 # Le code applicatif vit dans app/, la racine ne porte que l'infrastructure
-# (section 1). Le job de deploiement, qui ne fait aucun checkout, remet ce
+# (section manifeste/fichiers). Le job de deploiement, qui ne fait aucun checkout, remet ce
 # chemin a la racine.
 defaults:
   run:
     working-directory: app
 
 env:
-  # Suit PHP_VERSION du .env racine — jamais plus recente que l'image de
-  # production. Toute montee de version touche les deux fichiers.
+  # Suit la BRANCHE de PHP_VERSION du .env racine — jamais plus recente que
+  # l'image de production. Toute montee de version touche les deux fichiers,
+  # plus le defaut de .github/actions/php/action.yml.
   PHP_VERSION: '8.5'
 
   # La CI n'utilise pas Docker Compose : rien n'injecte les variables du
@@ -32,8 +34,96 @@ env:
   MAILER_FROM: 'noreply@aqoj.test'
 
 jobs:
-  qualite:
-    name: Portes qualite
+  # --- Porte 1 — rien en amont : c'est la moins chere, elle garde les autres.
+  coherence:
+    name: Cohérence du dépôt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/php
+
+      - name: Coherence de composer.json
+        run: composer validate --strict --no-check-publish
+
+      - name: Lints Symfony
+        run: |
+          php bin/console lint:yaml config
+          php bin/console lint:container
+
+  # --- Porte 2 — ne depend de rien : une vulnerabilite connue est vraie que
+  # le code soit bien indente ou non.
+  securite:
+    name: Audit des dépendances
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/php
+
+      # Bloquant : « cmd || true » avalerait une vulnerabilite connue.
+      - name: Audit des dependances
+        run: composer audit
+
+  # --- Porte 3
+  style:
+    name: Style de code
+    needs: coherence
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/php
+
+      # Une porte ignoree doit se voir sans ouvrir le job : d'ou le resume
+      # d'execution, lisible depuis la pull request.
+      - name: Style du code
+        run: |
+          if [ -x vendor/bin/php-cs-fixer ]; then
+            vendor/bin/php-cs-fixer fix --dry-run --diff
+          else
+            echo "⊘ **Style de code** — PHP CS Fixer absent. L'activer : \`composer require --dev friendsofphp/php-cs-fixer\`" >> "$GITHUB_STEP_SUMMARY"
+            echo "PHP CS Fixer absent — porte ignoree."
+          fi
+
+  # --- Porte 4
+  analyse:
+    name: Analyse statique
+    needs: coherence
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/php
+
+      - name: Analyse statique
+        run: |
+          # phpstan-symfony lit le conteneur compile en environnement dev, chemin fige dans
+          # phpstan.neon. La CI tournant en APP_ENV=test, var/cache/dev n'existe pas sans ce rechauffage.
+          # APP_DEBUG=1 : le chemin vise le conteneur « Debug » (App_KernelDevDebugContainer.xml),
+          # que cache:warmup ne produit qu'en mode debug.
+          APP_DEBUG=1 php bin/console cache:warmup --env=dev
+          vendor/bin/phpstan analyse --no-progress --error-format=github
+
+  # --- Porte 5 — frontieres entre couches ou modules.
+  frontieres:
+    name: Frontières du code
+    needs: coherence
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/php
+
+      - name: Frontieres du code
+        run: |
+          if [ -x vendor/bin/deptrac ] && [ -f deptrac.yaml ]; then
+            vendor/bin/deptrac analyse --no-progress
+          else
+            echo "⊘ **Frontières du code** — Deptrac non configuré. L'activer : \`composer require --dev deptrac/deptrac\`, puis écrire \`deptrac.yaml\`" >> "$GITHUB_STEP_SUMMARY"
+            echo "Deptrac non configure — porte ignoree."
+          fi
+
+  # --- Porte 6 — la plus chere : elle attend que le code soit propre et
+  # analyse avant d'allumer une base de donnees.
+  tests:
+    name: Tests unitaires et d'intégration
+    needs: [style, analyse]
     runs-on: ubuntu-latest
     # Suit POSTGRES_VERSION du .env racine, comme PHP_VERSION ci-dessus.
     services:
@@ -51,49 +141,12 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: shivammathur/setup-php@v2
-        with:
-          php-version: ${{ env.PHP_VERSION }}
-          extensions: pdo_pgsql, intl, zip, apcu
-          coverage: none
-
-      - name: Cache des dependances Composer
-        uses: actions/cache@v4
-        with:
-          path: app/vendor
-          key: composer-${{ runner.os }}-php${{ env.PHP_VERSION }}-${{ hashFiles('app/composer.lock') }}
-          restore-keys: composer-${{ runner.os }}-php${{ env.PHP_VERSION }}-
-
-      - name: Installation des dependances
-        run: composer install --prefer-dist --no-progress --no-interaction
-
-      - name: Coherence de composer.json
-        run: composer validate --strict --no-check-publish
-
-      - name: Lints Symfony
-        run: |
-          php bin/console lint:yaml config
-          php bin/console lint:container
-
-      # Bloquant : « cmd || true » avalerait une vulnerabilite connue.
-      - name: Audit des dependances
-        run: composer audit
-
-      - name: Analyse statique
-        run: |
-          # phpstan-symfony lit le conteneur compile en environnement dev, chemin fige dans
-          # phpstan.neon. La CI tournant en APP_ENV=test, var/cache/dev n'existe pas sans ce rechauffage.
-          # APP_DEBUG=1 : le chemin vise le conteneur « Debug » (App_KernelDevDebugContainer.xml),
-          # que cache:warmup ne produit qu'en mode debug.
-          APP_DEBUG=1 php bin/console cache:warmup --env=dev
-          vendor/bin/phpstan analyse --no-progress --error-format=github
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/php
 
       # Les tests fonctionnels touchent la base : le schema de test (suffixe _test
       # de Doctrine) se construit par les migrations, comme en production. Sans
-      # cette etape, tout test qui ecrit echoue sur « relation ... does not exist »,
-      # alors que la base de developpement, elle, est a jour.
+      # cette etape, tout test qui ecrit echoue sur « relation ... does not exist ».
       - name: Base de test
         run: |
           php bin/console doctrine:database:create --env=test --if-not-exists --no-interaction
@@ -102,10 +155,40 @@ jobs:
       - name: Tests
         run: vendor/bin/phpunit
 
-  # Pas d'etape « doctrine:schema:validate » : le schema evolue par migrations SQL ecrites a la main et
-  # s'ecarte des mappings (colonne user_game.bgg_user_rating hors entite, identifiants, index). A rattraper
-  # avant de rendre ce controle bloquant.
+  # --- Porte 7 — job distinct, et non une etape de « tests » : la suite
+  # construit son schema sans passer par les migrations. Un job separe recoit
+  # une base neuve.
+  migrations:
+    name: Schéma et migrations
+    needs: coherence
+    runs-on: ubuntu-latest
+    # Suit POSTGRES_VERSION du .env racine, comme PHP_VERSION ci-dessus.
+    services:
+      database:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: app
+          POSTGRES_PASSWORD: app
+          POSTGRES_DB: app
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U app"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/php
 
+      # Pas de « doctrine:schema:validate » : le schema evolue par migrations
+      # SQL ecrites a la main et s'ecarte des mappings (colonne
+      # user_game.bgg_user_rating hors entite, identifiants, index). A
+      # rattraper avant de rendre ce controle bloquant.
+      - name: Migrations rejouees sur une base neuve
+        run: php bin/console doctrine:migrations:migrate --no-interaction
+
+  # --- Front (React) : independant du PHP.
   frontend:
     name: Front (React)
     runs-on: ubuntu-latest
@@ -113,7 +196,7 @@ jobs:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version: 26
@@ -125,9 +208,34 @@ jobs:
       - run: npm test
       - run: npm run build
 
+  # --- Agregateur : un seul controle requis par la protection de branche.
+  portes:
+    name: Portes qualité
+    needs: [coherence, securite, style, analyse, frontieres, tests, migrations, frontend]
+    if: always()
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      # Par env: et non en interpolation directe — un resultat interpole est
+      # recopie dans le corps du script avant execution.
+      - name: Verdict des portes
+        env:
+          RESULTATS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "Resultats : $RESULTATS"
+          case "$RESULTATS" in
+            *failure*|*cancelled*)
+              echo "Au moins une porte qualite a cede." >&2
+              exit 1
+              ;;
+          esac
+          echo "Toutes les portes qualite sont vertes."
+
   deploiement-prod:
     name: Deploiement
-    needs: [qualite, frontend]
+    needs: portes
     # Deux gardes cumulees, jamais une seule :
     #   - la branche, et jamais une pull request : une PR d'un depot tiers
     #     deploierait du code non relu ;
@@ -197,7 +305,7 @@ jobs:
 
   deploiement-staging:
     name: Deploiement - staging
-    needs: [qualite, frontend]
+    needs: portes
     # Deux gardes cumulees, jamais une seule :
     #   - la branche, et jamais une pull request : une PR d'un depot tiers
     #     deploierait du code non relu ;
