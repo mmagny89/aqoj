@@ -186,7 +186,11 @@ jobs:
       # user_game.bgg_user_rating hors entite, identifiants, index). A
       # rattraper avant de rendre ce controle bloquant.
       - name: Migrations rejouees sur une base neuve
-        run: php bin/console doctrine:migrations:migrate --no-interaction
+        run: |
+          # APP_ENV=test : Doctrine suffixe le nom de la base (app_test), que le service
+          # PostgreSQL ne cree pas.
+          php bin/console doctrine:database:create --if-not-exists --no-interaction
+          php bin/console doctrine:migrations:migrate --no-interaction
 
   # --- Front (React) : independant du PHP.
   frontend:
