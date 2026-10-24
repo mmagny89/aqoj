@@ -85,7 +85,9 @@ jobs:
         run: |
           # phpstan-symfony lit le conteneur compile en environnement dev, chemin fige dans
           # phpstan.neon. La CI tournant en APP_ENV=test, var/cache/dev n'existe pas sans ce rechauffage.
-          php bin/console cache:warmup --env=dev
+          # APP_DEBUG=1 : le chemin vise le conteneur « Debug » (App_KernelDevDebugContainer.xml),
+          # que cache:warmup ne produit qu'en mode debug.
+          APP_DEBUG=1 php bin/console cache:warmup --env=dev
           vendor/bin/phpstan analyse --no-progress --error-format=github
 
       # Les tests fonctionnels touchent la base : le schema de test (suffixe _test
