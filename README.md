@@ -197,6 +197,7 @@ docker compose exec php php bin/console app:games:seed
 
 # Option B — catalogue complet depuis un ZIP BGG (voir section "Mettre à jour le catalogue")
 docker compose exec php php bin/console app:bgg:import-csv --include-expansions
+# ou, depuis un CSV déjà extrait : app:import:catalogue <fichier> --source=bgg --include-expansions --no-debug
 docker compose exec php php bin/console app:bgg:enrich-pending --mode=pending --limit=200
 docker compose exec php php bin/console app:bgg:relink-expansions
 ```
@@ -258,7 +259,8 @@ aqoj/
 ├── app/                            # Symfony 8.1 — API JSON
 │   ├── src/
 │   │   ├── Command/                # Commandes CLI
-│   │   │   ├── ImportBggCsvCommand.php
+│   │   │   ├── ImportCatalogueCommand.php  # app:import:catalogue <fichier> --source=bgg
+│   │   │   ├── ImportBggCsvCommand.php     # ZIP déposé → importeur (tâche planifiée)
 │   │   │   ├── EnrichGamesPendingCommand.php
 │   │   │   ├── SyncBggNewReleasesCommand.php
 │   │   │   ├── RelinkExpansionsCommand.php
@@ -277,10 +279,10 @@ aqoj/
 │   │   │   └── ThemeMapping.php
 │   │   ├── Repository/             # Requêtes DB
 │   │   ├── Scheduler/              # Planification des tâches BGG (worker)
+│   │   ├── Catalogue/              # Import : sources (Import/), rapprochement (CatalogueImporter)
 │   │   ├── Security/               # Authentification JWT du pare-feu
 │   │   └── Service/                # Logique métier
 │   │       ├── BggApiService.php         # Appels API BGG
-│   │       ├── BggCsvImportService.php   # Import CSV
 │   │       ├── GameEnrichmentService.php # Hydratation des entités
 │   │       ├── MechanicFamilyResolver.php
 │   │       ├── RecommendationService.php
