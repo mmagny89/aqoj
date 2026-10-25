@@ -20,10 +20,18 @@ api_platform:
             max_age: 3600
             shared_max_age: 3600
             vary: ['Accept']
-    # Pas d'interface Swagger : sans Flex, ses ressources ne sont pas publiées et le projet n'a pas de CDN.
-    # La description OpenAPI se lit en JSON : GET /api/docs.jsonopenapi.
     enable_swagger_ui: false
     enable_re_doc: false
     # Pas de Mercure ni de GraphQL : un catalogue en lecture seule n'en a pas l'usage.
     mapping:
         paths: ['%kernel.project_dir%/src/Entity']
+
+# Swagger UI : développement seulement. Elle exige Twig (require-dev) et les fichiers publiés par
+# `assets:install` (scripts composer, sans Flex). La production n'a que la description JSON.
+when@dev:
+    api_platform:
+        docs_formats:
+            jsonld: ['application/ld+json']
+            jsonopenapi: ['application/vnd.openapi+json']
+            html: ['text/html']
+        enable_swagger_ui: true
