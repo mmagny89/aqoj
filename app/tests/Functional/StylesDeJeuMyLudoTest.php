@@ -15,7 +15,7 @@ final class StylesDeJeuMyLudoTest extends ApiTestCase
 
         foreach ([
             ['Zzstyle Ouvriers 1', ['worker_placement'], ['Economic']],
-            ['Zzstyle Ouvriers 2', ['worker_placement'], ['Economic', 'Farming']],
+            ['Zzstyle Ouvriers 2', ['worker_placement'], ['Economic', 'Farming', 'Expansion for Base-game']],
             ['Zzstyle Encheres', ['auction'], ['Economic']],
         ] as [$nom, $familles, $categories]) {
             $this->jeu($conn, $nom, $familles, $categories);
@@ -33,6 +33,7 @@ final class StylesDeJeuMyLudoTest extends ApiTestCase
         self::assertSame(['worker_placement', 'auction'], $prefs['topEngines']);
         self::assertSame('Economic', $prefs['topCategories'][0]);
         self::assertContains('Farming', $prefs['topCategories']);
+        self::assertNotContains('Expansion for Base-game', $prefs['topCategories']);
         self::assertSame(['total' => 4, 'analysed' => 3], $prefs['coverage']);
         self::assertSame(['total' => 4, 'analysed' => 3], $this->call($client, 'GET', '/api/user/preferences', token: $token)['coverage']);
     }

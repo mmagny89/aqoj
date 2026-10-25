@@ -113,6 +113,8 @@ class UserPreferenceService
                  JOIN game g ON g.id = gs.game_id
                  WHERE gs.user_id = ? AND gs.rating = 5 AND g.categories::text != '[]'
              ) sub
+             -- « Expansion for Base-game » décrit le type de fiche, pas un thème : elle ne dit rien des goûts.
+             WHERE cat <> 'Expansion for Base-game'
              GROUP BY cat
              ORDER BY total DESC, cat
              LIMIT 8",
