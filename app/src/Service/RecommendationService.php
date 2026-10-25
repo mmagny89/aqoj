@@ -11,14 +11,17 @@ use Doctrine\DBAL\Connection;
 
 class RecommendationService
 {
-    /** Fenêtre « jeux récents » du démarrage à froid : l'année courante et les quatre précédentes. */
-    private const COLD_START_YEARS = 5;
+    /** Fenêtre « jeux récents » : l'année courante et les quatre précédentes. Valeur unique pour tout le service. */
+    private const RECENT_YEARS = 5;
+
+    /** Plus petit nombre de votes qu'une nouveauté doit avoir pour être proposée. */
+    private const RECENT_MIN_VOTES = 100;
+
+    /** Points de score ajoutés à un jeu paru cette année ; décroît linéairement jusqu'à 5 ans. */
+    private const RECENT_MAX_BONUS = 25;
 
     /** Complexité BGG (1-5) au-delà de laquelle un jeu n'est plus proposé à quelqu'un dont on ignore les goûts. */
     private const COLD_START_MAX_COMPLEXITY = 3.0;
-
-    /** Nombre minimal de votes : écarte les fiches récentes dont la note ne veut encore rien dire. */
-    private const COLD_START_MIN_VOTES = 150;
 
     public function __construct(
         private readonly GameRepository $gameRepository,
@@ -96,24 +99,38 @@ class RecommendationService
         $families   = (array) ($criteria['families']   ?? []);
         $categories = (array) ($criteria['categories'] ?? []);
 
-        $games = $this->gameRepository->findDiscoverForRecommendation(
+        $currentYear = (int) date('Y');
+
+        // Triée par note brute, la réserve générale ne contient presque que des classiques : on y ajoute
+        // un second lot de jeux récents, sinon aucune nouveauté n'atteindrait jamais le classement.
+        $general = $this->gameRepository->findDiscoverForRecommendation(
             $user, $players, $maxTime, $families,
             limit: 100,
             categoryKeys: $categories,
         );
+        $recentPool = $this->gameRepository->findDiscoverForRecommendation(
+            $user, $players, $maxTime, $families,
+            limit: 60,
+            minYear: $this->recentFromYear($currentYear),
+            categoryKeys: $categories,
+            minVotes: self::RECENT_MIN_VOTES,
+        );
+
+        $games = [];
+        foreach ([...$general, ...$recentPool] as $game) {
+            $games[$game->getId()] = $game;
+        }
 
         if (empty($games)) {
             return [];
         }
 
-        $scored = array_map(function (Game $game) use ($maxTime) {
-            $score  = 0.0;
-            $rating = $this->bayesianRating($game->getRatingBgg(), $game->getUsersRated());
+        $scored = array_map(function (Game $game) use ($maxTime, $currentYear) {
+            $score  = $this->recencyBonus($game, $currentYear);
+            $rating = $this->qualityRating($game, $currentYear);
 
-            if ($rating >= 8.0)      $score += 40;
-            elseif ($rating >= 7.5)  $score += 30;
-            elseif ($rating >= 7.0)  $score += 20;
-            elseif ($rating >= 6.5)  $score += 10;
+            // Qualité continue : 0 point à 6,5, 40 points dès 8,0 (plus de palier qui départage deux jeux à 0,01 près).
+            $score += max(0.0, min(40.0, ($rating - 6.5) * 40 / 1.5));
 
             if ($maxTime !== null && $game->getPlayingTime() > 0) {
                 $ratio = $game->getPlayingTime() / $maxTime;
@@ -128,6 +145,9 @@ class RecommendationService
             $reason = $rawRating >= 7.5
                 ? 'Très bien noté sur BGG (' . number_format($rawRating, 1) . '/10)'
                 : 'Noté ' . number_format($rawRating, 1) . '/10 sur BGG';
+            if ($this->isRecent($game, $currentYear)) {
+                $reason = 'Nouveauté ' . $game->getYearPublished() . ' · ' . $reason;
+            }
 
             return ['game' => $game, 'score' => $score, 'reason' => $reason];
         }, $games);
@@ -168,16 +188,17 @@ class RecommendationService
             ];
         }
 
-        // 3. Jeux récents (3 dernières années)
+        // 3. Jeux récents (5 dernières années)
         $recentGames = $this->gameRepository->findDiscoverForRecommendation(
             $user,
             players:    null,
             maxTime:    null,
             familyKeys: $topFamilies,
             limit:      30,
-            minYear:    $currentYear - 3,
+            minYear:    $this->recentFromYear($currentYear),
             excludeIds: $excludeIds,
             baseGamesOnly: true,
+            minVotes:   self::RECENT_MIN_VOTES,
         );
 
         $recent = array_slice(
@@ -187,7 +208,7 @@ class RecommendationService
 
         // 4. Par décennie
         $decades = [
-            '2020s'    => [2020, $currentYear - 4],   // avant les "récents"
+            '2020s'    => [2020, $this->recentFromYear($currentYear) - 1],   // avant les "récents"
             '2010s'    => [2010, 2019],
             '2000s'    => [2000, 2009],
             '1990s'    => [1990, 1999],
@@ -196,7 +217,7 @@ class RecommendationService
 
         $byDecade = [];
         foreach ($decades as $label => [$min, $max]) {
-            // On saute la décennie 2020 si $min > $max (cas où currentYear - 4 < 2020)
+            // On saute la décennie 2020 si $min > $max (cas où la fenêtre des récents couvre déjà tout le début des années 2020)
             if ($min > $max) {
                 continue;
             }
@@ -243,18 +264,17 @@ class RecommendationService
             players:       null,
             maxTime:       null,
             limit:         60,
-            minYear:       $currentYear - self::COLD_START_YEARS + 1,
+            minYear:       $this->recentFromYear($currentYear),
             excludeIds:    $excludeIds,
             baseGamesOnly: true,
             maxComplexity: self::COLD_START_MAX_COMPLEXITY,
-            minVotes:      self::COLD_START_MIN_VOTES,
+            minVotes:      self::RECENT_MIN_VOTES,
         );
 
         $scored = array_map(function (Game $game) use ($currentYear): array {
-            $rating = $this->bayesianRating($game->getRatingBgg(), $game->getUsersRated());
-            $year   = $game->getYearPublished();
-            // Plus le jeu est récent, plus il monte : de 0 (il y a 5 ans) à 10 (cette année).
-            $recency = $year === null ? 0.0 : max(0, self::COLD_START_YEARS - ($currentYear - $year)) * 10 / self::COLD_START_YEARS;
+            $rating  = $this->qualityRating($game, $currentYear);
+            $year    = $game->getYearPublished();
+            $recency = $this->recencyBonus($game, $currentYear);
 
             $reason = ($year !== null ? "Nouveauté {$year}" : 'Nouveauté')
                 . ' · ' . number_format((float) $game->getRatingBgg(), 1) . '/10 sur BGG'
@@ -376,7 +396,7 @@ class RecommendationService
         $scored = array_map(function (Game $game) use ($topFamilies, $recentBoost, $currentYear): array {
             $gameFamilies = $game->getMechanicFamilies();
             $overlap      = count(array_intersect($topFamilies, $gameFamilies));
-            $rating       = $this->bayesianRating($game->getRatingBgg(), $game->getUsersRated());
+            $rating       = $this->qualityRating($game, $currentYear);
             $year         = $game->getYearPublished();
 
             $score = ($overlap * 15) + ($rating * 3);
@@ -384,12 +404,9 @@ class RecommendationService
             if ($rating >= 8.0)     $score += 20;
             elseif ($rating >= 7.5) $score += 10;
 
-            // Boost récence si demandé
-            if ($recentBoost && $year !== null) {
-                $age = $currentYear - $year;
-                if ($age <= 1)      $score += 25;
-                elseif ($age <= 2)  $score += 15;
-                elseif ($age <= 3)  $score += 8;
+            // Bonus de récence continu, réclamé seulement pour la liste des nouveautés
+            if ($recentBoost) {
+                $score += $this->recencyBonus($game, $currentYear);
             }
 
             $reason = match(true) {
@@ -400,8 +417,8 @@ class RecommendationService
             if ($rating >= 7.5) {
                 $reason .= ' · ' . number_format($rating, 1) . '/10 sur BGG';
             }
-            if ($recentBoost && $year !== null && $year >= $currentYear - 1) {
-                $reason = '🆕 Nouveauté ' . $year . ' · ' . $reason;
+            if ($recentBoost && $this->isRecent($game, $currentYear)) {
+                $reason = 'Nouveauté ' . $year . ' · ' . $reason;
             }
 
             return ['game' => $game, 'score' => $score, 'reason' => $reason];
@@ -524,20 +541,56 @@ class RecommendationService
         return $prefix . ($parts ? ' · ' . implode(', ', $parts) : '');
     }
 
+    private function recentFromYear(int $currentYear): int
+    {
+        return $currentYear - self::RECENT_YEARS + 1;
+    }
+
+    private function isRecent(Game $game, int $currentYear): bool
+    {
+        $year = $game->getYearPublished();
+
+        return $year !== null && $year >= $this->recentFromYear($currentYear);
+    }
+
+    /** De RECENT_MAX_BONUS (paru cette année) à 0 (hors de la fenêtre), sans palier. */
+    private function recencyBonus(Game $game, int $currentYear): float
+    {
+        $year = $game->getYearPublished();
+        if ($year === null) {
+            return 0.0;
+        }
+        $age = max(0, $currentYear - $year);
+
+        return max(0.0, self::RECENT_MAX_BONUS * (1 - $age / self::RECENT_YEARS));
+    }
+
+    /**
+     * Note servant au classement. Une nouveauté n'a pas eu le temps d'accumuler des votes : lui appliquer le
+     * même seuil de confiance qu'un classique la tire vers la moyenne, donc on le réduit pour elle.
+     */
+    private function qualityRating(Game $game, int $currentYear): float
+    {
+        return $this->bayesianRating(
+            $game->getRatingBgg(),
+            $game->getUsersRated(),
+            $this->isRecent($game, $currentYear) ? 150 : 500,
+        );
+    }
+
     /**
      * Note BGG ajustée bayésienne — pénalise les jeux avec peu de votants.
      *
      * Formule : (votes * avg + C * mean) / (votes + C)
-     *   C    = 500  (seuil de confiance)
+     *   C    = 500  (seuil de confiance ; 150 pour une nouveauté, voir qualityRating)
      *   mean = 6.8  (moyenne globale estimée des jeux BGG enrichis)
      */
-    private function bayesianRating(?float $ratingBgg, ?int $usersRated): float
+    private function bayesianRating(?float $ratingBgg, ?int $usersRated, int $C = 500): float
     {
         if ($ratingBgg === null) {
             return 0.0;
         }
         $votes = $usersRated ?? 0;
-        $C     = 500;
         $mean  = 6.8;
         return ($votes * $ratingBgg + $C * $mean) / ($votes + $C);
     }

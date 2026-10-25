@@ -46,6 +46,58 @@ final class HomeRecommendationTest extends ApiTestCase
         self::assertSame(['Zzgout Coop'], array_column(array_column($reco['recent'], 'game'), 'name'));
     }
 
+    public function testLaFenetreDesNouveautesCouvreCinqAns(): void
+    {
+        $client = static::createClient();
+        $token = $this->register($client, 'fenetre@example.test');
+        $annee = (int) date('Y');
+        $this->creerJeu('Zzfen Limite', $annee - 4, 2.0, 7.8, 3000, familles: ['cooperation']);
+        $this->creerJeu('Zzfen Dehors', $annee - 5, 2.0, 7.8, 3000, familles: ['cooperation']);
+        $this->call($client, 'PUT', '/api/user/taste', ['families' => ['cooperation']], $token);
+
+        $reco = $this->call($client, 'GET', '/api/games/home-reco', token: $token);
+
+        self::assertSame(['Zzfen Limite'], array_column(array_column($reco['recent'], 'game'), 'name'));
+        $anciens = array_merge(...array_values(array_map(fn(array $liste) => array_column(array_column($liste, 'game'), 'name'), $reco['byDecade'])));
+        self::assertContains('Zzfen Dehors', $anciens);
+        self::assertNotContains('Zzfen Limite', $anciens);
+        self::assertStringContainsString('Nouveauté ' . ($annee - 4), $reco['recent'][0]['reason']);
+    }
+
+    public function testUneNouveauteMoinsNoteeMonteAuDessusDUnClassiqueComparable(): void
+    {
+        $client = static::createClient();
+        $token = $this->register($client, 'ordre@example.test');
+        $annee = (int) date('Y');
+        // Même note brute, mais le classique a des milliers de votes : sans seuil adapté, la nouveauté serait écartée.
+        $this->creerJeu('Zzord Classique', $annee - 12, 2.0, 7.9, 20000, familles: ['cooperation']);
+        $this->creerJeu('Zzord Nouveau', $annee, 2.0, 7.9, 250, familles: ['cooperation']);
+        $this->call($client, 'PUT', '/api/user/taste', ['families' => ['cooperation']], $token);
+
+        $reco = $this->call($client, 'GET', '/api/games/home-reco', token: $token);
+
+        self::assertSame(['Zzord Nouveau'], array_column(array_column($reco['recent'], 'game'), 'name'));
+    }
+
+    public function testLaDecouverteFaitRemonterLesNouveautesMemeNoyeesParLesClassiques(): void
+    {
+        $client = static::createClient();
+        $token = $this->register($client, 'decouverte@example.test');
+        $annee = (int) date('Y');
+        for ($i = 1; $i <= 100; $i++) {
+            $this->creerJeu("Zzdec Classique $i", $annee - 15, 2.5, 8.5, 30000);
+        }
+        $this->creerJeu('Zzdec Nouveau', $annee - 1, 2.5, 7.6, 800);
+
+        $reco = $this->call($client, 'GET', '/api/games/recommendation?scope=discover', token: $token);
+
+        self::assertResponseIsSuccessful();
+        $noms = array_column(array_column($reco, 'game'), 'name');
+        self::assertContains('Zzdec Nouveau', $noms);
+        $nouveau = array_values(array_filter($reco, fn(array $r) => $r['game']['name'] === 'Zzdec Nouveau'))[0];
+        self::assertStringStartsWith('Nouveauté ' . ($annee - 1), $nouveau['reason']);
+    }
+
     public function testLeRecalculDesPreferencesGardeLesGoutsDeclares(): void
     {
         $client = static::createClient();
