@@ -30,6 +30,11 @@ when@test:
         test.bgg_http_client:
             class: Symfony\Component\HttpClient\MockHttpClient
 
+        # Lu directement par les tests du rapprochement.
+        App\Catalogue\CatalogueImporter:
+            autowire: true
+            public: true
+
         App\Service\BggApiService:
             arguments:
                 $httpClient: '@test.bgg_http_client'

@@ -2,7 +2,9 @@
 
 namespace App\Command;
 
-use App\Service\BggCsvImportService;
+use App\Catalogue\CatalogueImporter;
+use App\Catalogue\Import\CsvBggImporter;
+use App\Catalogue\Import\InvalidSourceException;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
@@ -12,7 +14,7 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 
 #[AsCommand(
     name: 'app:bgg:import-csv',
-    description: 'Importe le catalogue BGG depuis un ZIP déposé dans var/imports/bgg/',
+    description: 'Importe le catalogue BGG depuis un ZIP déposé dans var/imports/bgg/ (tâche planifiée ; sinon app:import:catalogue)',
 )]
 class ImportBggCsvCommand extends Command
 {
@@ -21,7 +23,7 @@ class ImportBggCsvCommand extends Command
     private const CSV_FILENAME = 'boardgames_ranks.csv';
 
     public function __construct(
-        private readonly BggCsvImportService $importService,
+        private readonly CatalogueImporter $catalogueImporter,
         private readonly string $projectDir,
     ) {
         parent::__construct();
@@ -64,22 +66,22 @@ class ImportBggCsvCommand extends Command
 
         try {
             if ($dryRun) {
-                $io->success('Dry-run OK — fichier CSV valide, aucune donnée écrite.');
+                $report = $this->catalogueImporter->import(CsvBggImporter::SOURCE, new \SplFileInfo($csvPath), $includeExpansions, true);
+                $io->success(ImportCatalogueCommand::summary($report, true));
+
                 return Command::SUCCESS;
             }
 
             $io->text('Import en cours (cela peut prendre quelques minutes)…');
-            $stats = $this->importService->importFromCsvFile($csvPath, $includeExpansions);
-
-            $io->success(sprintf(
-                'Import terminé : %d jeux traités, %d ignorés (extensions), %d erreurs.',
-                $stats['imported'],
-                $stats['skipped'],
-                $stats['errors'],
-            ));
+            $report = $this->catalogueImporter->import(CsvBggImporter::SOURCE, new \SplFileInfo($csvPath), $includeExpansions);
+            $io->success(ImportCatalogueCommand::summary($report, false));
 
             $this->archiveZip($zipPath, $archiveDir);
             $io->text('ZIP archivé dans ' . self::ARCHIVE_DIR);
+        } catch (InvalidSourceException $exception) {
+            $io->error($exception->getMessage());
+
+            return Command::FAILURE;
         } finally {
             @unlink($csvPath);
             $tmpDir = dirname($csvPath);
