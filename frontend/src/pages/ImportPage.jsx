@@ -4,16 +4,13 @@ import { useAuth } from '../context/AuthContext'
 import AssociationLibraryPanel from '../components/AssociationLibraryPanel'
 import ImportBggTab from '../components/ImportBggTab'
 import ImportMyLudoTab from '../components/ImportMyLudoTab'
+import ImportPlaysTab from '../components/ImportPlaysTab'
 
 const TABS = [
   { key: 'bgg', label: 'Compte BGG' },
   { key: 'myludo', label: 'Ma collection MyLudo' },
   { key: 'parties', label: 'Mes parties MyLudo' },
 ]
-
-function ComingSoon({ children }) {
-  return <p className="panel p-6 text-stone-700">{children}</p>
-}
 
 /* Un administrateur choisit où va l'import : sa ludothèque, ou celle de l'association. */
 function TargetPicker({ target, onChange }) {
@@ -87,7 +84,7 @@ export default function ImportPage() {
       <div id="import-panneau" role="tabpanel" aria-labelledby={`import-${active}`}>
         {active === 'bgg' && <ImportBggTab key={effectiveTarget} target={effectiveTarget} onImported={() => setRefreshKey(k => k + 1)} />}
         {active === 'myludo' && <ImportMyLudoTab key={effectiveTarget} target={effectiveTarget} onImported={() => setRefreshKey(k => k + 1)} />}
-        {active === 'parties' && <ComingSoon>L'import de vos parties MyLudo viendra plus tard.</ComingSoon>}
+        {active === 'parties' && <ImportPlaysTab />}
       </div>
 
       {isAdmin && effectiveTarget === 'association' && active !== 'parties' && <AssociationLibraryPanel refreshKey={refreshKey} />}

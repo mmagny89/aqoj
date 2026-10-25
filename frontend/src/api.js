@@ -104,6 +104,8 @@ export const getSimilarGames = (id, limit = 5) => request(`/games/${id}/similar?
 // Préférences utilisateur
 export const getUserPreferences = () => request('/user/preferences')
 export const analyzeMyLudo = (csv) => request('/myludo/analyze', { method: 'POST', body: JSON.stringify({ csv }) })
+export const analyzeMyLudoPlays = (csv) => request('/myludo/plays/analyze', { method: 'POST', body: JSON.stringify({ csv }) })
+export const importMyLudoPlays = (csv, mapping) => request('/myludo/plays/import', { method: 'POST', body: JSON.stringify({ csv, mapping }) })
 export const importMyLudo = (items, target = 'me') => request('/myludo/import', { method: 'POST', body: JSON.stringify({ items, target }) })
 export const saveTable = ({ players, maxTime }) => request('/user/table', { method: 'PUT', body: JSON.stringify({ players, maxTime }) })
 export const saveTaste = (families) => request('/user/taste', { method: 'PUT', body: JSON.stringify({ families }) })
@@ -188,7 +190,8 @@ export const deleteThemeMapping = (id) =>
   request(`/admin/theme-mappings/${id}`, { method: 'DELETE' }).catch(() => {})
 
 // Sessions
-export const getSessions = () => request('/sessions')
+export const getSessions = ({ offset = 0, limit = 50 } = {}) => request(`/sessions?offset=${offset}&limit=${limit}`)
+export const getSessionsSummary = () => request('/sessions/summary')
 
 export const createSession = (data) =>
   request('/sessions', { method: 'POST', body: JSON.stringify(data) })

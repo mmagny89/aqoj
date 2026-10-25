@@ -4,12 +4,13 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import SessionsPage from './SessionsPage'
 
-vi.mock('../api', () => ({ getSessions: vi.fn(), createSession: vi.fn(), searchGames: vi.fn() }))
-import { createSession, getSessions, searchGames } from '../api'
+vi.mock('../api', () => ({ getSessions: vi.fn(), getSessionsSummary: vi.fn(), createSession: vi.fn(), searchGames: vi.fn() }))
+import { createSession, getSessions, getSessionsSummary, searchGames } from '../api'
 
 describe('SessionsPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    getSessionsSummary.mockResolvedValue({ plays: 1, games: 1, liked: 1 })
     getSessions.mockResolvedValue([{ id: 1, game: { name: 'Azul' }, playersCount: 3, rating: 5, playedAt: '2026-10-20T20:00:00+01:00', note: 'Très bien' }])
     searchGames.mockResolvedValue([{ id: 7, name: 'Catan', yearPublished: 1995 }, { id: 8, name: 'Catan : Marins', isExpansion: true }])
   })
@@ -28,6 +29,7 @@ describe('SessionsPage', () => {
       { id: 2, game: { id: 7, name: 'Catan' }, playersCount: 2, rating: 1, playedAt: '2026-10-02T20:00:00+01:00', note: null },
       { id: 1, game: { id: 9, name: 'Azul' }, playersCount: 3, rating: null, playedAt: '2026-09-14T20:00:00+01:00', note: null },
     ])
+    getSessionsSummary.mockResolvedValue({ plays: 3, games: 2, liked: 1 })
     render(<MemoryRouter><SessionsPage /></MemoryRouter>)
 
     expect(await screen.findByRole('heading', { name: 'octobre 2026' })).toBeInTheDocument()
@@ -68,5 +70,23 @@ describe('SessionsPage', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Changer de jeu' }))
 
     expect(screen.getByLabelText('Jeu joué')).toBeInTheDocument()
+  })
+
+  it('annonce le bilan de toutes les parties et charge les plus anciennes à la demande', async () => {
+    const partie = (id, jour) => ({ id, game: { id: id, name: `Jeu ${id}` }, playersCount: 2, rating: null, playedAt: `2026-09-${jour}T12:00:00+00:00`, note: null })
+    const page1 = Array.from({ length: 50 }, (_, i) => partie(i + 1, '20'))
+    getSessionsSummary.mockResolvedValue({ plays: 2000, games: 300, liked: 120 })
+    getSessions.mockResolvedValueOnce(page1).mockResolvedValueOnce([partie(51, '01')])
+    render(<MemoryRouter><SessionsPage /></MemoryRouter>)
+
+    expect(await screen.findByText('2000 parties')).toBeInTheDocument()
+    expect(screen.getByText('300 jeux différents')).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Jeu 51' })).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Voir les parties plus anciennes' }))
+
+    expect(getSessions).toHaveBeenLastCalledWith({ offset: 50, limit: 50 })
+    expect(await screen.findByRole('heading', { name: 'Jeu 51' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Voir les parties plus anciennes' })).not.toBeInTheDocument()
   })
 })

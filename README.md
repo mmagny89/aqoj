@@ -59,7 +59,8 @@ Plateforme de découverte et de recommandation de jeux de société pour les mem
 - Tant que rien n'est déclaré, l'accueil le rappelle (« Plus tard » masque le rappel une semaine).
 
 ### Import (menu « Import »)
-- Trois onglets : **Compte BGG**, **Ma collection MyLudo**, **Mes parties MyLudo** (à venir).
+- Trois onglets : **Compte BGG**, **Ma collection MyLudo**, **Mes parties MyLudo**.
+- **Parties MyLudo** : on dépose l'export CSV des parties ; les jeux sont rapprochés du catalogue (comme la collection), puis seules les parties des jeux confirmés entrent dans « Mes parties » (date, nombre de joueurs, lieu, commentaire ; l'avis découle de la note du jeu). Le même fichier peut être rejoué sans créer de doublon, ce qui permet de traiter les jeux douteux après coup.
 - **MyLudo** : on dépose l'export CSV de sa ludothèque. MyLudo ne donne pas d'identifiant BGG : le fichier est rapproché du catalogue par le titre (avec ou sans sous-titre, sans accents ni ponctuation) et l'année d'édition. Une interface permet ensuite de **départager les homonymes**, de **chercher les jeux introuvables** ou de les laisser de côté. Rien n'est ajouté avant la confirmation ; le fichier n'est pas conservé ; la note personnelle est reprise sans effacer une note existante.
 - **Ludothèque de l'association** : un administrateur choisit « La ludothèque de l'association » comme destination, puis importe un export MyLudo ou le compte BGG de l'association (pseudo obligatoire, jamais celui de l'administrateur). La liste est consultable et un jeu mal importé se retire. Elle alimente l'accueil et l'onglet « À l'association » de « À quoi on joue ».
 
