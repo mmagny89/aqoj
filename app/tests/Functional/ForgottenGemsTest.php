@@ -6,7 +6,7 @@ use Doctrine\DBAL\Connection;
 
 final class ForgottenGemsTest extends ApiTestCase
 {
-    public function testUneNoteOuUnePartieProuventQueLeJeuAEteJoue(): void
+    public function testUnJeuNoteNEstJamaisOublie(): void
     {
         $client = static::createClient();
         $token = $this->register($client, 'oublies@example.test');
@@ -36,8 +36,8 @@ final class ForgottenGemsTest extends ApiTestCase
         self::assertArrayNotHasKey('Zzoubli Recent', $raisons);
         self::assertArrayNotHasKey('Zzoubli Extension', $raisons);
         self::assertStringContainsString('Pas joué depuis', $raisons['Zzoubli Ancien']);
-        // Noté sans partie enregistrée : on le dit, sans prétendre qu'il n'a jamais été joué.
-        self::assertSame('Noté 8/10 par vous, aucune partie enregistrée', $raisons['Zzoubli Note']);
+        // Une note prouve que le jeu a été joué : il ne sort jamais, avec ou sans partie enregistrée.
+        self::assertArrayNotHasKey('Zzoubli Note', $raisons);
         self::assertSame('Aucune partie enregistrée, dans votre collection', $raisons['Zzoubli Rien']);
         foreach ($raisons as $raison) {
             self::assertStringNotContainsStringIgnoringCase('jamais joué', $raison);
