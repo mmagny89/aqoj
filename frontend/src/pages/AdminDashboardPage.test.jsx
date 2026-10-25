@@ -9,6 +9,7 @@ vi.mock('../components/AdminCatalogue', () => ({
   JobsPanel: () => <p>Panneau des tâches</p>,
   GamesPanel: ({ filter }) => <p>Explorateur sur {filter}</p>,
 }))
+vi.mock('../components/AdminMembers', () => ({ default: () => <p>Panneau des membres</p> }))
 vi.mock('../api', () => ({ getAdminStats: vi.fn() }))
 import { getAdminStats } from '../api'
 
@@ -40,6 +41,13 @@ describe('AdminDashboardPage', () => {
 
     expect(screen.getByText('Panneau des tâches')).toBeInTheDocument()
     expect(screen.queryByText('Catalogue de jeux (jeux de base)')).not.toBeInTheDocument()
+  })
+
+  it('ouvre l’onglet Membres, sans le contenu des autres', async () => {
+    renderAt('/admin?onglet=membres')
+
+    expect(await screen.findByText('Panneau des membres')).toBeInTheDocument()
+    expect(screen.queryByText('Utilisateurs')).not.toBeInTheDocument()
   })
 
   it('lit l’onglet dans l’URL', async () => {

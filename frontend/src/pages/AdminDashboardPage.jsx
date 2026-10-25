@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { getAdminStats } from '../api'
 import { useAuth } from '../context/AuthContext'
 import { GamesPanel, JobsPanel } from '../components/AdminCatalogue'
+import AdminMembers from '../components/AdminMembers'
 
 /* ── Carte de stat simple ────────────────────────────────────────────── */
 function StatCard({ label, value, sub, color = 'stone', icon, onClick }) {
@@ -74,6 +75,7 @@ const TABS = [
   ['catalogue', 'Catalogue'],
   ['taches', 'Tâches'],
   ['explorer', 'Explorer'],
+  ['membres', 'Membres'],
   ['communaute', 'Communauté'],
   ['mappings', 'Mappings'],
 ]
@@ -303,6 +305,12 @@ export default function AdminDashboardPage() {
         <GamesPanel filter={explorerFilter} onFilter={setExplorerFilter} />
       </Section>
       </>
+      )}
+
+      {tab === 'membres' && (
+        <Section title="Membres et invitations" icon="🎟️">
+          <AdminMembers />
+        </Section>
       )}
 
       {tab === 'communaute' && (<>

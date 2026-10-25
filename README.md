@@ -99,7 +99,8 @@ Explications sur le fonctionnement du site, du modèle de recommandation, du mod
 - Gestion des thématiques BGG → labels français + emoji (groupes : thèmes / types de jeu)
 - Recalcul en masse des familles pour tous les jeux en base
 - Visualisation des mécaniques BGG non encore mappées, triées par fréquence
-- Tableau de bord (`/admin`, cinq onglets : Catalogue, Tâches, Explorer, Communauté, Mappings ; l'onglet courant est dans l'URL, `?onglet=`) : dernière exécution et historique des tâches d'import et de synchronisation (bilan chiffré, durée, erreur), puis explorateur du catalogue filtrable (à enrichir, jamais demandés à BGG, sans réponse de BGG, à rafraîchir, sans image, extensions sans jeu de base…) avec fiche de diagnostic ; lecture seule
+- Rôles : un compte est **Membre** ou **VIP** (le statut administrateur est à part). L'inscription se fait par **code d'invitation** en préproduction et production : créé dans l'onglet Membres de `/admin` ou par `app:invitation:create "<libellé>" --role=member|vip --uses=N --until=AAAA-MM-JJ`, il accorde son rôle, sert N fois, expire et se révoque. `app:user:role <e-mail> member|vip` change un rôle, `app:user:admin <e-mail> [--revoke]` donne ou retire l'administration (jamais depuis l'interface). Le catalogue, la recherche et l'API `/api/catalogue` restent publics.
+- Tableau de bord (`/admin`, six onglets : Catalogue, Tâches, Explorer, Membres, Communauté, Mappings ; l'onglet courant est dans l'URL, `?onglet=`) : dernière exécution et historique des tâches d'import et de synchronisation (bilan chiffré, durée, erreur), puis explorateur du catalogue filtrable (à enrichir, jamais demandés à BGG, sans réponse de BGG, à rafraîchir, sans image, extensions sans jeu de base…) avec fiche de diagnostic ; lecture seule
 
 ---
 
@@ -325,6 +326,7 @@ Commité, sans secret. En préproduction et production, il est **remplacé** (pa
 | `SYMFONY_TRUSTED_PROXIES` | Proxies de confiance (adresse du client) | *(vide)* | `private_ranges` |
 | `MAILER_DSN`, `MAILER_FROM` | Transport et expéditeur des e-mails | Mailpit | transport réel |
 | `ALERT_EMAIL` | Destinataire des alertes d'échec de tâche | `alerte@aqoj.test` | adresse réelle |
+| `REGISTRATION_REQUIRES_CODE` | `1` : l'inscription exige un code d'invitation ; `0` : elle reste libre. Vide refusé | `0` | `1` |
 | `BGG_*_CRON` | Horaires des quatre tâches BGG (heure de Paris) | 1 h, 2 h, 3 h, 4 h | décalés en préproduction |
 | `APP_SECRET`, `JWT_SECRET`, `BGG_TOKEN` | Secrets applicatifs | `app/.env.local` | `.env.prod.local` |
 

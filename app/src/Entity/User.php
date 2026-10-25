@@ -2,6 +2,7 @@
 
 namespace App\Entity;
 
+use App\Enum\UserRole;
 use App\Repository\UserRepository;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
@@ -33,6 +34,14 @@ class User implements \JsonSerializable, UserInterface
     #[ORM\Column(options: ['default' => false])]
     private bool $isAdmin = false;
 
+    #[ORM\Column(length: 20, enumType: UserRole::class, options: ['default' => 'member'])]
+    private UserRole $role = UserRole::Member;
+
+    /** Le code d'invitation avec lequel le compte a été créé (null : compte antérieur ou créé en ligne de commande). */
+    #[ORM\ManyToOne]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    private ?InvitationCode $invitationCode = null;
+
     #[ORM\Column]
     private \DateTimeImmutable $createdAt;
 
@@ -44,7 +53,11 @@ class User implements \JsonSerializable, UserInterface
     /** @return list<string> */
     public function getRoles(): array
     {
-        return $this->isAdmin ? ['ROLE_USER', 'ROLE_ADMIN'] : ['ROLE_USER'];
+        return array_values(array_unique([
+            'ROLE_USER',
+            ...$this->role->securityRoles(),
+            ...($this->isAdmin ? ['ROLE_ADMIN'] : []),
+        ]));
     }
 
     public function __construct()
@@ -60,6 +73,7 @@ class User implements \JsonSerializable, UserInterface
             'email' => $this->email,
             'bggUsername' => $this->bggUsername,
             'isAdmin' => $this->isAdmin,
+            'role' => $this->role->value,
             'createdAt' => $this->createdAt->format('c'),
         ];
     }
@@ -76,4 +90,9 @@ class User implements \JsonSerializable, UserInterface
     public function getCreatedAt(): \DateTimeImmutable { return $this->createdAt; }
     public function isAdmin(): bool { return $this->isAdmin; }
     public function setIsAdmin(bool $v): static { $this->isAdmin = $v; return $this; }
+    public function getRole(): UserRole { return $this->role; }
+    public function setRole(UserRole $role): static { $this->role = $role; return $this; }
+    public function isVip(): bool { return $this->role === UserRole::Vip; }
+    public function getInvitationCode(): ?InvitationCode { return $this->invitationCode; }
+    public function setInvitationCode(?InvitationCode $code): static { $this->invitationCode = $code; return $this; }
 }

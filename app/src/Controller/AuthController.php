@@ -2,11 +2,14 @@
 
 namespace App\Controller;
 
+use App\Entity\InvitationCode;
 use App\Entity\User;
+use App\Repository\InvitationCodeRepository;
 use App\Repository\UserRepository;
 use App\Service\JwtService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\RateLimiter\RateLimiterFactoryInterface;
@@ -15,6 +18,15 @@ use Symfony\Component\Routing\Attribute\Route;
 
 class AuthController extends AbstractController
 {
+    private const INVALID_CODE = "Code d'invitation invalide ou expiré.";
+
+    /** Dit au formulaire d'inscription s'il doit réclamer un code d'invitation. */
+    #[Route('/api/auth/registration', name: 'api_auth_registration', methods: ['GET'])]
+    public function registration(#[Autowire(env: 'bool:REGISTRATION_REQUIRES_CODE')] bool $requiresCode): JsonResponse
+    {
+        return $this->json(['requiresCode' => $requiresCode]);
+    }
+
     #[Route('/api/auth/register', name: 'api_auth_register', methods: ['POST'])]
     public function register(
         Request $request,
@@ -22,6 +34,9 @@ class AuthController extends AbstractController
         EntityManagerInterface $em,
         JwtService $jwt,
         RateLimiterFactoryInterface $registerLimiter,
+        InvitationCodeRepository $invitations,
+        #[Autowire(env: 'bool:REGISTRATION_REQUIRES_CODE')]
+        bool $requiresCode,
     ): JsonResponse {
         $limit = $registerLimiter->create($request->getClientIp() ?? 'inconnue')->consume();
         if (!$limit->isAccepted()) {
@@ -44,12 +59,34 @@ class AuthController extends AbstractController
             return $this->json(['error' => 'Un compte existe déjà avec cet e-mail.'], 409);
         }
 
+        // Un code est exigé selon l'environnement, et vérifié dès qu'il est fourni. L'erreur est la même
+        // dans tous les cas : elle ne dit pas si le code existe, ni s'il était obligatoire.
+        $code = trim((string) ($data['code'] ?? ''));
+        if ($code === '' && $requiresCode) {
+            return $this->json(['error' => self::INVALID_CODE], 422);
+        }
+
         $user = (new User())
             ->setEmail($email)
             ->setPasswordHash(password_hash($password, PASSWORD_BCRYPT, ['cost' => 12]));
 
-        $em->persist($user);
-        $em->flush();
+        // Usage consommé et compte créé dans la même transaction : un échec n'use pas le code.
+        $accepted = $em->wrapInTransaction(function () use ($code, $invitations, $user, $em): bool {
+            if ($code !== '') {
+                $used = $invitations->consume($code);
+                if ($used === null) {
+                    return false;
+                }
+                $user->setRole($used['role'])->setInvitationCode($em->getReference(InvitationCode::class, $used['id']));
+            }
+            $em->persist($user);
+            $em->flush();
+
+            return true;
+        });
+        if (!$accepted) {
+            return $this->json(['error' => self::INVALID_CODE], 422);
+        }
 
         return $this->json([
             'token' => $jwt->generateToken($user),
