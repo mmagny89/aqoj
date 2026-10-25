@@ -262,8 +262,10 @@ class RecommendationService
     }
 
     /**
-     * Le top 10 des nouveautés BGG : jeux de base parus récemment ou à paraître, les plus suivis par les votants,
+     * Une sélection de 10 nouveautés BGG, parmi les 30 plus suivies : jeux de base parus récemment ou à paraître, les plus suivis par les votants,
      * que le joueur n'a pas déjà. Indépendant des goûts et du périmètre (ludothèque ou catalogue) : c'est ce qui se passe sur BGG.
+     *
+     * Dix jeux tirés au hasard parmi les trente plus votés.
      *
      * « Récemment » = l'année en cours (et la précédente jusqu'en juin, pour ne pas vider la liste en janvier) ;
      * « à paraître » = jusqu'à l'année prochaine incluse. Classement par nombre de votes, la mesure d'intérêt que
@@ -275,7 +277,8 @@ class RecommendationService
     {
         $currentYear = (int) date('Y');
         $fromYear    = (int) date('n') <= 6 ? $currentYear - 1 : $currentYear;
-        $games = $this->gameRepository->findNewReleases($user, $fromYear, $currentYear + 1, 10);
+        // Les 30 plus suivies, dont 10 au hasard : d'autres nouveautés à chaque chargement.
+        $games = $this->pickRandom($this->gameRepository->findNewReleases($user, $fromYear, $currentYear + 1, 30), 30, 10);
 
         return array_map(function (Game $game) use ($currentYear): array {
             $year   = $game->getYearPublished();

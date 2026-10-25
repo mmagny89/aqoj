@@ -315,7 +315,7 @@ export default function HomePage() {
       label: 'Nouveautés pour vous',
       content: (
         <>
-          <p className="mb-4 mt-0 text-stone-600">Le top 10 des nouveautés BGG, sorties récemment ou à paraître, qui ne sont pas dans votre ludothèque.</p>
+          <p className="mb-4 mt-0 text-stone-600">Dix nouveautés parmi les plus suivies sur BGG, sorties récemment ou à paraître, qui ne sont pas dans votre ludothèque.</p>
           <Carousel items={recentList} label="Nouveautés pour vous" />
         </>
       ),

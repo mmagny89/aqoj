@@ -6,7 +6,7 @@ use Doctrine\DBAL\Connection;
 
 final class HomeRecommendationTest extends ApiTestCase
 {
-    public function testLesNouveautesSontLeTopBggDesSortiesRecentesEtAVenir(): void
+    public function testLesNouveautesViennentDuTopBggDesSortiesRecentesEtAVenir(): void
     {
         $client = static::createClient();
         $token = $this->register($client, 'froid@example.test');
@@ -24,31 +24,44 @@ final class HomeRecommendationTest extends ApiTestCase
 
         self::assertResponseIsSuccessful();
         self::assertTrue($reco['coldStart']);
-        // Les plus votés d'abord ; ni extension, ni jeu à moins de 6/10, ni jeu quasi inconnu, ni hors fenêtre.
-        self::assertSame(['Zznouv Suivi', 'Zznouv AVenir', 'Zznouv Discret'], array_column(array_column($reco['recent'], 'game'), 'name'));
-        self::assertStringContainsString('Sorti en ' . $annee, $reco['recent'][0]['reason']);
-        self::assertStringContainsString('À paraître en ' . ($annee + 1), $reco['recent'][1]['reason']);
+        // Ni extension, ni jeu à moins de 6/10, ni jeu quasi inconnu, ni hors fenêtre.
+        $parNom = array_column(array_column($reco['recent'], 'game'), 'name');
+        sort($parNom);
+        self::assertSame(['Zznouv AVenir', 'Zznouv Discret', 'Zznouv Suivi'], $parNom);
+        $raisons = [];
+        foreach ($reco['recent'] as $r) {
+            $raisons[$r['game']['name']] = $r['reason'];
+        }
+        self::assertStringContainsString('Sorti en ' . $annee, $raisons['Zznouv Suivi']);
+        self::assertStringContainsString('À paraître en ' . ($annee + 1), $raisons['Zznouv AVenir']);
     }
 
-    public function testLesNouveautesNeProposentPasCeQueLeJoueurAdejaEtSontLimiteesADix(): void
+    public function testLesNouveautesNeProposentPasCeQueLeJoueurAdejaEtSontDixTireesParmiLesTrenteDeTete(): void
     {
         $client = static::createClient();
         $token = $this->register($client, 'dix@example.test');
         $annee = (int) date('Y');
-        for ($i = 1; $i <= 12; $i++) {
-            $this->creerJeu(sprintf('Zzdix %02d', $i), $annee, 2.0, 7.0, 1000 - $i);
+        for ($i = 1; $i <= 40; $i++) {
+            $this->creerJeu(sprintf('Zzdix %02d', $i), $annee, 2.0, 7.0, 2000 - $i);
         }
         static::getContainer()->get(Connection::class)->executeStatement(
             'INSERT INTO user_game (user_id, game_id) VALUES ((SELECT id FROM app_user WHERE email = ?), (SELECT id FROM game WHERE name = ?))',
             ['dix@example.test', 'Zzdix 01'],
         );
 
-        $reco = $this->call($client, 'GET', '/api/games/home-reco', token: $token);
-        $noms = array_column(array_column($reco['recent'], 'game'), 'name');
-
-        self::assertCount(10, $noms);
-        self::assertNotContains('Zzdix 01', $noms);
-        self::assertSame('Zzdix 02', $noms[0]);
+        $tirages = [];
+        for ($essai = 0; $essai < 4; $essai++) {
+            $reco = $this->call($client, 'GET', '/api/games/home-reco', token: $token);
+            $noms = array_column(array_column($reco['recent'], 'game'), 'name');
+            self::assertCount(10, $noms);
+            self::assertNotContains('Zzdix 01', $noms);
+            // Tirés parmi les trente plus votés (02 à 31 une fois « 01 » retiré), jamais plus loin.
+            foreach ($noms as $nom) {
+                self::assertLessThanOrEqual(31, (int) substr($nom, -2));
+            }
+            $tirages[] = $noms;
+        }
+        self::assertGreaterThan(1, count(array_unique(array_map('json_encode', $tirages))));
     }
 
     public function testLesGoutsDeclaresDonnentUnProfil(): void

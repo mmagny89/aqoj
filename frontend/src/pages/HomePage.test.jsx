@@ -45,7 +45,7 @@ describe('HomePage', () => {
       render(<MemoryRouter><HomePage /></MemoryRouter>)
 
       expect(await screen.findByRole('tab', { name: 'Nouveautés pour vous' })).toBeInTheDocument()
-      expect(screen.getByText(/top 10 des nouveautés BGG/)).toBeInTheDocument()
+      expect(screen.getByText(/Dix nouveautés parmi les plus suivies sur BGG/)).toBeInTheDocument()
       expect(screen.getByRole('link', { name: 'Choisir mes goûts' })).toHaveAttribute('href', '/compte#gouts')
       expect(screen.queryByRole('heading', { name: 'Ce que vous aimez' })).not.toBeInTheDocument()
       expect(screen.queryByText(/Importez votre collection/)).not.toBeInTheDocument()
