@@ -3,11 +3,11 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import HomePage from './HomePage'
-import { getForgottenGems, getHomeRecommendations, getTonightRecommendations, saveTable, saveTaste } from '../api'
+import { getForgottenGems, getHomeRecommendations, getTonightRecommendations, saveTable } from '../api'
 
 const auth = vi.hoisted(() => ({ user: null }))
 vi.mock('../context/AuthContext', () => ({ useAuth: () => ({ user: auth.user, loading: false }) }))
-vi.mock('../api', () => ({ getHomeRecommendations: vi.fn(), getForgottenGems: vi.fn(), getTonightRecommendations: vi.fn(), saveTable: vi.fn(), saveTaste: vi.fn() }))
+vi.mock('../api', () => ({ getHomeRecommendations: vi.fn(), getForgottenGems: vi.fn(), getTonightRecommendations: vi.fn(), saveTable: vi.fn() }))
 
 describe('HomePage', () => {
   beforeEach(() => {
@@ -40,29 +40,15 @@ describe('HomePage', () => {
       getTonightRecommendations.mockResolvedValue({ easy: [], popular: [] })
     })
 
-    it('propose des nouveautés accessibles et le questionnaire, sans parler de BGG', async () => {
+    it('propose des nouveautés accessibles et renvoie au questionnaire du compte, sans parler de BGG', async () => {
       getHomeRecommendations.mockResolvedValue(froid)
       render(<MemoryRouter><HomePage /></MemoryRouter>)
 
       expect(await screen.findByRole('tab', { name: 'Nouveautés à découvrir' })).toBeInTheDocument()
       expect(screen.getByText(/Nous ne connaissons pas encore vos goûts/)).toBeInTheDocument()
-      expect(screen.getByRole('heading', { name: 'Ce que vous aimez' })).toBeInTheDocument()
+      expect(screen.getByRole('link', { name: 'Choisir mes goûts' })).toHaveAttribute('href', '/compte#gouts')
+      expect(screen.queryByRole('heading', { name: 'Ce que vous aimez' })).not.toBeInTheDocument()
       expect(screen.queryByText(/Importez votre collection/)).not.toBeInTheDocument()
-    })
-
-    it('enregistre les goûts choisis puis recharge les suggestions', async () => {
-      getHomeRecommendations.mockResolvedValueOnce(froid).mockResolvedValue({ ...froid, coldStart: false, families: ['cooperation'], declared: ['cooperation'] })
-      saveTaste.mockResolvedValue({ declaredFamilies: ['cooperation'] })
-      render(<MemoryRouter><HomePage /></MemoryRouter>)
-
-      const enregistrer = await screen.findByRole('button', { name: 'Enregistrer mes goûts' })
-      expect(enregistrer).toBeDisabled()
-      await userEvent.click(screen.getByRole('button', { name: 'Coopération' }))
-      await userEvent.click(enregistrer)
-
-      expect(saveTaste).toHaveBeenCalledWith(['cooperation'])
-      expect(await screen.findByRole('tab', { name: 'Nouveautés pour vous' })).toBeInTheDocument()
-      expect(getHomeRecommendations).toHaveBeenCalledTimes(2)
     })
 
     it('cherche dans la ludothèque par défaut, retient le choix « Tout le catalogue » et redemande les idées', async () => {
@@ -102,19 +88,6 @@ describe('HomePage', () => {
       await waitFor(() => expect(screen.queryByRole('tab', { name: 'Oubliés de la ludothèque' })).not.toBeInTheDocument())
       expect(await screen.findByRole('tab', { name: 'Par époque' })).toBeInTheDocument()
     })
-
-    it('limite le questionnaire à six goûts', async () => {
-      getHomeRecommendations.mockResolvedValue(froid)
-      render(<MemoryRouter><HomePage /></MemoryRouter>)
-
-      await screen.findByRole('heading', { name: 'Ce que vous aimez' })
-      for (const nom of ['Placement d\'Ouvriers', 'Construction de Deck', 'Construction de Moteur', 'Contrôle de Zone', 'Gestion de Main', 'Enchères']) {
-        await userEvent.click(screen.getByRole('button', { name: nom }))
-      }
-
-      expect(screen.getByRole('button', { name: 'Coopération' })).toBeDisabled()
-      expect(screen.getByRole('button', { name: 'Enchères' })).toBeEnabled()
-    })
   })
 
   describe('connecté : pour votre table', () => {
@@ -132,7 +105,7 @@ describe('HomePage', () => {
       getHomeRecommendations.mockResolvedValue({ ...reco, table: { players: 6, maxTime: 90, scope: 'library' } })
       render(<MemoryRouter><HomePage /></MemoryRouter>)
 
-      await screen.findByRole('heading', { name: 'Ce que vous aimez' })
+      await waitFor(() => expect(getTonightRecommendations).toHaveBeenCalled())
       expect(screen.getByRole('button', { name: '6' })).toHaveAttribute('aria-pressed', 'true')
       expect(screen.getByRole('button', { name: '≤ 1 h 30' })).toHaveAttribute('aria-pressed', 'true')
       expect(getTonightRecommendations).toHaveBeenCalledTimes(1)
@@ -142,7 +115,7 @@ describe('HomePage', () => {
     it('enregistre chaque changement de table et le dit', async () => {
       saveTable.mockResolvedValue({})
       render(<MemoryRouter><HomePage /></MemoryRouter>)
-      await screen.findByRole('heading', { name: 'Ce que vous aimez' })
+      await waitFor(() => expect(getTonightRecommendations).toHaveBeenCalled())
 
       await userEvent.click(screen.getByRole('button', { name: '8' }))
       expect(saveTable).toHaveBeenLastCalledWith({ players: 8, maxTime: 60 })
@@ -155,7 +128,7 @@ describe('HomePage', () => {
     it('prévient quand l’enregistrement échoue', async () => {
       saveTable.mockRejectedValue(new Error('boom'))
       render(<MemoryRouter><HomePage /></MemoryRouter>)
-      await screen.findByRole('heading', { name: 'Ce que vous aimez' })
+      await waitFor(() => expect(getTonightRecommendations).toHaveBeenCalled())
 
       await userEvent.click(screen.getByRole('button', { name: '2' }))
 
@@ -218,14 +191,14 @@ describe('HomePage', () => {
     it('n’invite pas quand les goûts sont déjà renseignés', async () => {
       render(<MemoryRouter><HomePage /></MemoryRouter>)
 
-      await screen.findByRole('heading', { name: 'Ce que vous aimez' })
+      await waitFor(() => expect(getTonightRecommendations).toHaveBeenCalled())
       expect(screen.queryByRole('link', { name: 'Choisir mes goûts' })).not.toBeInTheDocument()
     })
 
     it('masque la section quand il n’y a rien à proposer', async () => {
       render(<MemoryRouter><HomePage /></MemoryRouter>)
 
-      await screen.findByRole('heading', { name: 'Ce que vous aimez' })
+      await waitFor(() => expect(getTonightRecommendations).toHaveBeenCalled())
       expect(screen.queryByRole('heading', { name: 'Pour votre table' })).not.toBeInTheDocument()
     })
   })
