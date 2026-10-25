@@ -104,13 +104,13 @@ function MechanicPrefsBlock({ prefs }) {
   const engines   = prefs.topEngines   ?? []
   const support   = prefs.topSupport   ?? []
   const cats      = prefs.topCategories ?? []
-  if (engines.length + support.length + cats.length === 0) return null
+  if (engines.length + support.length + cats.length === 0 && !(prefs.coverage?.total > 0)) return null
 
   return (
     <section aria-labelledby="titre-styles" className="panel flex flex-col gap-4 p-5">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 id="titre-styles" className="text-2xl">Vos styles de jeu</h2>
-        <span className="text-sm text-stone-600">Calculés depuis votre collection et vos parties</span>
+        <span className="text-sm text-stone-600">Calculés depuis votre collection (BGG ou MyLudo), vos notes et vos parties</span>
       </div>
 
       {engines.length > 0 && (
@@ -136,6 +136,13 @@ function MechanicPrefsBlock({ prefs }) {
         <PrefGroup title="Thèmes favoris">
           {cats.map(cat => <span key={cat} className="badge bg-amber-100 !text-sm">{cat}</span>)}
         </PrefGroup>
+      )}
+
+      {prefs.coverage?.total > 0 && prefs.coverage.analysed < prefs.coverage.total && (
+        <p role="note" className="m-0 text-sm text-stone-700">
+          {prefs.coverage.analysed} jeu{prefs.coverage.analysed > 1 ? 'x' : ''} sur {prefs.coverage.total} analysé{prefs.coverage.analysed > 1 ? 's' : ''} :
+          les autres sont pris en compte au fil de l’enrichissement des fiches.
+        </p>
       )}
 
       {prefs.updatedAt && (

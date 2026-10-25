@@ -29,6 +29,7 @@ class UserPreferenceController extends AbstractController
     #[Route('/api/user/preferences', name: 'api_user_preferences_get', methods: ['GET'])]
     public function get(
         UserPreferenceRepository $prefRepository,
+        UserPreferenceService $prefService,
     ): JsonResponse {
         $user = $this->appUser();
         if (!$user) {
@@ -37,7 +38,7 @@ class UserPreferenceController extends AbstractController
 
         $pref = $prefRepository->find($user->getId());
 
-        return $this->json($pref?->jsonSerialize());
+        return $this->json($pref === null ? null : [...$pref->jsonSerialize(), 'coverage' => $prefService->coverage($user)]);
     }
 
     /** Force le recalcul des préférences. */
@@ -52,7 +53,7 @@ class UserPreferenceController extends AbstractController
 
         $pref = $prefService->recompute($user);
 
-        return $this->json($pref->jsonSerialize());
+        return $this->json([...$pref->jsonSerialize(), 'coverage' => $prefService->coverage($user)]);
     }
 
     /** Mémorise la table choisie sur l'accueil : 1 à 8 joueurs, 15 à 240 minutes par pas de 15. */
