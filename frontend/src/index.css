@@ -186,6 +186,22 @@
     color: var(--color-paper);
   }
 
+  /* Filtre fin : 28 px visibles, zone tactile de 44 px (le ::after déborde sur la hauteur, pas sur le côté). */
+  .chip-sm {
+    position: relative;
+    min-height: 1.75rem;
+    padding: 0 0.625rem;
+    border-width: 2px;
+    font-size: 0.875rem;
+    line-height: 1;
+  }
+
+  .chip-sm::after {
+    content: "";
+    position: absolute;
+    inset: -0.5rem 0;
+  }
+
   .badge {
     display: inline-block;
     padding: 0.125rem 0.75rem;
