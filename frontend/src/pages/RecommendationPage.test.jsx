@@ -38,6 +38,16 @@ describe('RecommendationPage', () => {
     expect(getRecommendations).toHaveBeenCalledWith(expect.objectContaining({ players: 2, maxTime: 60 }))
   })
 
+  it('part de la table enregistrée sur l’accueil quand l’adresse n’en porte pas', async () => {
+    getUserPreferences.mockResolvedValue({ table: { players: 6, maxTime: 90 } })
+    renderAt('/recommander')
+
+    expect(await screen.findByRole('button', { name: '6' })).toHaveAttribute('aria-pressed', 'true')
+    await userEvent.click(screen.getByRole('button', { name: 'Trouver des jeux' }))
+
+    expect(getRecommendations).toHaveBeenCalledWith(expect.objectContaining({ players: 6, maxTime: 90 }))
+  })
+
   it('invite à se connecter sans compte', () => {
     currentUser = null
     renderAt('/recommander')

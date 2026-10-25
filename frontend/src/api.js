@@ -102,6 +102,7 @@ export const getSimilarGames = (id, limit = 5) => request(`/games/${id}/similar?
 
 // Préférences utilisateur
 export const getUserPreferences = () => request('/user/preferences')
+export const saveTable = ({ players, maxTime }) => request('/user/table', { method: 'PUT', body: JSON.stringify({ players, maxTime }) })
 export const saveTaste = (families) => request('/user/taste', { method: 'PUT', body: JSON.stringify({ families }) })
 export const recomputeUserPreferences = () => request('/user/preferences/recompute', { method: 'POST' })
 

@@ -44,6 +44,13 @@ class UserPreference implements \JsonSerializable
     #[ORM\Column(type: 'json', options: ['default' => '[]'])]
     private array $declaredFamilies = [];
 
+    /** Table choisie sur l'accueil : nombre de joueurs et durée maximale en minutes (null = jamais choisie) */
+    #[ORM\Column(type: 'smallint', nullable: true)]
+    private ?int $tablePlayers = null;
+
+    #[ORM\Column(type: 'smallint', nullable: true)]
+    private ?int $tableMaxTime = null;
+
     #[ORM\Column]
     private \DateTimeImmutable $updatedAt;
 
@@ -61,6 +68,7 @@ class UserPreference implements \JsonSerializable
             'rankedFamilies' => $this->rankedFamilies,
             'topCategories'  => $this->topCategories,
             'declaredFamilies' => $this->declaredFamilies,
+            'table'          => $this->getTable(),
             'updatedAt'      => $this->updatedAt->format('c'),
         ];
     }
@@ -74,6 +82,14 @@ class UserPreference implements \JsonSerializable
     public function setRankedFamilies(array $v): static { $this->rankedFamilies = $v; return $this; }
     public function getTopCategories(): array { return $this->topCategories; }
     public function setTopCategories(array $v): static { $this->topCategories = $v; return $this; }
+    /** @return array{players: int, maxTime: int}|null */
+    public function getTable(): ?array
+    {
+        return $this->tablePlayers !== null && $this->tableMaxTime !== null
+            ? ['players' => $this->tablePlayers, 'maxTime' => $this->tableMaxTime]
+            : null;
+    }
+    public function setTable(int $players, int $maxTime): static { $this->tablePlayers = $players; $this->tableMaxTime = $maxTime; return $this; }
     public function getDeclaredFamilies(): array { return $this->declaredFamilies; }
     public function setDeclaredFamilies(array $v): static { $this->declaredFamilies = array_values($v); return $this; }
     public function setUpdatedAt(\DateTimeImmutable $dt): static { $this->updatedAt = $dt; return $this; }

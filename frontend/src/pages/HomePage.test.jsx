@@ -3,11 +3,11 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import HomePage from './HomePage'
-import { getForgottenGems, getHomeRecommendations, getTonightRecommendations, saveTaste } from '../api'
+import { getForgottenGems, getHomeRecommendations, getTonightRecommendations, saveTable, saveTaste } from '../api'
 
 const auth = vi.hoisted(() => ({ user: null }))
 vi.mock('../context/AuthContext', () => ({ useAuth: () => ({ user: auth.user, loading: false }) }))
-vi.mock('../api', () => ({ getHomeRecommendations: vi.fn(), getForgottenGems: vi.fn(), getTonightRecommendations: vi.fn(), saveTaste: vi.fn() }))
+vi.mock('../api', () => ({ getHomeRecommendations: vi.fn(), getForgottenGems: vi.fn(), getTonightRecommendations: vi.fn(), saveTable: vi.fn(), saveTaste: vi.fn() }))
 
 function Where() {
   const location = useLocation()
@@ -35,6 +35,7 @@ describe('HomePage', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Trouver un jeu' }))
 
     expect(screen.getByText('route : /recommander?joueurs=2&duree=120')).toBeInTheDocument()
+    expect(saveTable).not.toHaveBeenCalled()
   })
 
   it('propose les entrées principales quand on n’est pas connecté', () => {
@@ -102,6 +103,40 @@ describe('HomePage', () => {
       getForgottenGems.mockResolvedValue([])
       getHomeRecommendations.mockResolvedValue(reco)
       getTonightRecommendations.mockResolvedValue({ easy: [], popular: [] })
+    })
+
+    it('retrouve la table enregistrée et la propose pour les idées du soir', async () => {
+      getHomeRecommendations.mockResolvedValue({ ...reco, table: { players: 6, maxTime: 90 } })
+      render(<MemoryRouter><HomePage /></MemoryRouter>)
+
+      await screen.findByRole('heading', { name: 'Ce que vous aimez' })
+      expect(screen.getByRole('button', { name: '6' })).toHaveAttribute('aria-pressed', 'true')
+      expect(screen.getByRole('button', { name: '≤ 1 h 30' })).toHaveAttribute('aria-pressed', 'true')
+      expect(getTonightRecommendations).toHaveBeenCalledTimes(1)
+      expect(getTonightRecommendations).toHaveBeenCalledWith({ players: 6, maxTime: 90 })
+    })
+
+    it('enregistre chaque changement de table et le dit', async () => {
+      saveTable.mockResolvedValue({})
+      render(<MemoryRouter><HomePage /></MemoryRouter>)
+      await screen.findByRole('heading', { name: 'Ce que vous aimez' })
+
+      await userEvent.click(screen.getByRole('button', { name: '8' }))
+      expect(saveTable).toHaveBeenLastCalledWith({ players: 8, maxTime: 60 })
+      expect(await screen.findByText(/Table enregistrée/)).toBeInTheDocument()
+
+      await userEvent.click(screen.getByRole('button', { name: '≤ 15 min' }))
+      expect(saveTable).toHaveBeenLastCalledWith({ players: 8, maxTime: 15 })
+    })
+
+    it('prévient quand l’enregistrement échoue', async () => {
+      saveTable.mockRejectedValue(new Error('boom'))
+      render(<MemoryRouter><HomePage /></MemoryRouter>)
+      await screen.findByRole('heading', { name: 'Ce que vous aimez' })
+
+      await userEvent.click(screen.getByRole('button', { name: '2' }))
+
+      expect(await screen.findByText(/Impossible d’enregistrer la table/)).toBeInTheDocument()
     })
 
     it('affiche ce que jouent les autres membres et les jeux faciles pour la table choisie', async () => {

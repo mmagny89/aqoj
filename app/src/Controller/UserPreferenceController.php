@@ -55,6 +55,36 @@ class UserPreferenceController extends AbstractController
         return $this->json($pref->jsonSerialize());
     }
 
+    /** Mémorise la table choisie sur l'accueil : 1 à 8 joueurs, 15 à 240 minutes par pas de 15. */
+    #[Route('/api/user/table', name: 'api_user_table_put', methods: ['PUT'])]
+    public function saveTable(
+        Request $request,
+        UserPreferenceRepository $prefRepository,
+        EntityManagerInterface $em,
+    ): JsonResponse {
+        $user = $this->appUser();
+        if (!$user) {
+            return $this->json(['error' => 'Authentification requise.'], 401);
+        }
+
+        $body    = json_decode($request->getContent(), true);
+        $players = is_array($body) ? ($body['players'] ?? null) : null;
+        $maxTime = is_array($body) ? ($body['maxTime'] ?? null) : null;
+
+        if (!is_int($players) || $players < 1 || $players > 8) {
+            return $this->json(['error' => 'Nombre de joueurs : de 1 à 8.'], 400);
+        }
+        if (!is_int($maxTime) || $maxTime < 15 || $maxTime > 240 || $maxTime % 15 !== 0) {
+            return $this->json(['error' => 'Durée : de 15 à 240 minutes, par pas de 15.'], 400);
+        }
+
+        $pref = $prefRepository->findOrCreate($user)->setTable($players, $maxTime);
+        $em->persist($pref);
+        $em->flush();
+
+        return $this->json(['table' => $pref->getTable()]);
+    }
+
     /** Enregistre les goûts déclarés par le joueur ; ils servent tant que son historique ne suffit pas. */
     #[Route('/api/user/taste', name: 'api_user_taste_put', methods: ['PUT'])]
     public function saveTaste(

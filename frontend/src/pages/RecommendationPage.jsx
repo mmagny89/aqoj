@@ -184,7 +184,16 @@ export default function RecommendationPage() {
 
   // Charger les préférences et les thèmes admin
   useEffect(() => {
-    if (user) getUserPreferences().then(setUserPrefs).catch(() => {})
+    if (user) {
+      getUserPreferences().then(prefs => {
+        setUserPrefs(prefs)
+        // La table enregistrée sur l'accueil sert de point de départ, sauf si l'accueil vient d'en envoyer une.
+        if (prefs?.table && !fromHome) {
+          setPlayers(prefs.table.players)
+          setMaxTime(prefs.table.maxTime)
+        }
+      }).catch(() => {})
+    }
     getThemeMappings().then(mappings => {
       // Construire label → [bggCategories] + deux listes triées
       const labelMap   = {}   // label → { group, emoji, bggCategories[] }
@@ -211,7 +220,7 @@ export default function RecommendationPage() {
       for (const [label, data] of Object.entries(labelMap)) catMap[label] = data.bggCategories
       setThemeLabelToCats(catMap)
     }).catch(() => {})
-  }, [user])
+  }, [user, fromHome])
 
   const toggle    = (key)   => setSelectedFamilies(prev   => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key])
   const toggleCat = (label) => setSelectedCategories(prev => prev.includes(label) ? prev.filter(l => l !== label) : [...prev, label])
