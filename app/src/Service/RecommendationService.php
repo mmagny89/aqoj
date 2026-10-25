@@ -718,9 +718,15 @@ class RecommendationService
         return ($votes * $ratingBgg + $C * $mean) / ($votes + $C);
     }
 
-    public function findForgottenGems(User $user): array
+    /**
+     * Jeux à ressortir : pas joués depuis six mois par ce joueur. Par défaut ceux de sa collection ;
+     * avec `$library`, ceux de la ludothèque de l'association et des membres, sans seuil de note.
+     */
+    public function findForgottenGems(User $user, bool $library = false): array
     {
-        $games = $this->gameRepository->findUserCollectionForRecommendation($user, null, null);
+        $games = $library
+            ? $this->gameRepository->findLibraryGames()
+            : $this->gameRepository->findUserCollectionForRecommendation($user, null, null);
 
         if (empty($games)) {
             return [];
@@ -737,12 +743,12 @@ class RecommendationService
 
             $isOldOrNeverPlayed = $lastPlayed === null || $lastPlayed < $threshold;
             $isNotDisliked = ($stats['worstRating'] ?? null) !== 1;
-            $hasGoodRating = ($game->getRatingBgg() ?? 0) >= 7.0;
+            $hasGoodRating = $library || ($game->getRatingBgg() ?? 0) >= 7.0;
 
             if ($isOldOrNeverPlayed && $isNotDisliked && $hasGoodRating) {
                 $gems[] = [
                     'game'   => $game,
-                    'reason' => $this->buildForgottenReason($game, $stats),
+                    'reason' => $this->buildForgottenReason($game, $stats, $library),
                 ];
             }
         }
@@ -899,10 +905,10 @@ class RecommendationService
         return ucfirst(implode(' · ', $parts));
     }
 
-    private function buildForgottenReason(Game $game, ?array $stats): string
+    private function buildForgottenReason(Game $game, ?array $stats, bool $library = false): string
     {
         if ($stats === null) {
-            return 'Jamais joué, mais dans votre collection';
+            return $library ? 'Jamais joué par vous, dans la ludothèque' : 'Jamais joué, mais dans votre collection';
         }
 
         $lastPlayed = $stats['lastPlayedAt'];
@@ -911,6 +917,6 @@ class RecommendationService
             return "Pas joué depuis {$months} mois";
         }
 
-        return 'Jeu oublié de votre collection';
+        return $library ? 'Jeu de la ludothèque à ressortir' : 'Jeu oublié de votre collection';
     }
 }

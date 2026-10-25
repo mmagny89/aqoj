@@ -105,11 +105,17 @@ describe('HomePage', () => {
       expect(await screen.findByRole('tab', { name: 'Nouveautés pour vous' })).toHaveAttribute('aria-selected', 'true')
       expect(screen.queryByText('Jeu Oublié')).not.toBeInTheDocument()
 
-      await userEvent.click(await screen.findByRole('tab', { name: 'Oubliés de votre ludothèque' }))
+      await userEvent.click(await screen.findByRole('tab', { name: 'Oubliés de la ludothèque' }))
       expect(screen.getByText('Jeu Oublié')).toBeInTheDocument()
 
       await userEvent.click(screen.getByRole('tab', { name: 'Par époque' }))
       expect(screen.getByText('Jeu Classique')).toBeInTheDocument()
+      expect(getForgottenGems).toHaveBeenLastCalledWith({ scope: 'library' })
+
+      // Dans tout le catalogue, « oubliés » n'a pas de sens : l'onglet disparaît, les autres restent.
+      await userEvent.click(screen.getByRole('button', { name: 'Tout le catalogue' }))
+      await waitFor(() => expect(screen.queryByRole('tab', { name: 'Oubliés de la ludothèque' })).not.toBeInTheDocument())
+      expect(await screen.findByRole('tab', { name: 'Par époque' })).toBeInTheDocument()
     })
 
     it('limite le questionnaire à six goûts', async () => {
