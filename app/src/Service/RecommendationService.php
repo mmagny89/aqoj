@@ -721,13 +721,18 @@ class RecommendationService
         }
 
         $sessionStats = $this->sessionRepository->getStatsForUser($user);
-        // Une note personnelle (BGG ou MyLudo) prouve que le jeu a été joué, même sans partie enregistrée.
+        // Une note personnelle (BGG ou MyLudo) prouve que le jeu a été joué : il n'est pas « oublié », on ne sait pas
+        // quand on y a joué. Seuls restent les jeux sans note (jamais joués, ou dont la dernière partie enregistrée est ancienne).
         $userRatings = $this->userGameRepository->getBggUserRatings($user);
         $now = new \DateTimeImmutable();
         $threshold = $now->modify('-180 days');
 
         $gems = [];
         foreach ($games as $game) {
+            if (($userRatings[$game->getId()] ?? 0) > 0) {
+                continue;
+            }
+
             $stats = $sessionStats[$game->getId()] ?? null;
             $lastPlayed = $stats['lastPlayedAt'] ?? null;
 
@@ -738,7 +743,7 @@ class RecommendationService
             if ($isOldOrNeverPlayed && $isNotDisliked && $hasGoodRating) {
                 $gems[] = [
                     'game'   => $game,
-                    'reason' => $this->buildForgottenReason($stats, $userRatings[$game->getId()] ?? null, $library),
+                    'reason' => $this->buildForgottenReason($stats, $library),
                 ];
             }
         }
@@ -895,20 +900,13 @@ class RecommendationService
         return ucfirst(implode(' · ', $parts));
     }
 
-    /**
-     * Pourquoi ce jeu ressort. On n'écrit « jamais joué » que s'il n'y a ni partie enregistrée ni note : une note
-     * personnelle prouve qu'on y a joué, et le site ne connaît que les parties qu'on lui a déclarées.
-     */
-    private function buildForgottenReason(?array $stats, ?float $userRating, bool $library = false): string
+    /** Pourquoi ce jeu ressort : sa dernière partie enregistrée est ancienne, ou aucune n'est enregistrée. */
+    private function buildForgottenReason(?array $stats, bool $library = false): string
     {
         $lastPlayed = $stats['lastPlayedAt'] ?? null;
         if ($lastPlayed !== null) {
             $months = max(1, intdiv((new \DateTimeImmutable())->diff($lastPlayed)->days, 30));
             return "Pas joué depuis {$months} mois";
-        }
-
-        if ($userRating !== null && $userRating > 0) {
-            return 'Noté ' . rtrim(rtrim(number_format($userRating, 1, '.', ''), '0'), '.') . '/10 par vous, aucune partie enregistrée';
         }
 
         return $library ? 'Aucune partie enregistrée, dans la ludothèque' : 'Aucune partie enregistrée, dans votre collection';
