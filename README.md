@@ -93,6 +93,7 @@ Le mapping entre mécaniques BGG et familles Engelstein est entièrement configu
 - Moteurs principaux et mécaniques de support avec les équivalents BGG
 - Caractéristiques transversales (solo, temps réel, dextérité, legacy)
 - Description, complexité (1–5), joueurs, durée, note communauté + note personnelle
+- **Édition française** quand BGG en connaît une : titre, éditeur, année, et **image de la boîte française** à la place de l'image d'origine (description, elle, reste en anglais : BGG n'en a qu'une)
 - Lien direct vers la fiche BoardGameGeek (URL adaptée : `/boardgame/` ou `/boardgameexpansion/`)
 - **Section Extensions** : liste des extensions connues avec indicateur de possession
 - **Jeux similaires** : liste avec score de similarité (mécaniques 40%, catégories 20%, joueurs 15%, complexité 15%, âge 10%), bouton "Voir 5 de plus" jusqu'à épuisement

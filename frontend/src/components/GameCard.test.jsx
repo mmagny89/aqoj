@@ -26,6 +26,12 @@ describe('GameCard', () => {
     expect(onAddSession).toHaveBeenCalledWith(game)
   })
 
+  it('montre la boîte de l’édition française quand elle existe', () => {
+    const { container } = render(<MemoryRouter><GameCard game={{ ...game, imageUrl: 'https://cf.geekdo-images.com/origine.jpg', editionFrImageUrl: 'https://cf.geekdo-images.com/boite-fr.jpg' }} /></MemoryRouter>)
+
+    expect(container.querySelector('img')).toHaveAttribute('src', 'https://cf.geekdo-images.com/boite-fr.jpg')
+  })
+
   it('remplace l’image absente par les initiales du jeu', () => {
     expect(initials('Brass: Birmingham')).toBe('BB')
     expect(initials('Catan')).toBe('Ca')

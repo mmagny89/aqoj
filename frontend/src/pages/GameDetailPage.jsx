@@ -4,6 +4,7 @@ import { getGame, createSession, getSimilarGames } from '../api'
 import GameCard, { coverColor, initials } from '../components/GameCard'
 import { familyLabel, familyColor, isEngine, isExtra, SUPPORT_COLOR } from '../utils/engelstein'
 import { groupCategories } from '../utils/categories'
+import { frenchEditionLabel, gameImage } from '../utils/game'
 
 /* ── Complexité visuelle ─────────────────────────────────────────────── */
 function ComplexityBar({ value }) {
@@ -237,6 +238,8 @@ export default function GameDetailPage() {
   // game.name = nom d'affichage FR si dispo, sinon EN original
   // game.nameOriginal = nom BGG anglais original
   const displayName = game.name
+  const image       = gameImage(game)
+  const editionFr   = frenchEditionLabel(game)
   const hasFrName   = game.nameOriginal && game.nameOriginal !== game.name
 
   return (
@@ -252,9 +255,9 @@ export default function GameDetailPage() {
         <div className="flex flex-col sm:flex-row gap-0">
 
           {/* Image */}
-          <div className={`sm:w-64 lg:w-80 flex-shrink-0 border-b-[3px] sm:border-b-0 sm:border-r-[3px] border-ink ${game.imageUrl ? 'bg-cream' : coverColor(game)}`}>
-            {game.imageUrl ? (
-              <img src={game.imageUrl} alt="" className="w-full h-64 sm:h-full object-cover" />
+          <div className={`sm:w-64 lg:w-80 flex-shrink-0 border-b-[3px] sm:border-b-0 sm:border-r-[3px] border-ink ${image ? 'bg-cream' : coverColor(game)}`}>
+            {image ? (
+              <img src={image} alt="" className="w-full h-64 sm:h-full object-cover" />
             ) : (
               <div className="grid h-64 w-full place-items-center font-display text-7xl sm:h-full" aria-hidden="true">{initials(game.name)}</div>
             )}
@@ -279,6 +282,9 @@ export default function GameDetailPage() {
               )}
               {game.yearPublished && (
                 <p className="text-stone-500 text-sm mt-0.5">{game.yearPublished}</p>
+              )}
+              {editionFr && (
+                <p className="mt-0.5 text-sm text-stone-600">Édition française : <strong className="text-ink">{editionFr}</strong></p>
               )}
             </div>
 
