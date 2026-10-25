@@ -1,20 +1,12 @@
 import { useState, useEffect } from 'react'
 import { getSessions, createSession, getGames } from '../api'
 
-function RatingButton({ selected, onClick, children }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={
-        'px-4 py-2 rounded-lg text-lg font-bold transition-all ' +
-        (selected ? 'bg-amber-500 text-white shadow' : 'bg-stone-100 text-stone-600 hover:bg-stone-200')
-      }
-    >
-      {children}
-    </button>
-  )
-}
+const RATINGS = [
+  { value: 5, label: 'Aimé', style: 'bg-brand-green text-paper' },
+  { value: 1, label: 'Pas aimé', style: 'bg-brand-red' },
+]
+
+const field = 'min-h-12 w-full rounded-xl border-[3px] border-ink bg-paper px-3 text-base'
 
 export default function SessionsPage() {
   const [sessions, setSessions] = useState([])
@@ -70,28 +62,31 @@ export default function SessionsPage() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-8">
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-3xl font-black text-stone-900">Mes parties</h2>
-        <button
-          onClick={() => setShowForm(true)}
-          className="bg-amber-500 hover:bg-amber-600 text-white font-semibold px-4 py-2 rounded-xl text-sm"
-        >
-          + Ajouter
-        </button>
+    <div className="mx-auto flex max-w-4xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-10 lg:py-8">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-4xl leading-tight sm:text-5xl">Mes parties</h1>
+          <p className="mt-1 text-lg text-stone-600">Ce que vous avez joué, et ce que vous en avez pensé.</p>
+        </div>
+        {!showForm && (
+          <button type="button" onClick={() => setShowForm(true)} className="btn btn-primary">
+            Ajouter une partie
+          </button>
+        )}
       </div>
 
       {showForm && (
-        <div className="bg-white rounded-2xl border border-stone-200 shadow-sm p-6 mb-6">
-          <h3 className="font-bold text-lg text-stone-800 mb-4">Enregistrer une partie</h3>
-          <form onSubmit={handleSubmit} className="space-y-4">
+        <section aria-labelledby="titre-form" className="panel p-5 sm:p-6">
+          <h2 id="titre-form" className="mb-4 text-2xl">Enregistrer une partie</h2>
+          <form onSubmit={handleSubmit} className="flex flex-col gap-5">
             <div>
-              <label className="block text-sm font-semibold text-stone-600 mb-1">Jeu joué</label>
+              <label htmlFor="partie-jeu" className="mb-1 block font-bold">Jeu joué</label>
               <select
+                id="partie-jeu"
                 value={form.gameId}
                 onChange={(e) => setForm((f) => ({ ...f, gameId: e.target.value }))}
                 required
-                className="w-full px-3 py-2 rounded-lg border border-stone-300 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+                className={field}
               >
                 <option value="">Choisir un jeu…</option>
                 {games.map((g) => (
@@ -100,116 +95,105 @@ export default function SessionsPage() {
               </select>
             </div>
 
-            <div>
-              <label className="block text-sm font-semibold text-stone-600 mb-2">Joueurs</label>
-              <div className="flex gap-2">
+            <fieldset className="m-0 border-0 p-0">
+              <legend className="mb-2 font-bold">Joueurs</legend>
+              <div className="flex flex-wrap gap-2">
                 {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
                   <button
                     key={n}
                     type="button"
+                    aria-pressed={form.playersCount === n}
                     onClick={() => setForm((f) => ({ ...f, playersCount: n }))}
-                    className={
-                      'w-10 h-10 rounded-lg font-bold transition-all ' +
-                      (form.playersCount === n
-                        ? 'bg-amber-500 text-white'
-                        : 'bg-stone-100 text-stone-600 hover:bg-stone-200')
-                    }
+                    className="chip min-w-11 justify-center"
                   >
                     {n}
                   </button>
                 ))}
               </div>
-            </div>
+            </fieldset>
 
-            <div>
-              <label className="block text-sm font-semibold text-stone-600 mb-2">Note</label>
-              <div className="flex gap-3">
-                <RatingButton value={5} selected={form.rating === 5} onClick={() => setForm((f) => ({ ...f, rating: 5 }))}>
-                  👍
-                </RatingButton>
-                <RatingButton value={1} selected={form.rating === 1} onClick={() => setForm((f) => ({ ...f, rating: 1 }))}>
-                  👎
-                </RatingButton>
+            <fieldset className="m-0 border-0 p-0">
+              <legend className="mb-2 font-bold">Votre avis</legend>
+              <div className="flex flex-wrap items-center gap-2">
+                {RATINGS.map(({ value, label, style }) => (
+                  <button
+                    key={value}
+                    type="button"
+                    aria-pressed={form.rating === value}
+                    onClick={() => setForm((f) => ({ ...f, rating: value }))}
+                    className={`chip ${form.rating === value ? style : ''}`}
+                  >
+                    {label}
+                  </button>
+                ))}
                 {form.rating && (
-                  <button type="button" onClick={() => setForm((f) => ({ ...f, rating: null }))} className="text-xs text-stone-400 hover:text-stone-600 self-center">
-                    effacer
+                  <button type="button" onClick={() => setForm((f) => ({ ...f, rating: null }))} className="inline-flex min-h-11 items-center px-2 font-bold text-brand-blue underline underline-offset-4">
+                    Effacer
                   </button>
                 )}
               </div>
-            </div>
+            </fieldset>
 
             <div>
-              <label className="block text-sm font-semibold text-stone-600 mb-1">Commentaire (optionnel)</label>
+              <label htmlFor="partie-note" className="mb-1 block font-bold">Commentaire <span className="font-normal text-stone-600">(facultatif)</span></label>
               <textarea
+                id="partie-note"
                 value={form.note}
                 onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))}
-                rows={2}
+                rows={3}
                 placeholder="Comment s'est passée la partie ?"
-                className="w-full px-3 py-2 rounded-lg border border-stone-300 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none"
+                className={`${field} py-2`}
               />
             </div>
 
-            {error && <p className="text-red-600 text-sm">{error}</p>}
+            {error && <p role="alert" className="rounded-xl border-[3px] border-brand-red bg-amber-100 p-3 font-bold">{error}</p>}
 
-            <div className="flex gap-3">
-              <button
-                type="submit"
-                disabled={submitting || !form.gameId}
-                className="flex-1 bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-white font-bold py-2.5 rounded-xl"
-              >
+            <div className="flex flex-wrap gap-3">
+              <button type="submit" disabled={submitting || !form.gameId} className="btn btn-primary flex-1 sm:flex-none sm:px-8">
                 {submitting ? 'Enregistrement…' : 'Enregistrer'}
               </button>
-              <button
-                type="button"
-                onClick={() => setShowForm(false)}
-                className="px-4 py-2.5 bg-stone-100 text-stone-600 rounded-xl font-medium hover:bg-stone-200"
-              >
+              <button type="button" onClick={() => setShowForm(false)} className="btn bg-paper">
                 Annuler
               </button>
             </div>
           </form>
-        </div>
+        </section>
       )}
 
       {loading && (
-        <div className="text-center py-12 text-stone-400">
-          <div className="text-4xl mb-4">⏳</div>
-          <p>Chargement…</p>
-        </div>
+        <p role="status" className="flex items-center justify-center gap-3 py-12 text-stone-600">
+          <span className="h-5 w-5 animate-spin rounded-full border-[3px] border-stone-300 border-t-brand-red" aria-hidden="true" />
+          Chargement…
+        </p>
       )}
 
       {!loading && sessions.length === 0 && (
-        <div className="text-center py-12 text-stone-500">
-          <div className="text-5xl mb-4">🎲</div>
-          <p className="font-medium">Aucune partie enregistrée.</p>
-          <p className="text-sm mt-2">Jouez à quelque chose et revenez noter la partie !</p>
-        </div>
+        <section className="panel mx-auto flex max-w-xl flex-col items-center gap-3 p-8 text-center">
+          <img src="/edj-mascotte.png" alt="" width="120" height="133" className="h-28 w-auto" />
+          <h2 className="text-2xl">Aucune partie enregistrée</h2>
+          <p className="text-stone-600">Jouez à quelque chose, puis revenez noter la partie.</p>
+        </section>
       )}
 
       {sessions.length > 0 && (
-        <div className="space-y-3">
-          {sessions.map((s) => (
-            <div
-              key={s.id}
-              className="bg-white rounded-xl border border-stone-200 p-4 flex items-start gap-4"
-            >
-              <div className="text-2xl flex-shrink-0">
-                {s.rating === 5 ? '👍' : s.rating === 1 ? '👎' : '🎲'}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-start justify-between gap-2">
-                  <p className="font-bold text-stone-900 truncate">{s.game?.name ?? 'Jeu inconnu'}</p>
-                  <span className="text-xs text-stone-400 flex-shrink-0">{formatDate(s.playedAt)}</span>
+        <ul className="m-0 flex list-none flex-col gap-4 p-0">
+          {sessions.map((s) => {
+            const rating = RATINGS.find(r => r.value === s.rating)
+            return (
+              <li key={s.id} className="panel flex flex-col gap-1 p-4 sm:p-5">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <h2 className="min-w-0 break-words font-sans text-lg font-bold">{s.game?.name ?? 'Jeu inconnu'}</h2>
+                  <time dateTime={s.playedAt} className="shrink-0 text-sm text-stone-600">{formatDate(s.playedAt)}</time>
                 </div>
-                <p className="text-sm text-stone-500">
-                  👥 {s.playersCount} joueur{s.playersCount > 1 ? 's' : ''}
-                  {s.context && <> · {s.context}</>}
+                <p className="flex flex-wrap items-center gap-2 text-stone-600">
+                  <span>{s.playersCount} joueur{s.playersCount > 1 ? 's' : ''}{s.context && <> · {s.context}</>}</span>
+                  {rating && <span className={`badge ${rating.style}`}>{rating.label}</span>}
                 </p>
-                {s.note && <p className="mt-1 text-sm text-stone-600 italic">"{s.note}"</p>}
-              </div>
-            </div>
-          ))}
-        </div>
+                {s.note && <p className="mt-1 italic text-stone-700">« {s.note} »</p>}
+              </li>
+            )
+          })}
+        </ul>
       )}
     </div>
   )

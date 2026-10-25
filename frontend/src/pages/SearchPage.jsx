@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { searchGames } from '../api'
 import GameCard from '../components/GameCard'
-import { ENGINES, ENGINE_COLORS, familyLabel } from '../utils/engelstein'
+import { ENGINES, familyLabel } from '../utils/engelstein'
 import { FILTER_THEMES, FILTER_TYPES, categoryInfo } from '../utils/categories'
 
 function useDebounce(value, delay) {
@@ -14,15 +14,6 @@ function useDebounce(value, delay) {
   return debounced
 }
 
-const ENGINE_ICONS = {
-  worker_placement: '🏗️',
-  deck_building:    '🃏',
-  engine_building:  '⚙️',
-  area_control:     '🗺️',
-  hand_management:  '✋',
-  auction:          '🔨',
-}
-
 /** Trie une liste : possédés en tête, puis par note BGG décroissante */
 function sortResults(games) {
   return [...games].sort((a, b) => {
@@ -31,39 +22,41 @@ function sortResults(games) {
   })
 }
 
-/** Onglets de résultats avec compteurs et badge "possédés" */
+/** Onglets de résultats avec compteurs : seulement si des extensions sont présentes. */
 function ResultTabs({ baseGames, expansions, activeTab, onTab }) {
-  const hasExpansions = expansions.length > 0
-
-  if (!hasExpansions) return null   // une seule catégorie → pas d'onglets
+  if (expansions.length === 0) return null
 
   const tabs = [
-    { key: 'base', label: 'Jeux de base', count: baseGames.length, icon: '🎲' },
-    { key: 'expansions', label: 'Extensions', count: expansions.length, icon: '🧩' },
+    { key: 'base', label: 'Jeux de base', count: baseGames.length },
+    { key: 'expansions', label: 'Extensions', count: expansions.length },
   ]
 
   return (
-    <div className="flex gap-1 mb-4 border-b border-stone-200">
+    <div role="tablist" aria-label="Type de résultats" className="mb-5 flex flex-wrap gap-2">
       {tabs.map(tab => (
         <button
           key={tab.key}
+          type="button"
+          role="tab"
+          id={`resultats-${tab.key}`}
+          aria-selected={activeTab === tab.key}
+          aria-controls="resultats-panneau"
           onClick={() => onTab(tab.key)}
-          className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors -mb-px ${
-            activeTab === tab.key
-              ? 'border-amber-500 text-amber-700'
-              : 'border-transparent text-stone-500 hover:text-stone-700'
-          }`}
+          className={`chip ${activeTab === tab.key ? 'is-on' : ''}`}
         >
-          <span>{tab.icon}</span>
-          <span>{tab.label}</span>
-          <span className={`ml-1 text-xs px-1.5 py-0.5 rounded-full font-bold ${
-            activeTab === tab.key ? 'bg-amber-100 text-amber-700' : 'bg-stone-100 text-stone-500'
-          }`}>
-            {tab.count}
-          </span>
+          {tab.label}
+          <span className="ml-2 text-sm opacity-80">{tab.count}</span>
         </button>
       ))}
     </div>
+  )
+}
+
+function Chip({ active, onClick, children }) {
+  return (
+    <button type="button" className="chip" aria-pressed={active} onClick={onClick}>
+      {children}
+    </button>
   )
 }
 
@@ -132,177 +125,135 @@ export default function SearchPage() {
   const browsingByEngine = !query.trim() && selectedEngines.length > 0
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-8">
-      <h2 className="text-3xl font-black text-stone-900 mb-6">Rechercher un jeu</h2>
+    <div className="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-10 lg:py-8">
+      <div>
+        <h1 className="text-4xl leading-tight sm:text-5xl">Explorer</h1>
+        <p className="mt-1 text-lg text-stone-600">Par son nom, par style de jeu ou par thème.</p>
+      </div>
 
-      {/* Barre de recherche */}
-      <div className="relative mb-5">
+      {/* Recherche */}
+      <form role="search" onSubmit={e => e.preventDefault()} className="relative">
+        <label htmlFor="explorer-q" className="sr-only">Nom du jeu</label>
         <input
+          id="explorer-q"
           type="search"
           autoFocus
           value={query}
           onChange={e => setQuery(e.target.value)}
-          placeholder="Nom du jeu… ex: Azul, Catan, Pandemic"
-          className="w-full px-5 py-4 text-lg rounded-2xl border-2 border-stone-300 focus:outline-none focus:border-amber-400 bg-white shadow-sm"
+          placeholder="Nom du jeu : Azul, Catan, Pandemic…"
+          className="min-h-14 w-full rounded-2xl border-[3px] border-ink bg-paper px-5 text-lg shadow-token-sm outline-none placeholder:text-stone-400 focus-visible:outline-4 focus-visible:outline-offset-3 focus-visible:outline-brand-blue"
         />
         {loading && (
-          <div className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 border-2 border-stone-300 border-t-amber-500 rounded-full animate-spin" />
+          <span role="status" className="absolute right-4 top-1/2 -translate-y-1/2">
+            <span className="block h-5 w-5 animate-spin rounded-full border-[3px] border-stone-300 border-t-brand-red" aria-hidden="true" />
+            <span className="sr-only">Recherche en cours</span>
+          </span>
         )}
-      </div>
+      </form>
 
-      {/* Filtres — visibles quand pas de texte */}
+      {/* Filtres : visibles tant qu'aucun texte n'est saisi */}
       {!query.trim() && (
-        <div className="mb-6 space-y-5">
-          {/* Moteurs Engelstein */}
-          <div>
-            <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-3">
-              Parcourir par style de jeu
-            </p>
+        <div className="panel flex flex-col gap-6 p-5 sm:p-6">
+          <section aria-labelledby="f-styles">
+            <h2 id="f-styles" className="mb-3 text-2xl">Parcourir par style de jeu</h2>
             <div className="flex flex-wrap gap-2">
-              {Object.entries(ENGINES).map(([key]) => {
-                const active = selectedEngines.includes(key)
-                return (
-                  <button key={key} onClick={() => toggleEngine(key)}
-                    className={
-                      'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-all ' +
-                      (active ? ENGINE_COLORS[key] : 'bg-stone-50 text-stone-600 border-stone-200 hover:bg-stone-100')
-                    }
-                  >
-                    <span>{ENGINE_ICONS[key]}</span>
-                    <span>{familyLabel(key)}</span>
-                  </button>
-                )
-              })}
+              {Object.keys(ENGINES).map(key => (
+                <Chip key={key} active={selectedEngines.includes(key)} onClick={() => toggleEngine(key)}>
+                  {familyLabel(key)}
+                </Chip>
+              ))}
             </div>
-          </div>
+          </section>
 
-          {/* Thèmes & univers */}
-          <div>
-            <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-3">
-              🌍 Ou parcourir par thème
-            </p>
-            <div className="flex flex-wrap gap-1.5 mb-3">
+          <section aria-labelledby="f-themes">
+            <h2 id="f-themes" className="mb-3 text-2xl">Ou par thème</h2>
+            <div className="mb-3 flex flex-wrap gap-2">
               {FILTER_THEMES.map(cat => {
                 const { label, emoji } = categoryInfo(cat)
-                const active = selectedCategory === cat
                 return (
-                  <button key={cat} onClick={() => toggleCategory(cat)}
-                    className={
-                      'flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ' +
-                      (active
-                        ? 'bg-amber-500 text-white border-amber-500'
-                        : 'bg-stone-50 text-stone-600 border-stone-200 hover:bg-amber-50 hover:border-amber-300')
-                    }
-                  >
-                    <span>{emoji}</span><span>{label}</span>
-                  </button>
+                  <Chip key={cat} active={selectedCategory === cat} onClick={() => toggleCategory(cat)}>
+                    {emoji && <span aria-hidden="true" className="mr-1.5">{emoji}</span>}{label}
+                  </Chip>
                 )
               })}
             </div>
-            <div className="flex flex-wrap gap-1.5">
+            <div className="flex flex-wrap gap-2">
               {FILTER_TYPES.map(cat => {
                 const { label, emoji } = categoryInfo(cat)
-                const active = selectedCategory === cat
                 return (
-                  <button key={cat} onClick={() => toggleCategory(cat)}
-                    className={
-                      'flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ' +
-                      (active
-                        ? 'bg-blue-500 text-white border-blue-500'
-                        : 'bg-stone-50 text-stone-600 border-stone-200 hover:bg-blue-50 hover:border-blue-300')
-                    }
-                  >
-                    <span>{emoji}</span><span>{label}</span>
-                  </button>
+                  <Chip key={cat} active={selectedCategory === cat} onClick={() => toggleCategory(cat)}>
+                    {emoji && <span aria-hidden="true" className="mr-1.5">{emoji}</span>}{label}
+                  </Chip>
                 )
               })}
             </div>
-          </div>
+          </section>
         </div>
       )}
 
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl p-4 text-sm mb-4">{error}</div>
+        <p role="alert" className="panel border-brand-red bg-amber-100 p-4 font-bold">{error}</p>
       )}
 
       {/* État vide */}
-      {!query.trim() && selectedEngines.length === 0 && (
-        <div className="text-center py-12 text-stone-400">
-          <div className="text-5xl mb-4">🔍</div>
-          <p>Tapez un nom de jeu ou choisissez un style ci-dessus</p>
-          <p className="text-sm mt-2">Les jeux sont recherchés localement, puis sur BGG si nécessaire</p>
-        </div>
+      {!query.trim() && selectedEngines.length === 0 && !selectedCategory && (
+        <section className="panel mx-auto flex max-w-xl flex-col items-center gap-3 p-8 text-center">
+          <img src="/edj-mascotte.png" alt="" width="120" height="133" className="h-28 w-auto" />
+          <p className="font-display text-2xl">Tapez un nom ou choisissez un style</p>
+          <p className="text-stone-600">Les jeux sont cherchés dans la base, puis sur BGG si besoin.</p>
+        </section>
       )}
 
       {searched && results.length === 0 && !loading && (
-        <div className="text-center py-12 text-stone-500">
-          <div className="text-5xl mb-4">🤷</div>
-          {query.trim()
-            ? <p className="font-medium">Aucun résultat pour "{query}"</p>
-            : <p className="font-medium">Aucun jeu avec ce(s) style(s) dans la base.</p>
-          }
-          <p className="text-sm mt-2">
+        <section className="panel mx-auto max-w-xl p-8 text-center">
+          <h2 className="text-2xl">
+            {query.trim() ? `Aucun résultat pour « ${query} »` : 'Aucun jeu avec ce filtre'}
+          </h2>
+          <p className="mt-2 text-stone-600">
             {query.trim()
-              ? 'Vérifiez l\'orthographe ou essayez en anglais'
-              : 'Importez votre collection ou essayez un autre style'
-            }
+              ? "Vérifiez l'orthographe ou essayez le titre en anglais."
+              : 'Importez votre collection ou essayez un autre style.'}
           </p>
-        </div>
+        </section>
       )}
 
       {results.length > 0 && (
-        <div>
-          {/* Résumé */}
-          <div className="flex items-center justify-between mb-3">
-            <p className="text-sm text-stone-400 flex items-center gap-2">
-              <span>{results.length} résultat{results.length > 1 ? 's' : ''}</span>
-              {ownedCount > 0 && (
-                <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-medium">
-                  {ownedCount} possédé{ownedCount > 1 ? 's' : ''}
-                </span>
-              )}
-              {browsingByEngine && (
-                <span className="flex gap-1 flex-wrap">
-                  {selectedEngines.map(e => (
-                    <span key={e} className={`text-xs px-2 py-0.5 rounded-full border ${ENGINE_COLORS[e]}`}>
-                      {familyLabel(e)}
-                    </span>
-                  ))}
-                </span>
-              )}
-            </p>
-          </div>
-
-          {/* Onglets — seulement si des extensions sont présentes */}
-          <ResultTabs
-            baseGames={baseGames}
-            expansions={expansions}
-            activeTab={activeTab}
-            onTab={setActiveTab}
-          />
-
-          {/* Si pas d'extensions : afficher directement les jeux de base sans onglets */}
-          {!hasExpansions && baseGames.length === 0 && (
-            <p className="text-sm text-stone-400 text-center py-8">Aucun résultat dans cette catégorie</p>
-          )}
-
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-            {visibleGames.map(game => (
-              <GameCard
-                key={game.id}
-                game={game}
-                owned={game.owned != null ? game.owned : undefined}
-              />
+        <section aria-label="Résultats">
+          <p className="mb-4 flex flex-wrap items-center gap-2 text-stone-600" aria-live="polite">
+            <span className="font-bold text-ink">{results.length} résultat{results.length > 1 ? 's' : ''}</span>
+            {ownedCount > 0 && (
+              <span className="badge bg-brand-green text-paper">{ownedCount} possédé{ownedCount > 1 ? 's' : ''}</span>
+            )}
+            {browsingByEngine && selectedEngines.map(e => (
+              <span key={e} className="badge bg-cream">{familyLabel(e)}</span>
             ))}
-          </div>
+          </p>
 
-          {/* Indicateur de séparation possédé / non possédé dans l'onglet actif */}
-          {visibleGames.some(g => g.owned) && visibleGames.some(g => !g.owned) && (
-            <div className="mt-3 pt-3 border-t border-stone-100 text-xs text-stone-400 text-center">
-              ↑ dans votre collection · non possédés ↓
-            </div>
+          <ResultTabs baseGames={baseGames} expansions={expansions} activeTab={activeTab} onTab={setActiveTab} />
+
+          {!hasExpansions && baseGames.length === 0 && (
+            <p className="py-8 text-center text-stone-600">Aucun résultat dans cette catégorie.</p>
           )}
-        </div>
+
+          <ul
+            id="resultats-panneau"
+            role={hasExpansions ? 'tabpanel' : undefined}
+            aria-labelledby={hasExpansions ? `resultats-${activeTab}` : undefined}
+            className="m-0 grid list-none grid-cols-2 gap-4 p-0 sm:grid-cols-3 sm:gap-5 lg:grid-cols-4 2xl:grid-cols-5"
+          >
+            {visibleGames.map(game => (
+              <li key={game.id}>
+                <GameCard game={game} owned={game.owned != null ? game.owned : undefined} />
+              </li>
+            ))}
+          </ul>
+
+          {visibleGames.some(g => g.owned) && visibleGames.some(g => !g.owned) && (
+            <p className="mt-4 text-center text-sm text-stone-600">
+              Les jeux de votre collection viennent en premier.
+            </p>
+          )}
+        </section>
       )}
     </div>
   )
