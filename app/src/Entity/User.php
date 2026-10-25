@@ -46,6 +46,10 @@ class User implements \JsonSerializable, UserInterface
     #[ORM\Column(length: 16, nullable: true)]
     private ?string $memberNumber = null;
 
+    /** Date de confirmation de l'adresse par le lien reçu par e-mail ; null tant qu'elle n'est pas confirmée. */
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $emailVerifiedAt = null;
+
     /** Les jetons de session émis avant cette date ne valent plus : un changement de mot de passe déconnecte les autres appareils. */
     #[ORM\Column(nullable: true)]
     private ?\DateTimeImmutable $passwordChangedAt = null;
@@ -83,6 +87,7 @@ class User implements \JsonSerializable, UserInterface
             'isAdmin' => $this->isAdmin,
             'role' => $this->role->value,
             'memberNumber' => $this->memberNumber,
+            'emailVerified' => $this->emailVerifiedAt !== null,
             'createdAt' => $this->createdAt->format('c'),
         ];
     }
@@ -102,6 +107,8 @@ class User implements \JsonSerializable, UserInterface
         return $this;
     }
     public function getPasswordChangedAt(): ?\DateTimeImmutable { return $this->passwordChangedAt; }
+    public function isEmailVerified(): bool { return $this->emailVerifiedAt !== null; }
+    public function markEmailVerified(): static { $this->emailVerifiedAt ??= new \DateTimeImmutable(); return $this; }
     public function getMemberNumber(): ?string { return $this->memberNumber; }
     public function setMemberNumber(?string $memberNumber): static { $this->memberNumber = $memberNumber; return $this; }
     public function getBggUsername(): ?string { return $this->bggUsername; }

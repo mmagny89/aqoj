@@ -1,16 +1,15 @@
 import { useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { getRegistrationConfig, register as apiRegister } from '../api'
-import { useAuth } from '../context/AuthContext'
 import { AuthCard, ErrorMessage, Field, PasswordField } from '../components/forms'
+import ResendVerification from '../components/ResendVerification'
 
 export default function RegisterPage() {
-  const { login } = useAuth()
-  const navigate = useNavigate()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
   const [code, setCode] = useState('')
+  const [sent, setSent] = useState(false)
   const [requiresCode, setRequiresCode] = useState(false)
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(false)
@@ -31,14 +30,29 @@ export default function RegisterPage() {
 
     setLoading(true)
     try {
-      const data = await apiRegister(email, password, code.trim())
-      login(data.token, data.user)
-      navigate('/', { replace: true })
+      // Pas de session : l'adresse doit d'abord être confirmée par le lien envoyé.
+      await apiRegister(email, password, code.trim())
+      setSent(true)
     } catch (err) {
       setError(err.message)
     } finally {
       setLoading(false)
     }
+  }
+
+  if (sent) {
+    return (
+      <AuthCard
+        title="Vérifiez vos e-mails"
+        footer={<Link to="/connexion" className="inline-flex min-h-11 items-center px-1 font-bold text-brand-blue underline underline-offset-4">Retour à la connexion</Link>}
+      >
+        <p role="status" className="leading-relaxed">
+          Compte créé. Un e-mail de confirmation vient de partir pour <strong className="break-all">{email}</strong> :
+          ouvrez le lien qu'il contient pour activer votre compte. Il est valable sept jours.
+        </p>
+        <ResendVerification email={email} />
+      </AuthCard>
+    )
   }
 
   return (

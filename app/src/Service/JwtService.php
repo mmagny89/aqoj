@@ -37,6 +37,15 @@ class JwtService
         return $changedAt !== null && (int) ($payload->iat ?? 0) < $changedAt->getTimestamp() - 1;
     }
 
+    /**
+     * Le jeton ouvre-t-il une session ? Non si le mot de passe a changé depuis son émission, ni si l'adresse du
+     * compte n'est pas confirmée : dans les deux cas la requête reste anonyme, comme avec un jeton expiré.
+     */
+    public function accepts(User $user, \stdClass $payload): bool
+    {
+        return $user->isEmailVerified() && !$this->isRevoked($user, $payload);
+    }
+
     public function decode(string $token): \stdClass
     {
         return JWT::decode($token, new Key($this->jwtSecret, self::ALGO));

@@ -17,7 +17,9 @@ use Symfony\Component\Console\Style\SymfonyStyle;
     help: <<<'HELP'
         Planifiée chaque dimanche à 5 h par le worker. Supprime :
           - les lignes du journal des tâches (job_run) plus vieilles que --jobs-days (90 par défaut) ;
-          - les jetons de mot de passe oublié déjà utilisés ou expirés depuis plus de 7 jours.
+          - les jetons de compte (mot de passe oublié, confirmation) déjà utilisés ou expirés depuis plus de 7 jours ;
+          - les comptes dont l'adresse n'a jamais été confirmée, créés il y a plus de --unconfirmed-days (14 par défaut) :
+            sans cela, une adresse saisie par un tiers bloquerait la vraie personne (« un compte existe déjà »).
         --dry-run compte sans rien supprimer.
         HELP,
 )]
@@ -33,11 +35,13 @@ final readonly class MaintenancePurgeCommand
         SymfonyStyle $io,
         #[Option(name: 'jobs-days', description: 'Âge au-delà duquel une ligne du journal est supprimée')]
         int $jobsDays = 90,
+        #[Option(name: 'unconfirmed-days', description: "Âge au-delà duquel un compte jamais confirmé est supprimé")]
+        int $unconfirmedDays = 14,
         #[Option(name: 'dry-run', description: 'Compter sans supprimer')]
         bool $dryRun = false,
     ): int {
-        if ($jobsDays < 7) {
-            $io->error('Le journal se conserve au moins 7 jours.');
+        if ($jobsDays < 7 || $unconfirmedDays < 7) {
+            $io->error('Le journal et les comptes non confirmés se conservent au moins 7 jours.');
 
             return Command::FAILURE;
         }
@@ -51,16 +55,24 @@ final readonly class MaintenancePurgeCommand
         );
         $report['jetons'] = $this->purge(
             $dryRun,
-            'password_reset_request',
+            'user_token',
             "(used_at IS NOT NULL AND used_at < NOW() - INTERVAL '7 days') OR expires_at < NOW() - INTERVAL '7 days'",
+        );
+
+        // Un compte non confirmé n'a pu ni se connecter ni rien enregistrer : sa suppression ne perd aucune donnée.
+        $report['comptes'] = $this->purge(
+            $dryRun,
+            'app_user',
+            "email_verified_at IS NULL AND created_at < NOW() - make_interval(days => $unconfirmedDays)",
         );
 
         $this->recorder->note(['dry_run' => $dryRun] + array_map(static fn (int $n): int => $n, $report));
         $io->success(\sprintf(
-            '%s : %d ligne(s) du journal, %d jeton(s).',
+            '%s : %d ligne(s) du journal, %d jeton(s), %d compte(s) non confirmé(s).',
             $dryRun ? 'À supprimer' : 'Supprimé',
             $report['journal'],
             $report['jetons'],
+            $report['comptes'],
         ));
 
         return Command::SUCCESS;

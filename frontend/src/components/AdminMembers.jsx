@@ -191,6 +191,7 @@ function Accounts() {
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
+                  {!a.emailVerified && <span className="badge bg-amber-100">Non confirmé</span>}
                   {a.isAdmin && <span className="badge bg-brand-yellow">Admin</span>}
                   {a.id === me?.id ? (
                     <span className="badge bg-cream">{ROLES[a.role]} (vous)</span>
