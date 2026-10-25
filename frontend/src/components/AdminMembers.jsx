@@ -168,8 +168,8 @@ function Accounts() {
       </div>
 
       <form onSubmit={search} role="search" className="flex gap-2">
-        <label htmlFor="comptes-q" className="sr-only">Adresse e-mail</label>
-        <input id="comptes-q" value={term} onChange={e => setTerm(e.target.value)} placeholder="Adresse e-mail"
+        <label htmlFor="comptes-q" className="sr-only">Adresse e-mail ou numéro d'adhérent</label>
+        <input id="comptes-q" value={term} onChange={e => setTerm(e.target.value)} placeholder="E-mail ou numéro d'adhérent"
           className="min-h-12 min-w-0 flex-1 rounded-xl border-[3px] border-ink bg-paper px-4" />
         <button type="submit" className="btn btn-secondary">Chercher</button>
       </form>
@@ -187,7 +187,7 @@ function Accounts() {
                 <div className="min-w-0">
                   <p className="break-all font-bold">{a.email}</p>
                   <p className="text-sm text-stone-600">
-                    Inscrit le {fmtDate(a.createdAt)}{a.invitationLabel ? ` · code « ${a.invitationLabel} »` : ''}
+                    {a.memberNumber ? `${a.memberNumber} · ` : ''}Inscrit le {fmtDate(a.createdAt)}{a.invitationLabel ? ` · code « ${a.invitationLabel} »` : ''}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">

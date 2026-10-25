@@ -37,6 +37,9 @@ services:
       # 1 : l'inscription exige un code d'invitation (staging et production) ; 0 : elle reste libre (dev).
       # La valeur vide est refusee : un oubli ne doit jamais ouvrir l'inscription en silence.
       REGISTRATION_REQUIRES_CODE: ${REGISTRATION_REQUIRES_CODE:?REGISTRATION_REQUIRES_CODE manquante — 1 pour reserver l'inscription aux invites, 0 pour la laisser libre}
+      # Adresse publique du site, pour les liens des e-mails (réinitialisation du mot de passe). Jamais déduite
+      # de l'en-tête Host d'une requête : un lien empoisonné mènerait ailleurs.
+      PUBLIC_URL: ${PUBLIC_URL:?PUBLIC_URL manquante — adresse publique du site, par exemple https://aqoj.exemple.fr}
     volumes:
       - aqoj-caddy-data:/data
       - aqoj-caddy-config:/config

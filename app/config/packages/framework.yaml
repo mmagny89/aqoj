@@ -32,6 +32,12 @@ framework:
             policy: sliding_window
             limit: 5
             interval: '1 hour'
+        # Mot de passe oublié et réinitialisation : par adresse et par e-mail ciblé, contre l'inondation de
+        # boîtes aux lettres et le balayage de jetons.
+        password_reset:
+            policy: sliding_window
+            limit: 5
+            interval: '1 hour'
 
 when@test:
     framework:

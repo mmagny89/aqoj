@@ -36,6 +36,16 @@ export const login = (email, password) =>
 
 export const getMe = () => request('/auth/me')
 
+// Mot de passe oublié, réinitialisation et changement ; numéro d'adhérent
+export const forgotPassword = (email) =>
+  request('/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }) })
+export const resetPassword = (token, password) =>
+  request('/auth/reset-password', { method: 'POST', body: JSON.stringify({ token, password }) })
+export const changePassword = (currentPassword, newPassword) =>
+  request('/user/password', { method: 'PATCH', body: JSON.stringify({ currentPassword, newPassword }) })
+export const updateMemberNumber = (memberNumber) =>
+  request('/user/member-number', { method: 'PATCH', body: JSON.stringify({ memberNumber }) })
+
 // Games
 export const getGames = (params = {}) => {
   const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => v != null && v !== ''))

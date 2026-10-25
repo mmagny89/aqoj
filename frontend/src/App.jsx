@@ -18,6 +18,8 @@ import HelpPage from './pages/HelpPage'
 import LegalNoticePage from './pages/LegalNoticePage'
 import PrivacyPage from './pages/PrivacyPage'
 import AccountPage from './pages/AccountPage'
+import ForgotPasswordPage from './pages/ForgotPasswordPage'
+import ResetPasswordPage from './pages/ResetPasswordPage'
 
 export default function App() {
   return (
@@ -37,6 +39,8 @@ export default function App() {
           } />
           <Route path="/connexion" element={<LoginPage />} />
           <Route path="/inscription" element={<RegisterPage />} />
+          <Route path="/mot-de-passe-oublie" element={<ForgotPasswordPage />} />
+          <Route path="/reinitialiser-mot-de-passe" element={<ResetPasswordPage />} />
           <Route path="/importer" element={
             <ProtectedRoute><ImportBggPage /></ProtectedRoute>
           } />

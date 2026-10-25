@@ -44,14 +44,15 @@ final class AdminUsersController extends AbstractController
             }
         }
         if ($term !== '') {
-            $where[] = 'u.email ILIKE ?';
-            $params[] = '%'.addcslashes($term, '%_\\').'%';
+            $where[] = '(u.email ILIKE ? OR u.member_number ILIKE ?)';
+            $like = '%'.addcslashes($term, '%_\\').'%';
+            array_push($params, $like, $like);
         }
         $clause = implode(' AND ', $where);
 
         $total = (int) $conn->fetchOne("SELECT COUNT(*) FROM app_user u WHERE $clause", $params);
         $rows = $conn->fetchAllAssociative(
-            "SELECT u.id, u.email, u.role, u.is_admin, u.bgg_username, u.created_at, i.label AS invitation_label
+            "SELECT u.id, u.email, u.role, u.is_admin, u.bgg_username, u.member_number, u.created_at, i.label AS invitation_label
              FROM app_user u LEFT JOIN invitation_code i ON i.id = u.invitation_code_id
              WHERE $clause ORDER BY u.created_at DESC, u.id DESC LIMIT ".self::PER_PAGE.' OFFSET '.(($page - 1) * self::PER_PAGE),
             $params,
@@ -67,6 +68,7 @@ final class AdminUsersController extends AbstractController
                 'role' => $r['role'],
                 'isAdmin' => (bool) $r['is_admin'],
                 'bggUsername' => $r['bgg_username'],
+                'memberNumber' => $r['member_number'],
                 'createdAt' => (new \DateTimeImmutable($r['created_at']))->format('c'),
                 'invitationLabel' => $r['invitation_label'],
             ], $rows),

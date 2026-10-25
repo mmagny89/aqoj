@@ -38,6 +38,12 @@ describe('Connexion et inscription', () => {
     expect(login).toHaveBeenCalledWith('t', { email: 'a@example.test' })
   })
 
+  it('propose le lien Mot de passe oublié', () => {
+    renderRoutes('/connexion')
+
+    expect(screen.getByRole('link', { name: 'Mot de passe oublié ?' })).toHaveAttribute('href', '/mot-de-passe-oublie')
+  })
+
   it('montre l’erreur d’identifiants', async () => {
     apiLogin.mockRejectedValue(new Error('Identifiants invalides.'))
     renderRoutes('/connexion')

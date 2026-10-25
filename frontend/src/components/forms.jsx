@@ -1,4 +1,5 @@
-import { useId } from 'react'
+import { useId, useState } from 'react'
+import { EyeIcon, EyeOffIcon } from './icons'
 
 /* Champ de formulaire du thème : libellé relié à son champ, aide facultative, cible de 48 px. */
 export const inputClass =
@@ -13,6 +14,33 @@ export function Field({ label, hint, className = '', ...props }) {
         {hint && <span className="ml-1.5 font-normal text-stone-600">{hint}</span>}
       </label>
       <input id={id} className={inputClass} {...props} />
+    </div>
+  )
+}
+
+/* Champ de mot de passe avec l'œil : « Afficher » est un bouton à bascule, jamais une case cachée. */
+export function PasswordField({ label, hint, className = '', ...props }) {
+  const id = useId()
+  const [visible, setVisible] = useState(false)
+  const Icon = visible ? EyeOffIcon : EyeIcon
+  return (
+    <div className={className}>
+      <label htmlFor={id} className="mb-1 block font-bold">
+        {label}
+        {hint && <span className="ml-1.5 font-normal text-stone-600">{hint}</span>}
+      </label>
+      <div className="relative">
+        <input id={id} type={visible ? 'text' : 'password'} className={`${inputClass} pr-14`} {...props} />
+        <button
+          type="button"
+          onClick={() => setVisible(v => !v)}
+          aria-pressed={visible}
+          aria-label={visible ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+          className="absolute right-1 top-1/2 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-lg text-stone-700 hover:bg-amber-200"
+        >
+          <Icon width={22} height={22} />
+        </button>
+      </div>
     </div>
   )
 }
