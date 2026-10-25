@@ -260,6 +260,45 @@ class GameRepository extends ServiceEntityRepository
         ));
     }
 
+    /**
+     * Nouveautés : jeux de base parus entre `$fromYear` et `$toYear` (à paraître compris), absents de la collection
+     * du joueur, du plus voté au moins voté.
+     *
+     * @return Game[]
+     */
+    public function findNewReleases(User $user, int $fromYear, int $toYear, int $limit): array
+    {
+        $conditions = [
+            'g.is_expansion = false',
+            'g.year_published BETWEEN ? AND ?',
+            'g.users_rated >= 20',
+            '(g.rating_bgg IS NULL OR g.rating_bgg >= 6.0)',
+            'NOT EXISTS (SELECT 1 FROM user_game ug WHERE ug.game_id = g.id AND ug.user_id = ?)',
+            "NOT EXISTS (
+                SELECT 1
+                FROM jsonb_array_elements_text(g.implements_bgg_ids) impl_id
+                JOIN game g2 ON g2.bgg_id = impl_id
+                JOIN user_game ug2 ON ug2.game_id = g2.id AND ug2.user_id = ?
+            )",
+        ];
+        $params = [$fromYear, $toYear, $user->getId(), $user->getId()];
+
+        $ids = $this->getEntityManager()->getConnection()->fetchFirstColumn(
+            'SELECT g.id FROM game g WHERE ' . implode(' AND ', $conditions) . ' ORDER BY g.users_rated DESC, g.id LIMIT ?',
+            [...$params, $limit]
+        );
+        if ($ids === []) {
+            return [];
+        }
+
+        $games = [];
+        foreach ($this->createQueryBuilder('g')->where('g.id IN (:ids)')->setParameter('ids', $ids)->getQuery()->getResult() as $game) {
+            $games[$game->getId()] = $game;
+        }
+
+        return array_values(array_filter(array_map(fn($id) => $games[(int) $id] ?? null, $ids)));
+    }
+
     /** Jeux de base de la ludothèque de l'association et des membres, sans doublon. */
     public function findLibraryGames(): array
     {

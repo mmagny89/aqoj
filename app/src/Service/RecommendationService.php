@@ -20,9 +20,6 @@ class RecommendationService
     /** Points de score ajoutés à un jeu paru cette année ; décroît linéairement jusqu'à 5 ans. */
     private const RECENT_MAX_BONUS = 25;
 
-    /** Complexité BGG (1-5) au-delà de laquelle un jeu n'est plus proposé à quelqu'un dont on ignore les goûts. */
-    private const COLD_START_MAX_COMPLEXITY = 3.0;
-
     /** Complexité BGG (1-5) au plus : un jeu qu'on explique en cinq minutes autour d'une table. */
     private const EASY_MAX_COMPLEXITY = 2.5;
 
@@ -190,35 +187,19 @@ class RecommendationService
         if (empty($topFamilies)) {
             return [
                 'families'  => [],
-                'recent'    => $this->coldStartRecent($user, $excludeIds, $currentYear, $library),
+                'recent'    => $this->newReleases($user),
                 'byDecade'  => [],
                 'coldStart' => true,
                 'declared'  => $declared,
             ];
         }
 
-        // 3. Jeux récents (5 dernières années)
-        $recentGames = $this->gameRepository->findDiscoverForRecommendation(
-            $user,
-            players:    null,
-            maxTime:    null,
-            familyKeys: $library ? [] : $topFamilies,
-            limit:      30,
-            minYear:    $this->recentFromYear($currentYear),
-            excludeIds: $excludeIds,
-            baseGamesOnly: true,
-            minVotes:   self::RECENT_MIN_VOTES,
-            library:    $library,
-        );
-
-        $recent = array_slice(
-            $this->scoreGames($recentGames, $topFamilies, recentBoost: true),
-            0, 10
-        );
+        // 3. Nouveautés BGG, hors ludothèque du joueur
+        $recent = $this->newReleases($user);
 
         // 4. Par décennie
         $decades = [
-            '2020s'    => [2020, $this->recentFromYear($currentYear) - 1],   // avant les "récents"
+            '2020s'    => [2020, null],
             '2010s'    => [2010, 2019],
             '2000s'    => [2000, 2009],
             '1990s'    => [1990, 1999],
@@ -228,7 +209,7 @@ class RecommendationService
         $byDecade = [];
         foreach ($decades as $label => [$min, $max]) {
             // On saute la décennie 2020 si $min > $max (cas où la fenêtre des récents couvre déjà tout le début des années 2020)
-            if ($min > $max) {
+            if ($max !== null && $min !== null && $min > $max) {
                 continue;
             }
 
@@ -265,39 +246,33 @@ class RecommendationService
     }
 
     /**
-     * Nouveautés pour quelqu'un dont on ne sait rien : jeux de base récents, abordables,
-     * bien notés par assez de monde. Pas de filtre de mécanique — on ne devine pas les goûts.
+     * Le top 10 des nouveautés BGG : jeux de base parus récemment ou à paraître, les plus suivis par les votants,
+     * que le joueur n'a pas déjà. Indépendant des goûts et du périmètre (ludothèque ou catalogue) : c'est ce qui se passe sur BGG.
+     *
+     * « Récemment » = l'année en cours (et la précédente jusqu'en juin, pour ne pas vider la liste en janvier) ;
+     * « à paraître » = jusqu'à l'année prochaine incluse. Classement par nombre de votes, la mesure d'intérêt que
+     * le catalogue conserve ; un jeu à moins de 6/10 de moyenne est écarté.
+     *
+     * @return array<array{game: Game, score: float, reason: string}>
      */
-    private function coldStartRecent(User $user, array $excludeIds, int $currentYear, bool $library): array
+    private function newReleases(User $user): array
     {
-        $games = $this->gameRepository->findDiscoverForRecommendation(
-            $user,
-            players:       null,
-            maxTime:       null,
-            limit:         60,
-            minYear:       $this->recentFromYear($currentYear),
-            excludeIds:    $excludeIds,
-            baseGamesOnly: true,
-            maxComplexity: self::COLD_START_MAX_COMPLEXITY,
-            minVotes:      self::RECENT_MIN_VOTES,
-            library:       $library,
-        );
+        $currentYear = (int) date('Y');
+        $fromYear    = (int) date('n') <= 6 ? $currentYear - 1 : $currentYear;
+        $games = $this->gameRepository->findNewReleases($user, $fromYear, $currentYear + 1, 10);
 
-        $scored = array_map(function (Game $game) use ($currentYear): array {
-            $rating  = $this->qualityRating($game, $currentYear);
-            $year    = $game->getYearPublished();
-            $recency = $this->recencyBonus($game, $currentYear);
+        return array_map(function (Game $game) use ($currentYear): array {
+            $year   = $game->getYearPublished();
+            $reason = $year !== null && $year > $currentYear ? "À paraître en {$year}" : "Sorti en {$year}";
+            if (($game->getUsersRated() ?? 0) > 0) {
+                $reason .= ' · ' . number_format($game->getUsersRated(), 0, ',', "\u{202F}") . ' votes';
+            }
+            if ($game->getRatingBgg() !== null) {
+                $reason .= ' · ' . number_format($game->getRatingBgg(), 1) . '/10 sur BGG';
+            }
 
-            $reason = ($year !== null ? "Nouveauté {$year}" : 'Nouveauté')
-                . ' · ' . number_format((float) $game->getRatingBgg(), 1) . '/10 sur BGG'
-                . ' · facile à aborder';
-
-            return ['game' => $game, 'score' => $rating * 5 + $recency, 'reason' => $reason];
+            return ['game' => $game, 'score' => (float) ($game->getUsersRated() ?? 0), 'reason' => $reason];
         }, $games);
-
-        usort($scored, fn($a, $b) => $b['score'] <=> $a['score']);
-
-        return array_slice($scored, 0, 10);
     }
 
     /** Goûts que le joueur a déclarés lui-même (questionnaire de l'accueil). */
@@ -739,11 +714,15 @@ class RecommendationService
             ? $this->gameRepository->findLibraryGames()
             : $this->gameRepository->findUserCollectionForRecommendation($user, null, null);
 
+        // Une extension ne s'« oublie » pas : on ressort les jeux de base.
+        $games = array_values(array_filter($games, fn(Game $g) => !$g->isExpansion()));
         if (empty($games)) {
             return [];
         }
 
         $sessionStats = $this->sessionRepository->getStatsForUser($user);
+        // Une note personnelle (BGG ou MyLudo) prouve que le jeu a été joué, même sans partie enregistrée.
+        $userRatings = $this->userGameRepository->getBggUserRatings($user);
         $now = new \DateTimeImmutable();
         $threshold = $now->modify('-180 days');
 
@@ -759,7 +738,7 @@ class RecommendationService
             if ($isOldOrNeverPlayed && $isNotDisliked && $hasGoodRating) {
                 $gems[] = [
                     'game'   => $game,
-                    'reason' => $this->buildForgottenReason($game, $stats, $library),
+                    'reason' => $this->buildForgottenReason($stats, $userRatings[$game->getId()] ?? null, $library),
                 ];
             }
         }
@@ -916,18 +895,22 @@ class RecommendationService
         return ucfirst(implode(' · ', $parts));
     }
 
-    private function buildForgottenReason(Game $game, ?array $stats, bool $library = false): string
+    /**
+     * Pourquoi ce jeu ressort. On n'écrit « jamais joué » que s'il n'y a ni partie enregistrée ni note : une note
+     * personnelle prouve qu'on y a joué, et le site ne connaît que les parties qu'on lui a déclarées.
+     */
+    private function buildForgottenReason(?array $stats, ?float $userRating, bool $library = false): string
     {
-        if ($stats === null) {
-            return $library ? 'Jamais joué par vous, dans la ludothèque' : 'Jamais joué, mais dans votre collection';
-        }
-
-        $lastPlayed = $stats['lastPlayedAt'];
+        $lastPlayed = $stats['lastPlayedAt'] ?? null;
         if ($lastPlayed !== null) {
-            $months = (int) (new \DateTimeImmutable())->diff($lastPlayed)->days / 30;
+            $months = max(1, intdiv((new \DateTimeImmutable())->diff($lastPlayed)->days, 30));
             return "Pas joué depuis {$months} mois";
         }
 
-        return $library ? 'Jeu de la ludothèque à ressortir' : 'Jeu oublié de votre collection';
+        if ($userRating !== null && $userRating > 0) {
+            return 'Noté ' . rtrim(rtrim(number_format($userRating, 1, '.', ''), '0'), '.') . '/10 par vous, aucune partie enregistrée';
+        }
+
+        return $library ? 'Aucune partie enregistrée, dans la ludothèque' : 'Aucune partie enregistrée, dans votre collection';
     }
 }

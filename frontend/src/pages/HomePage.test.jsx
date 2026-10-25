@@ -40,12 +40,12 @@ describe('HomePage', () => {
       getTonightRecommendations.mockResolvedValue({ easy: [], popular: [] })
     })
 
-    it('propose des nouveautés accessibles et renvoie au questionnaire du compte, sans parler de BGG', async () => {
+    it('propose les nouveautés BGG et renvoie au questionnaire du compte', async () => {
       getHomeRecommendations.mockResolvedValue(froid)
       render(<MemoryRouter><HomePage /></MemoryRouter>)
 
-      expect(await screen.findByRole('tab', { name: 'Nouveautés à découvrir' })).toBeInTheDocument()
-      expect(screen.getByText(/Nous ne connaissons pas encore vos goûts/)).toBeInTheDocument()
+      expect(await screen.findByRole('tab', { name: 'Nouveautés pour vous' })).toBeInTheDocument()
+      expect(screen.getByText(/top 10 des nouveautés BGG/)).toBeInTheDocument()
       expect(screen.getByRole('link', { name: 'Choisir mes goûts' })).toHaveAttribute('href', '/compte#gouts')
       expect(screen.queryByRole('heading', { name: 'Ce que vous aimez' })).not.toBeInTheDocument()
       expect(screen.queryByText(/Importez votre collection/)).not.toBeInTheDocument()

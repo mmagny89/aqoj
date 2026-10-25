@@ -5,7 +5,6 @@ import { getForgottenGems, getHomeRecommendations, getTonightRecommendations, sa
 import GameCard from '../components/GameCard'
 import FilterRow from '../components/FilterRow'
 import { DiceIcon, DownloadIcon, SearchIcon, ShelfIcon } from '../components/icons'
-import { familyLabel, familyColor, isEngine } from '../utils/engelstein'
 
 const PLAYERS = [1, 2, 3, 4, 5, 6, 7, 8]
 const DURATIONS = [
@@ -308,33 +307,16 @@ export default function HomePage() {
   const hasRecent    = recentList.length > 0
   const hasDecades   = reco?.byDecade && Object.keys(reco.byDecade).length > 0
   const hasForgotten = forgotten.length > 0
-  const coldStart    = reco?.coldStart === true
   const showInvite   = !recoLoading && reco !== null && !(reco.declared?.length > 0)
 
   const tabs = [
     hasRecent && {
       id: 'nouveautes',
-      label: coldStart ? 'Nouveautés à découvrir' : 'Nouveautés pour vous',
+      label: 'Nouveautés pour vous',
       content: (
         <>
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-            {coldStart ? (
-              <p className="m-0 text-stone-600">Nous ne connaissons pas encore vos goûts : voici des jeux récents, bien notés et faciles à aborder.</p>
-            ) : (
-              <div className="flex flex-wrap items-center gap-2 text-stone-600">
-                <span>D'après vos goûts :</span>
-                {reco.families.map(key => (
-                  <span key={key} className={`rounded-full border px-2.5 py-1 text-xs font-medium ${
-                    isEngine(key) ? familyColor(key) : 'border-stone-200 bg-stone-100 text-stone-600'
-                  }`}>
-                    {familyLabel(key)}
-                  </span>
-                ))}
-              </div>
-            )}
-            <Link to="/recommander" className="inline-flex min-h-11 items-center font-bold text-brand-blue underline underline-offset-4">Voir plus de recommandations</Link>
-          </div>
-          <Carousel items={recentList} label={coldStart ? 'Nouveautés à découvrir' : 'Nouveautés pour vous'} />
+          <p className="mb-4 mt-0 text-stone-600">Le top 10 des nouveautés BGG, sorties récemment ou à paraître, qui ne sont pas dans votre ludothèque.</p>
+          <Carousel items={recentList} label="Nouveautés pour vous" />
         </>
       ),
     },
