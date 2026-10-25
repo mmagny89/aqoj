@@ -27,12 +27,18 @@ describe('SearchPage', () => {
     expect(screen.getByRole('link', { name: 'Catan : Marins' })).toBeInTheDocument()
   })
 
-  it('propose les filtres de style tant que rien n’est saisi', async () => {
+  it('range les filtres derrière « Filtres avancés », repliés par défaut', async () => {
     render(<MemoryRouter><SearchPage /></MemoryRouter>)
 
+    const avances = screen.getByRole('button', { name: /Filtres avancés/ })
+    expect(avances).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByRole('group', { name: 'Style' })).not.toBeInTheDocument()
+    await userEvent.click(avances)
+    expect(avances).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getByRole('group', { name: 'Style' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Explorer le catalogue' })).toBeInTheDocument()
     await userEvent.click(screen.getAllByRole('button', { pressed: false })[0])
+    expect(avances).toHaveTextContent('(1)')
 
     expect(searchGames).toHaveBeenCalled()
   })

@@ -72,6 +72,7 @@ export default function SearchPage() {
   const [searched, setSearched]         = useState(false)
   const [error, setError]               = useState(null)
   const [activeTab, setActiveTab]       = useState('base')  // 'base' | 'expansions'
+  const [advancedOpen, setAdvancedOpen]   = useState(false)
 
   const debouncedQuery = useDebounce(query, 400)
 
@@ -123,6 +124,7 @@ export default function SearchPage() {
   const hasExpansions = expansions.length > 0
 
   const ownedCount = visibleGames.filter(g => g.owned).length
+  const activeFilters = selectedEngines.length + (selectedCategory ? 1 : 0)
   const browsingByEngine = !query.trim() && selectedEngines.length > 0
 
   return (
@@ -153,37 +155,50 @@ export default function SearchPage() {
           )}
         </form>
 
-        {/* Filtres : visibles tant qu'aucun texte n'est saisi */}
+        {/* Filtres avancés : repliés par défaut, absents dès qu'un nom est saisi */}
         {!query.trim() && (
-          <div className="flex flex-col gap-2">
-            <FilterRow scroll id="f-styles" label="Style">
-              {Object.keys(ENGINES).map(key => (
-                <Chip key={key} active={selectedEngines.includes(key)} onClick={() => toggleEngine(key)}>
-                  {familyLabel(key)}
-                </Chip>
-              ))}
-            </FilterRow>
-            <FilterRow scroll id="f-themes" label="Thème">
-              {FILTER_THEMES.map(cat => {
-                const { label, emoji } = categoryInfo(cat)
-                return (
-                  <Chip key={cat} active={selectedCategory === cat} onClick={() => toggleCategory(cat)}>
-                    {emoji && <span aria-hidden="true" className="mr-1">{emoji}</span>}{label}
+          <>
+            <button
+              type="button"
+              onClick={() => setAdvancedOpen(v => !v)}
+              aria-expanded={advancedOpen}
+              aria-controls="filtres-avances"
+              className="chip chip-sm self-start"
+            >
+              Filtres avancés{activeFilters > 0 && ` (${activeFilters})`}
+              <span aria-hidden="true" className="ml-1.5">{advancedOpen ? '−' : '+'}</span>
+            </button>
+
+            <div id="filtres-avances" hidden={!advancedOpen} className="flex flex-col gap-2">
+              <FilterRow scroll id="f-styles" label="Style">
+                {Object.keys(ENGINES).map(key => (
+                  <Chip key={key} active={selectedEngines.includes(key)} onClick={() => toggleEngine(key)}>
+                    {familyLabel(key)}
                   </Chip>
-                )
-              })}
-            </FilterRow>
-            <FilterRow scroll id="f-types" label="Type">
-              {FILTER_TYPES.map(cat => {
-                const { label, emoji } = categoryInfo(cat)
-                return (
-                  <Chip key={cat} active={selectedCategory === cat} onClick={() => toggleCategory(cat)}>
-                    {emoji && <span aria-hidden="true" className="mr-1">{emoji}</span>}{label}
-                  </Chip>
-                )
-              })}
-            </FilterRow>
-          </div>
+                ))}
+              </FilterRow>
+              <FilterRow scroll id="f-themes" label="Thème">
+                {FILTER_THEMES.map(cat => {
+                  const { label, emoji } = categoryInfo(cat)
+                  return (
+                    <Chip key={cat} active={selectedCategory === cat} onClick={() => toggleCategory(cat)}>
+                      {emoji && <span aria-hidden="true" className="mr-1">{emoji}</span>}{label}
+                    </Chip>
+                  )
+                })}
+              </FilterRow>
+              <FilterRow scroll id="f-types" label="Type">
+                {FILTER_TYPES.map(cat => {
+                  const { label, emoji } = categoryInfo(cat)
+                  return (
+                    <Chip key={cat} active={selectedCategory === cat} onClick={() => toggleCategory(cat)}>
+                      {emoji && <span aria-hidden="true" className="mr-1">{emoji}</span>}{label}
+                    </Chip>
+                  )
+                })}
+              </FilterRow>
+            </div>
+          </>
         )}
       </section>
 
@@ -193,7 +208,7 @@ export default function SearchPage() {
 
       {/* État vide */}
       {!query.trim() && selectedEngines.length === 0 && !selectedCategory && (
-        <p className="m-0 text-center text-stone-700">Tapez un nom ou choisissez un style : les jeux sont cherchés dans la base, puis sur BGG si besoin.</p>
+        <p className="m-0 text-center text-stone-700">Tapez un nom, ou ouvrez les filtres avancés : les jeux sont cherchés dans la base, puis sur BGG si besoin.</p>
       )}
 
       {searched && results.length === 0 && !loading && (
