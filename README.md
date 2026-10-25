@@ -209,6 +209,7 @@ docker compose exec php php bin/console app:bgg:relink-expansions
 |---|---|
 | Frontend (Vite) | http://localhost:5173 |
 | API Symfony | https://localhost/api/health (certificat local : accepter l'avertissement) |
+| Catalogue des jeux (lecture seule, pour BG-TCG) | https://localhost/api/catalogue/games?itemsPerPage=10 ; description : https://localhost/api/docs.jsonopenapi |
 | E-mails de développement (Mailpit) | http://localhost:8025 |
 
 ---

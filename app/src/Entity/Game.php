@@ -2,9 +2,54 @@
 
 namespace App\Entity;
 
+use ApiPlatform\Doctrine\Orm\Filter\BooleanFilter;
+use ApiPlatform\Doctrine\Orm\Filter\ComparisonFilter;
+use ApiPlatform\Doctrine\Orm\Filter\ExactFilter;
+use ApiPlatform\Doctrine\Orm\Filter\PartialSearchFilter;
+use ApiPlatform\Doctrine\Orm\Filter\SortFilter;
+use ApiPlatform\Metadata\ApiProperty;
+use ApiPlatform\Metadata\ApiResource;
+use ApiPlatform\Metadata\Get;
+use ApiPlatform\Metadata\GetCollection;
+use ApiPlatform\Metadata\QueryParameter;
 use App\Repository\GameRepository;
 use Doctrine\ORM\Mapping as ORM;
+use Symfony\Component\Serializer\Attribute\Groups;
+use Symfony\Component\Serializer\Attribute\SerializedName;
 
+/**
+ * Catalogue exposé en lecture seule sous /api/catalogue/games (BG-TCG s'y alimente).
+ * Les routes /api/games* du site sont des contrôleurs distincts et ne changent pas.
+ * Seuls les champs du groupe `catalogue:read` sortent : rien de privé (possession, notes, essais BGG).
+ */
+#[ApiResource(
+    uriTemplate: '/catalogue/games',
+    operations: [
+        new GetCollection(
+            uriTemplate: '/catalogue/games',
+            parameters: [
+                'name' => new QueryParameter(filter: new PartialSearchFilter(), property: 'name'),
+                'bggType' => new QueryParameter(filter: new ExactFilter(), property: 'bggType'),
+                'isExpansion' => new QueryParameter(filter: new BooleanFilter(), property: 'isExpansion'),
+                'yearPublished' => new QueryParameter(filter: new ComparisonFilter(new ExactFilter()), property: 'yearPublished'),
+                'complexity' => new QueryParameter(filter: new ComparisonFilter(new ExactFilter()), property: 'complexity'),
+                'playingTime' => new QueryParameter(filter: new ComparisonFilter(new ExactFilter()), property: 'playingTime'),
+                'minPlayers' => new QueryParameter(filter: new ComparisonFilter(new ExactFilter()), property: 'minPlayers'),
+                'maxPlayers' => new QueryParameter(filter: new ComparisonFilter(new ExactFilter()), property: 'maxPlayers'),
+                'bggRank' => new QueryParameter(filter: new ComparisonFilter(new ExactFilter()), property: 'bggRank'),
+                'usersRated' => new QueryParameter(filter: new ComparisonFilter(new ExactFilter()), property: 'usersRated'),
+                'lastSyncedAt' => new QueryParameter(filter: new ComparisonFilter(new ExactFilter()), property: 'lastSyncedAt'),
+                'order[:property]' => new QueryParameter(
+                    filter: new SortFilter(),
+                    properties: ['bggId', 'name', 'yearPublished', 'complexity', 'bggRank', 'usersRated', 'lastSyncedAt'],
+                ),
+            ],
+        ),
+        new Get(uriTemplate: '/catalogue/games/{bggId}'),
+    ],
+    normalizationContext: ['groups' => ['catalogue:read'], 'skip_null_values' => false],
+    order: ['bggId' => 'ASC'],
+)]
 #[ORM\Entity(repositoryClass: GameRepository::class)]
 #[ORM\Table(name: 'game')]
 class Game implements \JsonSerializable
@@ -12,42 +57,56 @@ class Game implements \JsonSerializable
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
+    #[ApiProperty(identifier: false)]
     private ?int $id = null;
 
     #[ORM\Column(length: 50, unique: true)]
+    #[ApiProperty(identifier: true)]
+    #[Groups(['catalogue:read'])]
     private string $bggId;
 
     #[ORM\Column(length: 255)]
+    #[Groups(['catalogue:read'])]
     private string $name;
 
     #[ORM\Column(type: 'text', nullable: true)]
+    #[Groups(['catalogue:read'])]
     private ?string $description = null;
 
     #[ORM\Column]
+    #[Groups(['catalogue:read'])]
     private int $minPlayers = 1;
 
     #[ORM\Column]
+    #[Groups(['catalogue:read'])]
     private int $maxPlayers = 1;
 
     #[ORM\Column]
+    #[Groups(['catalogue:read'])]
     private int $playingTime = 0;
 
     #[ORM\Column(type: 'float')]
+    #[Groups(['catalogue:read'])]
     private float $complexity = 0.0;
 
     #[ORM\Column(type: 'json')]
+    #[Groups(['catalogue:read'])]
     private array $categories = [];
 
     #[ORM\Column(type: 'json')]
+    #[Groups(['catalogue:read'])]
     private array $mechanics = [];
 
     #[ORM\Column(length: 500, nullable: true)]
+    #[Groups(['catalogue:read'])]
     private ?string $imageUrl = null;
 
     #[ORM\Column(nullable: true)]
+    #[Groups(['catalogue:read'])]
     private ?int $yearPublished = null;
 
     #[ORM\Column(type: 'float', nullable: true)]
+    #[Groups(['catalogue:read'])]
     private ?float $ratingBgg = null;
 
     #[ORM\Column]
@@ -57,6 +116,7 @@ class Game implements \JsonSerializable
     private string $source = 'bgg';
 
     #[ORM\Column(nullable: true)]
+    #[Groups(['catalogue:read'])]
     private ?\DateTimeImmutable $lastSyncedAt = null;
 
     /** Dernier appel BGG à son sujet, réussi ou non : évite de rappeler à chaque passage un jeu absent de la réponse. */
@@ -64,26 +124,32 @@ class Game implements \JsonSerializable
     private ?\DateTimeImmutable $lastFetchAttemptAt = null;
 
     #[ORM\Column(nullable: true)]
+    #[Groups(['catalogue:read'])]
     private ?int $bggRank = null;
 
     #[ORM\Column(nullable: true)]
+    #[Groups(['catalogue:read'])]
     private ?int $usersRated = null;
 
     #[ORM\Column(options: ['default' => false])]
     private bool $isExpansion = false;
 
     #[ORM\Column(type: 'json')]
+    #[Groups(['catalogue:read'])]
     private array $mechanicFamilies = [];
 
     /** Moteurs centraux détectés automatiquement (sous-ensemble de mechanicFamilies, isCentralCapable=true) */
     #[ORM\Column(type: 'json')]
+    #[Groups(['catalogue:read'])]
     private array $detectedEngines = [];
 
     /** Moteur principal validé manuellement par un admin (écrase detectedEngines pour l'affichage) */
     #[ORM\Column(length: 50, nullable: true)]
+    #[Groups(['catalogue:read'])]
     private ?string $primaryEngine = null;
 
     #[ORM\Column(nullable: true)]
+    #[Groups(['catalogue:read'])]
     private ?int $minAge = null;
 
     /**
@@ -91,18 +157,22 @@ class Game implements \JsonSerializable
      * `name` contient le nom d'affichage (FR si disponible, sinon identique à nameOriginal).
      */
     #[ORM\Column(length: 255, nullable: true)]
+    #[Groups(['catalogue:read'])]
     private ?string $nameOriginal = null;
 
     /** Type BGG brut : 'boardgame' ou 'boardgameexpansion' */
     #[ORM\Column(length: 30, options: ['default' => 'boardgame'])]
+    #[Groups(['catalogue:read'])]
     private string $bggType = 'boardgame';
 
     /** BGG IDs (string) des extensions de ce jeu */
     #[ORM\Column(type: 'json')]
+    #[Groups(['catalogue:read'])]
     private array $expansionBggIds = [];
 
     /** BGG IDs (string) des jeux dont celui-ci est une réédition/version collector */
     #[ORM\Column(type: 'json')]
+    #[Groups(['catalogue:read'])]
     private array $implementsBggIds = [];
 
     public function __construct()
@@ -179,6 +249,8 @@ class Game implements \JsonSerializable
     public function setBggRank(?int $bggRank): static { $this->bggRank = $bggRank; return $this; }
     public function getUsersRated(): ?int { return $this->usersRated; }
     public function setUsersRated(?int $usersRated): static { $this->usersRated = $usersRated; return $this; }
+    #[Groups(['catalogue:read'])]
+    #[SerializedName('isExpansion')]
     public function isExpansion(): bool { return $this->isExpansion; }
     public function setIsExpansion(bool $isExpansion): static { $this->isExpansion = $isExpansion; return $this; }
     public function getMechanicFamilies(): array { return $this->mechanicFamilies; }

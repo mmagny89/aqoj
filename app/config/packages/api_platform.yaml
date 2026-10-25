@@ -1,0 +1,29 @@
+# Catalogue des jeux exposé en lecture seule (BG-TCG et autres consommateurs).
+# Les routes sont préfixées /api par config/routes/api_platform.yaml : le pare-feu
+# `api` et le routage Caddy les couvrent sans changement.
+api_platform:
+    title: 'À quoi on joue — catalogue'
+    description: 'Fiches de jeux de société issues de BoardGameGeek, en lecture seule.'
+    version: '1.0.0'
+    formats:
+        jsonld: ['application/ld+json']
+        json: ['application/json']
+    docs_formats:
+        jsonld: ['application/ld+json']
+        jsonopenapi: ['application/vnd.openapi+json']
+    defaults:
+        stateless: true
+        pagination_items_per_page: 100
+        pagination_maximum_items_per_page: 500
+        pagination_client_items_per_page: true
+        cache_headers:
+            max_age: 3600
+            shared_max_age: 3600
+            vary: ['Accept']
+    # Pas d'interface Swagger : sans Flex, ses ressources ne sont pas publiées et le projet n'a pas de CDN.
+    # La description OpenAPI se lit en JSON : GET /api/docs.jsonopenapi.
+    enable_swagger_ui: false
+    enable_re_doc: false
+    # Pas de Mercure ni de GraphQL : un catalogue en lecture seule n'en a pas l'usage.
+    mapping:
+        paths: ['%kernel.project_dir%/src/Entity']
