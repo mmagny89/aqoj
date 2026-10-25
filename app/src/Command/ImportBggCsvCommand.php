@@ -5,6 +5,7 @@ namespace App\Command;
 use App\Catalogue\CatalogueImporter;
 use App\Catalogue\Import\CsvBggImporter;
 use App\Catalogue\Import\InvalidSourceException;
+use App\Service\JobRunRecorder;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
@@ -24,6 +25,7 @@ class ImportBggCsvCommand extends Command
 
     public function __construct(
         private readonly CatalogueImporter $catalogueImporter,
+        private readonly JobRunRecorder $recorder,
         private readonly string $projectDir,
     ) {
         parent::__construct();
@@ -53,10 +55,12 @@ class ImportBggCsvCommand extends Command
         $zipPath = $this->findLatestZip($importDir);
         if ($zipPath === null) {
             $io->warning("Aucun fichier ZIP trouvé dans {$importDir}");
+            $this->recorder->note(['skipped' => 'aucun ZIP déposé']);
             return Command::SUCCESS;
         }
 
         $io->text("Fichier trouvé : " . basename($zipPath));
+        $this->recorder->note(['zip' => basename($zipPath)]);
 
         $csvPath = $this->extractCsv($zipPath);
         if ($csvPath === null) {

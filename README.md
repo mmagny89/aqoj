@@ -99,6 +99,7 @@ Explications sur le fonctionnement du site, du modèle de recommandation, du mod
 - Gestion des thématiques BGG → labels français + emoji (groupes : thèmes / types de jeu)
 - Recalcul en masse des familles pour tous les jeux en base
 - Visualisation des mécaniques BGG non encore mappées, triées par fréquence
+- Tableau de bord (`/admin`) : dernière exécution et historique des tâches d'import et de synchronisation (bilan chiffré, durée, erreur), puis explorateur du catalogue filtrable (à enrichir, jamais demandés à BGG, sans réponse de BGG, à rafraîchir, sans image, extensions sans jeu de base…) avec fiche de diagnostic ; lecture seule
 
 ---
 

@@ -115,6 +115,16 @@ export const getUnmappedMechanics = () =>
 export const getAdminStats = () =>
   request('/admin/stats')
 
+// Admin — journal des tâches et explorateur du catalogue
+const query = (params = {}) => {
+  const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => v != null && v !== ''))
+  return qs.toString() ? '?' + qs : ''
+}
+export const getAdminJobs = (params) => request('/admin/jobs' + query(params))
+export const getAdminGameFilters = () => request('/admin/games/filters')
+export const getAdminGames = (params) => request('/admin/games' + query(params))
+export const getAdminGame = (bggId) => request(`/admin/games/${bggId}`)
+
 // Theme mappings
 export const getThemeMappings = () => request('/theme-mappings')
 export const getUnmappedBggCategories = () => request('/admin/theme-mappings/unmapped')

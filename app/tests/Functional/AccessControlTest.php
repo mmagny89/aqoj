@@ -15,6 +15,10 @@ final class AccessControlTest extends ApiTestCase
         yield 'mécaniques (recalcul)' => ['POST', '/api/admin/mechanic-mappings/recompute'];
         yield 'thèmes (création)' => ['POST', '/api/admin/theme-mappings'];
         yield 'thèmes (non mappés)' => ['GET', '/api/admin/theme-mappings/unmapped'];
+        yield 'journal des tâches' => ['GET', '/api/admin/jobs'];
+        yield 'explorateur (compteurs)' => ['GET', '/api/admin/games/filters'];
+        yield 'explorateur (liste)' => ['GET', '/api/admin/games'];
+        yield 'explorateur (fiche)' => ['GET', '/api/admin/games/13'];
     }
 
     #[DataProvider('routesAdmin')]

@@ -6,6 +6,7 @@ use App\Entity\Game;
 use App\Repository\GameRepository;
 use App\Service\BggApiService;
 use App\Service\GameEnrichmentService;
+use App\Service\JobRunRecorder;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
@@ -36,6 +37,7 @@ class RelinkExpansionsCommand extends Command
         private readonly BggApiService         $bggApi,
         private readonly GameEnrichmentService $enrichment,
         private readonly EntityManagerInterface $em,
+        private readonly JobRunRecorder $recorder,
     ) {
         parent::__construct();
     }
@@ -110,6 +112,7 @@ class RelinkExpansionsCommand extends Command
             "SELECT COUNT(*) FROM game WHERE is_expansion = TRUE AND implements_bgg_ids::text = '[]'"
         );
 
+        $this->recorder->note(['selectionnees' => count($ids), 'mises_a_jour' => $updated, 'erreurs' => $errors, 'encore_sans_lien' => $stillUnlinked]);
         $io->success(sprintf(
             '%d extension(s) mises à jour, %d erreur(s). Extensions encore sans lien : %d.',
             $updated, $errors, $stillUnlinked

@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { getAdminStats } from '../api'
 import { useAuth } from '../context/AuthContext'
+import { GamesPanel, JobsPanel } from '../components/AdminCatalogue'
 
 /* ── Carte de stat simple ────────────────────────────────────────────── */
-function StatCard({ label, value, sub, color = 'stone', icon }) {
+function StatCard({ label, value, sub, color = 'stone', icon, onClick }) {
   const colors = {
     amber:  'bg-amber-50  border-amber-200  text-amber-700',
     green:  'bg-green-50  border-green-200  text-green-700',
@@ -14,16 +15,21 @@ function StatCard({ label, value, sub, color = 'stone', icon }) {
     stone:  'bg-stone-50  border-stone-200  text-stone-600',
     orange: 'bg-orange-50 border-orange-200 text-orange-700',
   }
-  return (
-    <div className={`rounded-xl border p-4 ${colors[color]}`}>
+  const content = (
+    <>
       <div className="flex items-start justify-between gap-2 mb-1">
         <p className="text-xs font-semibold uppercase tracking-wide opacity-70 leading-tight">{label}</p>
         {icon && <span className="text-lg leading-none flex-shrink-0">{icon}</span>}
       </div>
       <p className="text-2xl font-black">{value ?? '—'}</p>
       {sub && <p className="text-xs mt-0.5 opacity-60">{sub}</p>}
-    </div>
+    </>
   )
+  const base = `rounded-xl border p-4 ${colors[color]}`
+  // Une carte qui ouvre l'explorateur est un bouton, pas un bloc cliquable.
+  return onClick
+    ? <button type="button" onClick={onClick} className={`${base} min-h-11 text-left transition-shadow hover:shadow-md`}>{content}</button>
+    : <div className={base}>{content}</div>
 }
 
 /* ── Barre de progression ────────────────────────────────────────────── */
@@ -71,6 +77,14 @@ export default function AdminDashboardPage() {
   const [stats, setStats] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError]     = useState(null)
+  const [explorerFilter, setExplorerFilter] = useState('pending')
+  const explorerRef = useRef(null)
+
+  // Les cartes du catalogue ouvrent l'explorateur sur le filtre correspondant.
+  const explore = (filter) => {
+    setExplorerFilter(filter)
+    explorerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
 
   useEffect(() => {
     if (!user?.isAdmin) { navigate('/'); return }
@@ -122,6 +136,11 @@ export default function AdminDashboardPage() {
         </Link>
       </div>
 
+      {/* ── Tâches d'import et de synchronisation ───────────────────── */}
+      <Section title="Tâches d'import et de synchronisation" icon="📥">
+        <JobsPanel />
+      </Section>
+
       {/* ── Jeux ─────────────────────────────────────────────────────── */}
       <Section title="Catalogue de jeux (jeux de base)" icon="🎲">
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
@@ -130,9 +149,11 @@ export default function AdminDashboardPage() {
             sub={g.total > 0 ? `${Math.round(g.enriched / g.total * 100)}%` : null} />
           <StatCard label="Stubs CSV (en attente)" value={fmtNum(g.pending)} icon="⏳"
             color={Number(g.pending) > 0 ? 'orange' : 'green'}
-            sub={Number(g.pending) > 0 ? 'À enrichir via enrich-pending' : 'Tout est enrichi'} />
+            sub={Number(g.pending) > 0 ? 'À enrichir via enrich-pending · voir la liste' : 'Tout est enrichi'}
+            onClick={() => explore('pending')} />
           <StatCard label="À resyncer"    value={fmtNum(g.stale_count)} icon="🔄" color={g.stale_count > 500 ? 'orange' : 'green'}
-            sub={g.stale_count > 0 ? 'last_synced_at > 30 j' : 'Tout est à jour'} />
+            sub={g.stale_count > 0 ? 'last_synced_at > 30 j · voir la liste' : 'Tout est à jour'}
+            onClick={() => explore('stale')} />
         </div>
 
         <div className="space-y-3 mb-5">
@@ -215,12 +236,20 @@ export default function AdminDashboardPage() {
           <div className="bg-orange-50 border border-orange-200 rounded-xl p-3 text-xs text-orange-700 flex items-start gap-2">
             <span className="text-base leading-none flex-shrink-0">⚠️</span>
             <span>
-              <strong>{fmtNum(ex.unlinked)} extensions</strong> n'ont pas de lien vers leur jeu de base.
+              <strong>{fmtNum(ex.unlinked)} extensions</strong> n'ont pas de lien vers leur jeu de base.{' '}
+              <button type="button" onClick={() => explore('unlinked_expansions')} className="underline font-semibold">Voir la liste</button>.
               Relancer : <code className="bg-orange-100 px-1 rounded font-mono">app:bgg:relink-expansions</code>
             </span>
           </div>
         )}
       </Section>
+
+      {/* ── Explorateur du catalogue ─────────────────────────────────── */}
+      <div ref={explorerRef} className="scroll-mt-20">
+        <Section title="Explorer le catalogue" icon="🔎">
+          <GamesPanel filter={explorerFilter} onFilter={setExplorerFilter} />
+        </Section>
+      </div>
 
       {/* ── Utilisateurs ─────────────────────────────────────────────── */}
       <Section title="Utilisateurs" icon="👥">

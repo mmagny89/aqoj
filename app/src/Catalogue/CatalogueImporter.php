@@ -6,6 +6,7 @@ namespace App\Catalogue;
 
 use App\Catalogue\Import\GameData;
 use App\Catalogue\Import\SourceImporterInterface;
+use App\Service\JobRunRecorder;
 use Doctrine\DBAL\Connection;
 use Symfony\Component\DependencyInjection\Attribute\AutowireLocator;
 use Symfony\Component\DependencyInjection\ServiceLocator;
@@ -27,6 +28,7 @@ final class CatalogueImporter
         #[AutowireLocator(SourceImporterInterface::class)]
         private readonly ServiceLocator $importers,
         private readonly Connection $connection,
+        private readonly JobRunRecorder $recorder,
     ) {
     }
 
@@ -69,7 +71,18 @@ final class CatalogueImporter
         }
         [$batchCreated, $batchUpdated] = $dryRun ? [0, 0] : $this->flushBatch($batch);
 
-        return new ImportReport($read, $created + $batchCreated, $updated + $batchUpdated, $skippedExpansions);
+        $report = new ImportReport($read, $created + $batchCreated, $updated + $batchUpdated, $skippedExpansions);
+        $this->recorder->note([
+            'source' => $source,
+            'fichier' => $file->getFilename(),
+            'lues' => $report->read,
+            'creees' => $report->created,
+            'mises_a_jour' => $report->updated,
+            'extensions_ignorees' => $report->skippedExpansions,
+            'dry_run' => $dryRun,
+        ]);
+
+        return $report;
     }
 
     /**
