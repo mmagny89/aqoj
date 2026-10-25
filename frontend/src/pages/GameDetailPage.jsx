@@ -4,7 +4,7 @@ import { getGame, createSession, getSimilarGames } from '../api'
 import GameCard, { coverColor, initials } from '../components/GameCard'
 import { familyLabel, familyColor, isEngine, isExtra, SUPPORT_COLOR } from '../utils/engelstein'
 import { groupCategories } from '../utils/categories'
-import { frenchEditionLabel, gameImage } from '../utils/game'
+import { frenchEditionLabel, gameImage, originalEditionLabel } from '../utils/game'
 
 /* ── Complexité visuelle ─────────────────────────────────────────────── */
 function ComplexityBar({ value }) {
@@ -240,6 +240,7 @@ export default function GameDetailPage() {
   const displayName = game.name
   const image       = gameImage(game)
   const editionFr   = frenchEditionLabel(game)
+  const origine     = originalEditionLabel(game)
   const hasFrName   = game.nameOriginal && game.nameOriginal !== game.name
 
   return (
@@ -280,8 +281,8 @@ export default function GameDetailPage() {
               {hasFrName && (
                 <p className="text-sm text-stone-500 mt-0.5">{game.nameOriginal}</p>
               )}
-              {game.yearPublished && (
-                <p className="text-stone-500 text-sm mt-0.5">{game.yearPublished}</p>
+              {origine && (
+                <p className="mt-0.5 text-sm text-stone-600">Édition d'origine : <strong className="text-ink">{origine}</strong></p>
               )}
               {editionFr && (
                 <p className="mt-0.5 text-sm text-stone-600">Édition française : <strong className="text-ink">{editionFr}</strong></p>

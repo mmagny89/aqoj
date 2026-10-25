@@ -328,6 +328,48 @@ class BggApiService
         ];
     }
 
+    /**
+     * Éditeur de l'édition d'origine. BGG ne désigne pas l'édition d'origine, mais il liste sur la fiche du jeu
+     * l'éditeur principal en premier, puis les autres par ordre alphabétique (KOSMOS pour Catan, Repos Production
+     * pour 7 Wonders) : c'est le premier choix. Sans éditeur sur la fiche, on prend celui de la première édition
+     * (toutes langues) de l'année du jeu, ou à défaut de la plus ancienne.
+     */
+    private function originalPublisher(SimpleXMLElement $item, ?int $gameYear): ?string
+    {
+        foreach ($item->link as $link) {
+            if ((string) $link['type'] === 'boardgamepublisher') {
+                $name = $this->cleanVersionText((string) $link['value']);
+                if ($name !== '') {
+                    return $name;
+                }
+            }
+        }
+
+        $candidates = [];   // année => éditeurs de la première édition de cette année qui en nomme
+        foreach ($item->versions->item ?? [] as $version) {
+            $year = (int) ($version->yearpublished['value'] ?? 0);
+            if ($year <= 0 || isset($candidates[$year])) {
+                continue;
+            }
+            $publishers = [];
+            foreach ($version->link as $link) {
+                if ((string) $link['type'] === 'boardgamepublisher') {
+                    $publishers[] = $this->cleanVersionText((string) $link['value']);
+                }
+            }
+            $publishers = array_slice(array_filter($publishers), 0, 3);
+            if ($publishers !== []) {
+                $candidates[$year] = implode(', ', $publishers);
+            }
+        }
+
+        if ($candidates === []) {
+            return null;
+        }
+
+        return ($gameYear !== null ? ($candidates[$gameYear] ?? null) : null) ?? $candidates[min(array_keys($candidates))];
+    }
+
     /** BGG échappe certaines apostrophes et double parfois les espaces. */
     private function cleanVersionText(string $text): string
     {
@@ -415,6 +457,7 @@ class BggApiService
             'name'         => $this->sanitizeUtf8($name ?: 'Unknown'),
             'nameFr'       => $nameFr,
             'editionFr'    => $editionFr,
+            'publisherOriginal' => $this->originalPublisher($item, (int) $item->yearpublished['value'] ?: null),
             'minAge'       => $minAge > 0 ? $minAge : null,
             'description'  => $description ?: null,
             'minPlayers'   => max(1, (int) $item->minplayers['value']),
