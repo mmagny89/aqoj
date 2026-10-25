@@ -91,6 +91,29 @@ final class HomeRecommendationTest extends ApiTestCase
         self::assertStringStartsWith('Nouveauté ' . ($annee - 1), $nouveau['reason']);
     }
 
+    public function testLesListesDeLAccueilChangentAChaqueChargement(): void
+    {
+        $client = static::createClient();
+        $token = $this->register($client, 'hasard@example.test');
+        $annee = (int) date('Y');
+        for ($i = 1; $i <= 30; $i++) {
+            $this->creerJeu(sprintf('Zzhasard %02d', $i), $annee - 3, 2.0, 7.0, 1000 + $i);
+        }
+
+        $tirages = [];
+        for ($essai = 0; $essai < 4; $essai++) {
+            $table = $this->call($client, 'GET', '/api/games/home-tonight', token: $token);
+            self::assertCount(10, $table['easy']);
+            $tirages[] = array_column(array_column($table['easy'], 'game'), 'name');
+        }
+
+        // Dix jeux parmi les trente meilleurs, dans un ordre qui change : quatre tirages identiques ne se produisent pas.
+        self::assertGreaterThan(1, count(array_unique(array_map('json_encode', $tirages))));
+        foreach ($tirages as $noms) {
+            self::assertCount(10, array_unique($noms));
+        }
+    }
+
     public function testLaTableDuSoirProposeJeuxFacilesQuiLuiConviennent(): void
     {
         $client = static::createClient();
