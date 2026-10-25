@@ -4,6 +4,7 @@ namespace App\Controller;
 
 use App\MyLudo\CsvParser;
 use App\MyLudo\Matcher;
+use App\Repository\AssociationGameRepository;
 use App\Repository\UserGameRepository;
 use App\Service\UserPreferenceService;
 use Doctrine\DBAL\Connection;
@@ -66,10 +67,20 @@ class MyLudoController extends AbstractController
         Request $request,
         Connection $conn,
         UserGameRepository $userGames,
+        AssociationGameRepository $associationGames,
         UserPreferenceService $prefService,
     ): JsonResponse {
-        $user  = $this->appUser();
-        $items = json_decode($request->getContent(), true)['items'] ?? null;
+        $user   = $this->appUser();
+        $body   = json_decode($request->getContent(), true);
+        $items  = $body['items'] ?? null;
+        $target = $body['target'] ?? 'me';
+        if (!in_array($target, ['me', 'association'], true)) {
+            return $this->json(['error' => 'Destination inconnue.'], 400);
+        }
+        // La ludothèque de l'association ne se renseigne que par un administrateur.
+        if ($target === 'association' && !$this->isGranted('ROLE_ADMIN')) {
+            return $this->json(['error' => 'Réservé aux administrateurs.'], 403);
+        }
         if (!is_array($items) || !array_is_list($items) || $items === []) {
             return $this->json(['error' => 'Aucun jeu à importer.'], 400);
         }
@@ -97,14 +108,22 @@ class MyLudoController extends AbstractController
             return $this->json(['error' => 'Un des jeux n\'existe pas dans le catalogue.'], 422);
         }
 
-        $result = $userGames->addMany($user, $ratings);
-        $prefService->recompute($user);
+        if ($target === 'association') {
+            // Les notes personnelles sont celles d'un joueur : elles n'ont pas de sens pour la ludothèque commune.
+            $result = $associationGames->addMany(array_keys($ratings), $user);
+            $rated  = 0;
+        } else {
+            $result = $userGames->addMany($user, $ratings);
+            $prefService->recompute($user);
+            $rated = count(array_filter($ratings, fn($r) => $r !== null));
+        }
 
         return $this->json([
             'total'    => count($ratings),
             'added'    => $result['added'],
             'existing' => $result['existing'],
-            'rated'    => count(array_filter($ratings, fn($r) => $r !== null)),
+            'rated'    => $rated,
+            'target'   => $target,
         ]);
     }
 }

@@ -99,7 +99,8 @@ function MatchedRow({ row, choice, onChoose }) {
   )
 }
 
-export default function ImportMyLudoTab() {
+export default function ImportMyLudoTab({ target = 'me', onImported }) {
+  const forAssociation = target === 'association'
   const fileId = useId()
   const [file, setFile]           = useState(null)
   const [analyzing, setAnalyzing] = useState(false)
@@ -136,8 +137,9 @@ export default function ImportMyLudoTab() {
     setImporting(true)
     setError(null)
     try {
-      const bilan = await importMyLudo(selected.map(r => ({ gameId: choices[r.index].id, rating: r.rating })))
+      const bilan = await importMyLudo(selected.map(r => ({ gameId: choices[r.index].id, rating: r.rating })), target)
       setReport({ ...bilan, left: analysis.rows.length - selected.length })
+      onImported?.()
       setAnalysis(null)
       setFile(null)
     } catch (err) {
@@ -153,8 +155,8 @@ export default function ImportMyLudoTab() {
   return (
     <div className="flex flex-col gap-6">
       <p className="text-lg text-stone-600">
-        Exportez votre ludothèque depuis MyLudo au format CSV, puis déposez le fichier ici : nous le rapprochons du catalogue,
-        et vous tranchez pour les jeux douteux avant que rien ne soit ajouté.
+        {forAssociation ? 'Exportez la ludothèque de l’association depuis MyLudo' : 'Exportez votre ludothèque depuis MyLudo'} au format CSV,
+        puis déposez le fichier ici : nous le rapprochons du catalogue, et vous tranchez pour les jeux douteux avant que rien ne soit ajouté.
       </p>
 
       <form onSubmit={analyze} className="panel flex flex-col gap-4 p-5 sm:p-6">
@@ -175,11 +177,11 @@ export default function ImportMyLudoTab() {
         <section className="panel flex flex-col gap-4 bg-cream p-5 sm:p-6" aria-labelledby="titre-bilan-myludo" role="status">
           <h2 id="titre-bilan-myludo" className="text-2xl">Import terminé</h2>
           <p className="m-0">
-            {report.added} jeu{report.added > 1 ? 'x' : ''} ajouté{report.added > 1 ? 's' : ''}, {report.existing} déjà dans votre ludothèque
+            {report.added} jeu{report.added > 1 ? 'x' : ''} ajouté{report.added > 1 ? 's' : ''}, {report.existing} déjà dans {forAssociation ? 'la ludothèque de l’association' : 'votre ludothèque'}
             {report.rated > 0 ? `, ${report.rated} note${report.rated > 1 ? 's' : ''} reprise${report.rated > 1 ? 's' : ''}` : ''}
             {report.left > 0 ? `. ${report.left} ligne${report.left > 1 ? 's' : ''} laissée${report.left > 1 ? 's' : ''} de côté.` : '.'}
           </p>
-          <Link to="/ludotheque" className="btn btn-secondary self-start">Voir ma ludothèque</Link>
+          {!forAssociation && <Link to="/ludotheque" className="btn btn-secondary self-start">Voir ma ludothèque</Link>}
         </section>
       )}
 

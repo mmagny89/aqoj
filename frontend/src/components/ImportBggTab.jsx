@@ -4,18 +4,20 @@ import { importBgg, getMe } from '../api'
 import { ErrorMessage, Field } from './forms'
 import { useAuth } from '../context/AuthContext'
 
-export default function ImportBggTab() {
+export default function ImportBggTab({ target = 'me', onImported }) {
   const { user, login } = useAuth()
-  const [username, setUsername] = useState(user?.bggUsername ?? '')
+  const forAssociation = target === 'association'
+  // Pour la ludothèque de l'association, le pseudo est celui de l'association : jamais celui de l'administrateur.
+  const [username, setUsername] = useState(forAssociation ? '' : user?.bggUsername ?? '')
   const [status, setStatus] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
   useEffect(() => {
-    if (user?.bggUsername && !username) {
+    if (!forAssociation && user?.bggUsername && !username) {
       setUsername(user.bggUsername)
     }
-  }, [user, username])
+  }, [user, username, forAssociation])
 
   const handleImport = async (e) => {
     e.preventDefault()
@@ -24,12 +26,15 @@ export default function ImportBggTab() {
     setError(null)
     setStatus(null)
     try {
-      const data = await importBgg(username.trim())
+      const data = await importBgg(username.trim(), target)
       setStatus(data)
-      // Rafraîchir le profil pour mettre à jour bggUsername dans le contexte
-      const updatedUser = await getMe()
-      const token = localStorage.getItem('aqoj_token')
-      if (token) login(token, updatedUser)
+      onImported?.()
+      if (!forAssociation) {
+        // Rafraîchir le profil pour mettre à jour bggUsername dans le contexte
+        const updatedUser = await getMe()
+        const token = localStorage.getItem('aqoj_token')
+        if (token) login(token, updatedUser)
+      }
     } catch (err) {
       setError(err.message || "Erreur lors de l'import")
     } finally {
@@ -37,15 +42,17 @@ export default function ImportBggTab() {
     }
   }
 
-  const isExistingUsername = user?.bggUsername && user.bggUsername === username.trim()
+  const isExistingUsername = !forAssociation && user?.bggUsername && user.bggUsername === username.trim()
 
   return (
     <div className="flex flex-col gap-6">
       <p className="text-lg text-stone-600">
-        Reprenez votre collection BoardGameGeek pour la retrouver dans votre ludothèque.
+        {forAssociation
+          ? 'Renseignez la ludothèque de l’association avec la collection de son compte BoardGameGeek.'
+          : 'Reprenez votre collection BoardGameGeek pour la retrouver dans votre ludothèque.'}
       </p>
 
-      {user?.bggUsername && (
+      {!forAssociation && user?.bggUsername && (
         <p className="panel flex items-center gap-3 bg-amber-100 p-4">
           <span className="badge bg-brand-yellow">Compte BGG lié</span>
           <strong>{user.bggUsername}</strong>
@@ -54,7 +61,7 @@ export default function ImportBggTab() {
 
       <form onSubmit={handleImport} className="panel flex flex-col gap-4 p-5 sm:p-6">
         <Field
-          label="Pseudo BoardGameGeek"
+          label={forAssociation ? 'Pseudo BoardGameGeek de l’association' : 'Pseudo BoardGameGeek'}
           type="text"
           value={username}
           onChange={(e) => setUsername(e.target.value)}
@@ -65,6 +72,7 @@ export default function ImportBggTab() {
         <button type="submit" disabled={loading || !username.trim()} className="btn btn-primary w-full">
           {loading
             ? 'Import en cours… (1 à 2 minutes)'
+            : forAssociation ? 'Importer dans la ludothèque de l’association'
             : isExistingUsername ? 'Synchroniser ma collection' : 'Importer ma collection'}
         </button>
         {loading && <p role="status" className="text-center text-stone-600">Patientez, on parle à BoardGameGeek.</p>}
@@ -89,7 +97,7 @@ export default function ImportBggTab() {
               </div>
             ))}
           </dl>
-          <Link to="/ludotheque" className="btn btn-secondary self-start">Voir ma ludothèque</Link>
+          {!forAssociation && <Link to="/ludotheque" className="btn btn-secondary self-start">Voir ma ludothèque</Link>}
         </section>
       )}
 

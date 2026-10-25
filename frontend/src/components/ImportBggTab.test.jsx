@@ -24,7 +24,7 @@ describe('ImportBggTab', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Importer ma collection' }))
 
     expect(await screen.findByRole('heading', { name: 'Import terminé' })).toBeInTheDocument()
-    expect(importBgg).toHaveBeenCalledWith('Kiki')
+    expect(importBgg).toHaveBeenCalledWith('Kiki', 'me')
     expect(screen.getByText('10')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Voir ma ludothèque' })).toHaveAttribute('href', '/ludotheque')
   })
