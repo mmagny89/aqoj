@@ -41,4 +41,13 @@ describe('LibraryPage : vos styles de jeu', () => {
 
     expect(await screen.findByRole('note')).toHaveTextContent('0 jeu sur 8 analysé')
   })
+
+  it('accorde « jeux » au pluriel, sans « jeus »', async () => {
+    getUserPreferences.mockResolvedValue(null)
+    getLibrary.mockResolvedValue({ games: [], total: 230, hasMore: false, userRatings: {}, bggUsername: null })
+    render(<MemoryRouter><LibraryPage /></MemoryRouter>)
+
+    expect(await screen.findByText('230 jeux')).toBeInTheDocument()
+    expect(screen.queryByText(/jeus/)).not.toBeInTheDocument()
+  })
 })
