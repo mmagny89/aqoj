@@ -70,3 +70,39 @@ describe('GameDetailPage : description et éditions', () => {
     expect(document.querySelector('img[src="https://cf.geekdo-images.com/boite-fr.jpg"]')).not.toBeNull()
   })
 })
+
+describe('GameDetailPage : extensions et fiche technique', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  const ext = (id, name, extra) => ({ id, name, isExpansion: true, yearPublished: 2020, ratingBgg: 7, usersRated: 500, owned: false, inAssociation: false, withMember: false, ...extra })
+
+  it('dit pour chaque extension si on l’a, si l’association l’a ou si un membre peut la prêter', async () => {
+    renderPage({ expansions: [
+      ext(11, 'Ext Perso', { owned: true }),
+      ext(12, 'Ext Asso', { inAssociation: true }),
+      ext(13, 'Ext Membre', { withMember: true }),
+      ext(14, 'Ext Rien', {}),
+    ] })
+
+    expect(await screen.findByRole('heading', { name: /Extensions/ })).toBeInTheDocument()
+    expect(screen.getByText('✓ Vous l’avez')).toBeInTheDocument()
+    expect(screen.getByText('À l’association')).toBeInTheDocument()
+    expect(screen.getByText('Chez un membre')).toBeInTheDocument()
+    expect(screen.getByText('Ext Rien')).toBeInTheDocument()
+  })
+
+  it('range le technique dans une fiche compacte, avec le détail BGG replié', async () => {
+    renderPage({
+      primaryFamilies: [{ family: 'worker_placement', isEngine: true }],
+      mechanicFamilies: ['worker_placement', 'randomness'],
+      mechanicsByFamily: { worker_placement: ['Worker Placement'], randomness: ['Dice Rolling'] },
+      mechanics: ['Worker Placement', 'Dice Rolling', 'Hand Management'],
+    })
+
+    expect(await screen.findByRole('heading', { name: 'Fiche technique' })).toBeInTheDocument()
+    const detail = screen.getByText('Détail des mécaniques BGG').closest('details')
+    expect(detail).not.toHaveAttribute('open')
+    expect(detail).toHaveTextContent('Hand Management')
+    expect(screen.queryByText('Mécaniques BGG (brut)')).not.toBeInTheDocument()
+  })
+})

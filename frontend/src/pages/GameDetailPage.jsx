@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { getGame, createSession, getSimilarGames } from '../api'
 import GameCard, { coverColor, initials } from '../components/GameCard'
-import { familyLabel, familyColor, isEngine, isExtra, SUPPORT_COLOR } from '../utils/engelstein'
+import { familyLabel, familyColor, isEngine, isExtra } from '../utils/engelstein'
 import { groupCategories } from '../utils/categories'
 import { frenchEditionLabel, gameImage, originalEditionLabel } from '../utils/game'
 
@@ -21,29 +21,6 @@ function ComplexityBar({ value }) {
         <span>{value.toFixed(1)}/5</span>
         <span className="font-medium text-stone-600">{label}</span>
       </div>
-    </div>
-  )
-}
-
-/* ── Bloc mécanique ──────────────────────────────────────────────────── */
-function MechanicBlock({ familyKey, bggMechanics, primary }) {
-  const colorClass = primary ? familyColor(familyKey) : SUPPORT_COLOR
-  const dotColor = familyColor(familyKey).includes('amber') ? 'bg-amber-500' : familyColor(familyKey).includes('pink') ? 'bg-pink-500' : familyColor(familyKey).includes('teal') ? 'bg-teal-500' : familyColor(familyKey).includes('red') ? 'bg-red-500' : familyColor(familyKey).includes('violet') ? 'bg-violet-500' : 'bg-lime-500'
-  return (
-    <div className={`rounded-xl border p-3 ${primary ? colorClass : 'border-stone-200 bg-stone-50'}`}>
-      <div className="flex items-center gap-2 mb-2">
-        {primary && <span className={`w-2 h-2 rounded-full flex-shrink-0 ${dotColor}`} />}
-        <span className={`text-sm font-semibold ${primary ? '' : 'text-stone-600'}`}>
-          {familyLabel(familyKey)}
-        </span>
-      </div>
-      {bggMechanics?.length > 0 && (
-        <div className="flex flex-wrap gap-1">
-          {bggMechanics.map(m => (
-            <span key={m} className="text-xs bg-white/60 border border-current/10 px-2 py-0.5 rounded-full text-current/70">{m}</span>
-          ))}
-        </div>
-      )}
     </div>
   )
 }
@@ -70,7 +47,9 @@ function GameRow({ g, currentId }) {
         <div className="flex items-center gap-1.5 flex-wrap">
           <span className="text-sm font-semibold text-stone-800 truncate">{g.name}</span>
           {isCurrent && <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-medium flex-shrink-0">Cette extension</span>}
-          {g.owned && !isCurrent && <span className="text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full font-medium flex-shrink-0">✓ possédée</span>}
+          {g.owned && !isCurrent && <span className="text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full font-medium flex-shrink-0">✓ Vous l’avez</span>}
+          {!g.owned && !isCurrent && g.inAssociation && <span className="text-[10px] bg-sky-100 text-sky-800 px-1.5 py-0.5 rounded-full font-medium flex-shrink-0">À l’association</span>}
+          {!g.owned && !isCurrent && !g.inAssociation && g.withMember && <span className="text-[10px] bg-sky-100 text-sky-800 px-1.5 py-0.5 rounded-full font-medium flex-shrink-0">Chez un membre</span>}
           {g.isExpansion && !isCurrent && <span className="text-[10px] bg-stone-100 text-stone-500 px-1.5 py-0.5 rounded-full font-medium flex-shrink-0">Extension</span>}
         </div>
         {g.yearPublished && <span className="text-xs text-stone-400">{g.yearPublished}</span>}
@@ -88,56 +67,40 @@ const SHOPS = [
   {
     key: 'crique',
     label: 'La Crique',
-    emoji: '🏪',
     url: (name) => `https://www.crique-aux-jeux.fr/recherche?controller=search&s=${encodeURIComponent(name)}`,
-    color: 'bg-sky-50 text-sky-700 border-sky-200 hover:bg-sky-100',
   },
   {
     key: 'ludipassion',
     label: 'Ludipassion',
-    emoji: '🎮',
     url: (name) => `https://ludipassion.fr/search?q=${encodeURIComponent(name)}`,
-    color: 'bg-violet-50 text-violet-700 border-violet-200 hover:bg-violet-100',
   },
   {
     key: 'passtemps',
     label: 'Le Passe Temps',
-    emoji: '⏳',
     url: (name) => `https://www.le-passe-temps.com/recherche?controller=search&s=${encodeURIComponent(name)}`,
-    color: 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100',
   },
   {
     key: 'philibert',
     label: 'Philibert',
-    emoji: '📦',
     url: (name) => `https://www.philibertnet.com/fr/recherche?search_query=${encodeURIComponent(name)}`,
-    color: 'bg-orange-50 text-orange-700 border-orange-200 hover:bg-orange-100',
   },
 ]
 
 function ShopButtons({ gameName }) {
-  const searchName = gameName
   return (
-    <div>
-      <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-2">🛒 Acheter ce jeu</p>
-      <div className="flex flex-wrap gap-2">
-        {SHOPS.map(shop => (
-          <a
-            key={shop.key}
-            href={shop.url(searchName)}
-            target="_blank"
-            rel="noopener noreferrer"
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold transition-colors ${shop.color}`}
-          >
-            <span>{shop.emoji}</span>
-            <span>{shop.label}</span>
-          </a>
-        ))}
+    <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
+      <span className="text-xs font-bold text-stone-600">Acheter</span>
+      {SHOPS.map(shop => (
         <a
-          href={`https://boardgamegeek.com/boardgame/${''}`}
-          className="hidden"
-        />
-      </div>
+          key={shop.key}
+          href={shop.url(gameName)}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="chip chip-sm"
+        >
+          {shop.label}
+        </a>
+      ))}
     </div>
   )
 }
@@ -395,131 +358,75 @@ export default function GameDetailPage() {
         </div>
       )}
 
-      {/* ── Boutiques + lien BGG ─────────────────────────────────────────── */}
-      <div className="panel p-5 space-y-4">
-        <ShopButtons gameName={game.name} />
-        <div className="pt-3 border-t border-stone-100">
-          <a
-            href={`https://boardgamegeek.com/${game.bggType === 'boardgameexpansion' ? 'boardgameexpansion' : 'boardgame'}/${game.bggId}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-2 text-sm text-stone-500 hover:text-stone-700 hover:underline"
-          >
-            <img src="https://cf.geekdo-images.com/static/img/favicon2.ico" alt="" className="w-4 h-4 rounded" />
-            Voir la fiche sur BoardGameGeek
-            {game.bggRank && <span className="text-xs text-stone-400">· Rang #{game.bggRank.toLocaleString('fr')}</span>}
-          </a>
-        </div>
-      </div>
+      {/* ── Fiche technique : tout ce qui relève du classement du site, en bref ─ */}
+      {(() => {
+        const { themes, types, other } = groupCategories(game.categories ?? [])
+        const rows = [
+          { label: hasEngines ? 'Moteur' : 'Style', keys: primaryKeys, tone: 'engine' },
+          { label: 'Support', keys: supportKeys },
+          { label: 'Traits', keys: extraKeys },
+        ].filter(r => r.keys.length > 0)
+        const pills = [
+          { label: 'Thèmes', items: themes.map(t => `${t.emoji ? t.emoji + ' ' : ''}${t.label}`) },
+          { label: 'Type', items: types.map(t => `${t.emoji ? t.emoji + ' ' : ''}${t.label}`) },
+          { label: 'Autres', items: other.map(o => o.name) },
+        ].filter(r => r.items.length > 0)
+        const detailFamilies = Object.entries(byFamily).filter(([, list]) => list?.length > 0)
+        if (rows.length === 0 && pills.length === 0 && detailFamilies.length === 0 && unmappedBgg.length === 0) return null
 
-      {/* ── Mécaniques Engelstein ─────────────────────────────────────────── */}
-      {(primaryFamilies.length > 0 || supportKeys.length > 0) && (
-        <div className="panel p-5 space-y-4">
-          {primaryFamilies.length > 0 && (
-            <div>
-              <div className="flex items-center gap-2 mb-3">
-                <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide">
-                  {hasEngines ? `Moteur${primaryFamilies.length > 1 ? 's' : ''} principal${primaryFamilies.length > 1 ? 'aux' : ''}` : 'Style principal'}
-                </p>
-                {game.primaryEngine && <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">validé</span>}
-                <span className="text-xs text-stone-300 ml-auto">{hasEngines ? 'moteur Engelstein' : 'familles dominantes'}</span>
-              </div>
-              <div className="grid grid-cols-1 gap-2">
-                {primaryFamilies.map(({ family, isEngine: eng }) => (
-                  <MechanicBlock key={family} familyKey={family} bggMechanics={byFamily[family]} primary={eng} />
-                ))}
-              </div>
-              {!hasEngines && (
-                <p className="text-xs text-stone-400 mt-2 italic">Aucun moteur Engelstein identifié — familles les plus représentées affichées.</p>
-              )}
-            </div>
-          )}
-          {supportKeys.length > 0 && (
-            <div>
-              <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-3">Mécaniques de support</p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {supportKeys.map(key => (
-                  <MechanicBlock key={key} familyKey={key} bggMechanics={byFamily[key]} primary={false} />
-                ))}
-              </div>
-            </div>
-          )}
-          {extraKeys.length > 0 && (
-            <div>
-              <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-2">Caractéristiques</p>
-              <div className="flex flex-wrap gap-2">
-                {extraKeys.map(key => (
-                  <span key={key} className={`text-xs font-medium px-3 py-1.5 rounded-full border ${familyColor(key)}`}>{familyLabel(key)}</span>
-                ))}
-              </div>
-            </div>
-          )}
-          {unmappedBgg.length > 0 && (
-            <div>
-              <p className="text-xs font-semibold text-stone-300 uppercase tracking-wide mb-2">Autres mécaniques BGG</p>
-              <div className="flex flex-wrap gap-1.5">
-                {unmappedBgg.map(m => (
-                  <span key={m} className="text-xs bg-stone-100 text-stone-400 px-2.5 py-1 rounded-full">{m}</span>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ── Thèmes, types, catégories BGG ───────────────────────────────── */}
-      {(game.categories?.length > 0 || game.mechanics?.length > 0) && (
-        <div className="panel p-5 space-y-4">
-          {game.categories?.length > 0 && (() => {
-            const { themes, types, other } = groupCategories(game.categories)
-            return (
-              <div className="space-y-3">
-                {themes.length > 0 && (
-                  <div>
-                    <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-2">🌍 Thèmes</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {themes.map(({ name, label, emoji }) => (
-                        <span key={name} className="text-xs bg-amber-50 text-amber-800 border border-amber-200 px-2.5 py-1 rounded-full flex items-center gap-1">
-                          <span>{emoji}</span><span>{label}</span>
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {types.length > 0 && (
-                  <div>
-                    <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-2">🎯 Type de jeu</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {types.map(({ name, label, emoji }) => (
-                        <span key={name} className="text-xs bg-blue-50 text-blue-800 border border-blue-200 px-2.5 py-1 rounded-full flex items-center gap-1">
-                          <span>{emoji}</span><span>{label}</span>
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {other.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5">
-                    {other.map(({ name }) => (
-                      <span key={name} className="text-xs bg-stone-50 text-stone-500 border border-stone-200 px-2.5 py-1 rounded-full">{name}</span>
+        return (
+          <section aria-labelledby="titre-technique" className="panel p-4">
+            <h2 id="titre-technique" className="mb-2 text-xl">Fiche technique</h2>
+            <dl className="m-0 grid gap-y-1.5 text-xs sm:grid-cols-[5.5rem_1fr]">
+              {rows.map(({ label, keys }) => (
+                <div key={label} className="contents">
+                  <dt className="pt-0.5 font-bold uppercase text-stone-600">{label}</dt>
+                  <dd className="m-0 flex flex-wrap gap-1">
+                    {keys.map(key => (
+                      <span key={key} className={`rounded-full border px-2 py-0.5 font-medium ${familyColor(key)}`}>{familyLabel(key)}</span>
                     ))}
-                  </div>
-                )}
-              </div>
-            )
-          })()}
-          {game.mechanics?.length > 0 && (
-            <div>
-              <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-2">Mécaniques BGG (brut)</p>
-              <div className="flex flex-wrap gap-1.5">
-                {game.mechanics.map(m => (
-                  <span key={m} className="text-xs bg-stone-100 text-stone-600 border border-stone-200 px-2.5 py-1 rounded-full">{m}</span>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
+                  </dd>
+                </div>
+              ))}
+              {pills.map(({ label, items }) => (
+                <div key={label} className="contents">
+                  <dt className="pt-0.5 font-bold uppercase text-stone-600">{label}</dt>
+                  <dd className="m-0 flex flex-wrap gap-1">
+                    {items.map(item => (
+                      <span key={item} className="rounded-full border border-ink/30 bg-cream px-2 py-0.5">{item}</span>
+                    ))}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+
+            {(detailFamilies.length > 0 || unmappedBgg.length > 0) && (
+              <details className="mt-2 text-xs">
+                <summary className="inline-flex min-h-8 cursor-pointer items-center font-bold text-brand-blue underline underline-offset-4">Détail des mécaniques BGG</summary>
+                <ul className="m-0 mt-1 list-none space-y-1 p-0 text-stone-700">
+                  {detailFamilies.map(([key, list]) => (
+                    <li key={key}><strong>{familyLabel(key)}</strong> : {list.join(', ')}</li>
+                  ))}
+                  {unmappedBgg.length > 0 && <li><strong>Autres</strong> : {unmappedBgg.join(', ')}</li>}
+                </ul>
+              </details>
+            )}
+          </section>
+        )
+      })()}
+
+      {/* ── Achat et fiche BGG, sur une ligne ─────────────────────────────── */}
+      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 px-1">
+        <ShopButtons gameName={game.name} />
+        <a
+          href={`https://boardgamegeek.com/${game.bggType === 'boardgameexpansion' ? 'boardgameexpansion' : 'boardgame'}/${game.bggId}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex min-h-8 items-center gap-1.5 text-xs font-bold text-brand-blue underline underline-offset-4"
+        >
+          Fiche BoardGameGeek{game.bggRank ? ` · rang #${game.bggRank.toLocaleString('fr')}` : ''}
+        </a>
+      </div>
 
       {/* ── Jeu de base (quand on consulte une extension) ─────────────────── */}
       {game.isExpansion && game.baseGames?.length > 0 && (
@@ -547,21 +454,22 @@ export default function GameDetailPage() {
         </div>
       )}
 
-      {/* ── Extensions d'un jeu de base ──────────────────────────────────── */}
+      {/* ── Extensions d'un jeu de base : les vôtres, celles qu'on peut emprunter, puis les mieux notées ── */}
       {!game.isExpansion && game.expansions?.length > 0 && (() => {
-        const visibleExps = game.expansions.filter(e => e.owned || (e.usersRated ?? 0) >= 50)
+        const visibleExps = game.expansions.filter(e => e.owned || e.inAssociation || e.withMember || (e.usersRated ?? 0) >= 50)
         if (visibleExps.length === 0) return null
         return (
-          <div className="panel p-5">
-            <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-3">
-              ➕ Extensions ({visibleExps.length}{game.expansions.length > visibleExps.length ? ` sur ${game.expansions.length}` : ''})
-            </p>
+          <section aria-labelledby="titre-extensions" className="panel p-4">
+            <h2 id="titre-extensions" className="mb-1 text-xl">
+              Extensions <span className="text-base font-normal text-stone-600">({visibleExps.length}{game.expansions.length > visibleExps.length ? ` sur ${game.expansions.length}` : ''})</span>
+            </h2>
+            <p className="mb-3 mt-0 text-xs text-stone-600">Les vôtres d’abord, puis celles que l’association ou un membre peut prêter, puis les mieux notées.</p>
             <div className="space-y-2">
               {visibleExps.map(exp => (
                 <GameRow key={exp.id} g={exp} currentId={null} />
               ))}
             </div>
-          </div>
+          </section>
         )
       })()}
 

@@ -3,6 +3,7 @@
 namespace App\Controller;
 
 use App\Entity\Game;
+use App\Repository\AssociationGameRepository;
 use App\Repository\GameRepository;
 use App\Repository\UserPreferenceRepository;
 use App\Repository\UserGameRepository;
@@ -262,6 +263,7 @@ class GameController extends AbstractController
         MechanicFamilyResolver $familyResolver,
         GameEnrichmentService $enrichmentService,
         DescriptionTranslator $translator,
+        AssociationGameRepository $associationGames,
     ): JsonResponse {
         $game = $repository->find($id);
 
@@ -367,6 +369,26 @@ class GameController extends AbstractController
                 return strcmp($a['name'] ?? '', $b['name'] ?? '');
             });
         }
+
+        // Où trouver chaque extension : chez le joueur (`owned`), à l'association ou chez un autre membre.
+        $availability = $associationGames->availability(
+            array_map(fn(array $g) => (int) $g['id'], [...$expansions, ...$baseGames, ...$siblingExps]),
+            $user,
+        );
+        $withAvailability = fn(array $list): array => array_map(
+            fn(array $g) => $g + [
+                'inAssociation' => $availability[$g['id']]['association'] ?? false,
+                'withMember'    => $availability[$g['id']]['member'] ?? false,
+            ],
+            $list,
+        );
+        $expansions  = $withAvailability($expansions);
+        $baseGames   = $withAvailability($baseGames);
+        $siblingExps = $withAvailability($siblingExps);
+
+        // Recommandation des extensions : celles qu'on a déjà, puis celles qu'on peut emprunter, puis les mieux notées.
+        $access = fn(array $g): int => $g['owned'] ? 2 : (($g['inAssociation'] || $g['withMember']) ? 1 : 0);
+        usort($expansions, fn($a, $b) => [$access($b), $b['ratingBgg'] ?? 0] <=> [$access($a), $a['ratingBgg'] ?? 0]);
 
         $data = $game->jsonSerialize();
         $data['descriptionFr']      = $game->hasFreshTranslation() ? $game->getDescriptionFr() : null;

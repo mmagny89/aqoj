@@ -69,4 +69,36 @@ class AssociationGameRepository
     {
         return $this->conn->executeStatement('DELETE FROM association_game WHERE game_id = ?', [$gameId]) > 0;
     }
+
+    /**
+     * Où trouver ces jeux dans l'association : dans la ludothèque commune, ou chez au moins un autre membre.
+     * Un booléen seulement, jamais le nombre ni l'identité des membres.
+     *
+     * @param list<int> $gameIds
+     *
+     * @return array<int, array{association: bool, member: bool}>
+     */
+    public function availability(array $gameIds, ?User $except): array
+    {
+        $gameIds = array_values(array_unique($gameIds));
+        if ($gameIds === []) {
+            return [];
+        }
+
+        $placeholders = implode(',', array_fill(0, count($gameIds), '?'));
+        $rows = $this->conn->fetchAllAssociative(
+            "SELECT g.id,
+                    EXISTS (SELECT 1 FROM association_game ag WHERE ag.game_id = g.id) AS association,
+                    EXISTS (SELECT 1 FROM user_game ug WHERE ug.game_id = g.id AND ug.user_id <> ?) AS member
+             FROM game g WHERE g.id IN ($placeholders)",
+            [$except?->getId() ?? 0, ...$gameIds],
+        );
+
+        $result = [];
+        foreach ($rows as $row) {
+            $result[(int) $row['id']] = ['association' => (bool) $row['association'], 'member' => (bool) $row['member']];
+        }
+
+        return $result;
+    }
 }
