@@ -92,6 +92,12 @@ export const getRecommendations = (params = {}) => {
 export const getForgottenGems = () => request('/games/forgotten')
 
 export const getHomeRecommendations = () => request('/games/home-reco')
+export const getTonightRecommendations = ({ players, maxTime } = {}) => {
+  const qs = new URLSearchParams()
+  if (players) qs.set('players', players)
+  if (maxTime) qs.set('maxTime', maxTime)
+  return request('/games/home-tonight?' + qs)
+}
 export const getSimilarGames = (id, limit = 5) => request(`/games/${id}/similar?limit=${limit}`)
 
 // Préférences utilisateur

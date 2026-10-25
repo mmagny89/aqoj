@@ -58,6 +58,10 @@ Plateforme de découverte et recommandation de jeux de société, connectée à 
 ### Accueil sans compte BGG
 - Sans historique ni notes, l'accueil propose des **nouveautés accessibles** (5 dernières années, complexité ≤ 3, assez de votes) et un questionnaire « Ce que vous aimez » (six styles au plus), enregistré sur le compte et jamais écrasé par le recalcul des préférences.
 
+### Accueil : pour votre table
+- Le nombre de joueurs et la durée choisis dans le bandeau pilotent deux rangées : **ce que jouent les autres membres** (jeux de base joués dans l'année par au moins deux joueurs distincts, sans jamais dire qui) et **faciles à expliquer** (complexité ≤ 2,5, nouveautés favorisées).
+- Les nouveautés couvrent les **5 dernières années**, avec un bonus continu et un seuil de confiance adapté aux jeux peu votés.
+
 ### Moteur de mécaniques (modèle Engelstein)
 Chaque jeu est analysé selon 18 familles de mécaniques :
 
