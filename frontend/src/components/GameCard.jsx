@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { familyLabel, familyColor, SUPPORT_COLOR, isEngine } from '../utils/engelstein'
+import { gameImage } from '../utils/game'
 
 /* Fond de la pastille d'un jeu sans image : une couleur de la charte, stable pour un même jeu. */
 const COVER_COLORS = ['bg-brand-red', 'bg-brand-yellow', 'bg-[#8fbf9a]', 'bg-board-deep']
@@ -21,6 +22,7 @@ export function weightDots(complexity) {
 }
 
 export default function GameCard({ game, reason, rank, onAddSession, userRating, owned, similarity }) {
+  const image = gameImage(game)
   const playerRange =
     game.minPlayers === game.maxPlayers
       ? game.minPlayers
@@ -36,10 +38,10 @@ export default function GameCard({ game, reason, rank, onAddSession, userRating,
   return (
     <article className="token-card group relative h-full">
       {/* ── Image ────────────────────────────────────────────────────── */}
-      <div className={`relative aspect-4/3 shrink-0 overflow-hidden border-b-[3px] border-ink ${game.imageUrl ? 'bg-cream' : coverColor(game)}`}>
-        {game.imageUrl ? (
+      <div className={`relative aspect-4/3 shrink-0 overflow-hidden border-b-[3px] border-ink ${image ? 'bg-cream' : coverColor(game)}`}>
+        {image ? (
           <img
-            src={game.imageUrl}
+            src={image}
             alt=""
             loading="lazy"
             className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"

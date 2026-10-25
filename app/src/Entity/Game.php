@@ -101,6 +101,16 @@ class Game implements \JsonSerializable
     #[Groups(['catalogue:read'])]
     private ?string $imageUrl = null;
 
+    // Édition française (BGG, `versions=1`) : propre à ce site, hors du groupe publié à BG-TCG
+    #[ORM\Column(length: 255, nullable: true)]
+    private ?string $editionFrPublisher = null;
+
+    #[ORM\Column(nullable: true)]
+    private ?int $editionFrYear = null;
+
+    #[ORM\Column(length: 500, nullable: true)]
+    private ?string $editionFrImageUrl = null;
+
     #[ORM\Column(nullable: true)]
     #[Groups(['catalogue:read'])]
     private ?int $yearPublished = null;
@@ -194,6 +204,9 @@ class Game implements \JsonSerializable
             'categories' => $this->categories,
             'mechanics' => $this->mechanics,
             'imageUrl' => $this->imageUrl,
+            'editionFrPublisher' => $this->editionFrPublisher,
+            'editionFrYear' => $this->editionFrYear,
+            'editionFrImageUrl' => $this->editionFrImageUrl,
             'yearPublished' => $this->yearPublished,
             'ratingBgg' => $this->ratingBgg,
             'source' => $this->source,
@@ -232,6 +245,12 @@ class Game implements \JsonSerializable
     public function setCategories(array $categories): static { $this->categories = $categories; return $this; }
     public function getMechanics(): array { return $this->mechanics; }
     public function setMechanics(array $mechanics): static { $this->mechanics = $mechanics; return $this; }
+    public function getEditionFrPublisher(): ?string { return $this->editionFrPublisher; }
+    public function setEditionFrPublisher(?string $v): static { $this->editionFrPublisher = $v; return $this; }
+    public function getEditionFrYear(): ?int { return $this->editionFrYear; }
+    public function setEditionFrYear(?int $v): static { $this->editionFrYear = $v; return $this; }
+    public function getEditionFrImageUrl(): ?string { return $this->editionFrImageUrl; }
+    public function setEditionFrImageUrl(?string $v): static { $this->editionFrImageUrl = $v; return $this; }
     public function getImageUrl(): ?string { return $this->imageUrl; }
     public function setImageUrl(?string $imageUrl): static { $this->imageUrl = $imageUrl; return $this; }
     public function getYearPublished(): ?int { return $this->yearPublished; }
