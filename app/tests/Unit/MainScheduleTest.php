@@ -12,7 +12,7 @@ use Symfony\Component\Scheduler\Generator\MessageContext;
 
 final class MainScheduleTest extends TestCase
 {
-    public function testLesQuatreTachesBggSontPlanifieesDansLOrdre(): void
+    public function testLesTachesBggPuisLeMenageSontPlanifieesDansLOrdre(): void
     {
         $schedule = new MainSchedule('0 1 * * *', '0 2 * * *', '0 3 * * *', '0 4 * * *', new ArrayAdapter(), new LockFactory(new InMemoryStore()));
 
@@ -33,6 +33,7 @@ final class MainScheduleTest extends TestCase
             'app:bgg:enrich-pending --mode=pending --limit=200',
             'app:bgg:sync-new',
             'app:bgg:import-csv',
+            'app:maintenance:purge',
         ], $commands);
     }
 }
