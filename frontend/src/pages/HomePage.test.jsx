@@ -59,7 +59,7 @@ describe('HomePage', () => {
       getHomeRecommendations.mockResolvedValue(froid)
       render(<MemoryRouter><HomePage /></MemoryRouter>)
 
-      expect(await screen.findByRole('heading', { name: 'Nouveautés à découvrir' })).toBeInTheDocument()
+      expect(await screen.findByRole('tab', { name: 'Nouveautés à découvrir' })).toBeInTheDocument()
       expect(screen.getByText(/Nous ne connaissons pas encore vos goûts/)).toBeInTheDocument()
       expect(screen.getByRole('heading', { name: 'Ce que vous aimez' })).toBeInTheDocument()
       expect(screen.queryByText(/Importez votre collection/)).not.toBeInTheDocument()
@@ -76,8 +76,40 @@ describe('HomePage', () => {
       await userEvent.click(enregistrer)
 
       expect(saveTaste).toHaveBeenCalledWith(['cooperation'])
-      expect(await screen.findByRole('heading', { name: 'Nouveautés pour vous' })).toBeInTheDocument()
+      expect(await screen.findByRole('tab', { name: 'Nouveautés pour vous' })).toBeInTheDocument()
       expect(getHomeRecommendations).toHaveBeenCalledTimes(2)
+    })
+
+    it('cherche dans la ludothèque par défaut, retient le choix « Tout le catalogue » et redemande les idées', async () => {
+      getHomeRecommendations.mockResolvedValue(froid)
+      render(<MemoryRouter><HomePage /></MemoryRouter>)
+
+      const ludotheque = await screen.findByRole('button', { name: 'Ludothèque de l’asso et des membres' })
+      expect(ludotheque).toHaveAttribute('aria-pressed', 'true')
+      expect(getHomeRecommendations).toHaveBeenLastCalledWith({ scope: 'library' })
+
+      await userEvent.click(screen.getByRole('button', { name: 'Tout le catalogue' }))
+
+      await waitFor(() => expect(getHomeRecommendations).toHaveBeenLastCalledWith({ scope: 'catalogue' }))
+      await waitFor(() => expect(getTonightRecommendations).toHaveBeenLastCalledWith(expect.objectContaining({ scope: 'catalogue' })))
+      expect(localStorage.getItem('aqoj_perimetre')).toBe('catalogue')
+    })
+
+    it('regroupe nouveautés, oubliés et époques en onglets', async () => {
+      const ancien = { ...jeu, id: 2, name: 'Jeu Oublié' }
+      const classique = { ...jeu, id: 3, name: 'Jeu Classique' }
+      getHomeRecommendations.mockResolvedValue({ ...froid, coldStart: false, families: ['cooperation'], declared: ['cooperation'], byDecade: { Classiques: [{ game: classique, reason: 'Culte' }] } })
+      getForgottenGems.mockResolvedValue([{ game: ancien, reason: 'Pas joué depuis un an' }])
+      render(<MemoryRouter><HomePage /></MemoryRouter>)
+
+      expect(await screen.findByRole('tab', { name: 'Nouveautés pour vous' })).toHaveAttribute('aria-selected', 'true')
+      expect(screen.queryByText('Jeu Oublié')).not.toBeInTheDocument()
+
+      await userEvent.click(await screen.findByRole('tab', { name: 'Oubliés de votre ludothèque' }))
+      expect(screen.getByText('Jeu Oublié')).toBeInTheDocument()
+
+      await userEvent.click(screen.getByRole('tab', { name: 'Par époque' }))
+      expect(screen.getByText('Jeu Classique')).toBeInTheDocument()
     })
 
     it('limite le questionnaire à six goûts', async () => {
@@ -106,14 +138,14 @@ describe('HomePage', () => {
     })
 
     it('retrouve la table enregistrée et la propose pour les idées du soir', async () => {
-      getHomeRecommendations.mockResolvedValue({ ...reco, table: { players: 6, maxTime: 90 } })
+      getHomeRecommendations.mockResolvedValue({ ...reco, table: { players: 6, maxTime: 90, scope: 'library' } })
       render(<MemoryRouter><HomePage /></MemoryRouter>)
 
       await screen.findByRole('heading', { name: 'Ce que vous aimez' })
       expect(screen.getByRole('button', { name: '6' })).toHaveAttribute('aria-pressed', 'true')
       expect(screen.getByRole('button', { name: '≤ 1 h 30' })).toHaveAttribute('aria-pressed', 'true')
       expect(getTonightRecommendations).toHaveBeenCalledTimes(1)
-      expect(getTonightRecommendations).toHaveBeenCalledWith({ players: 6, maxTime: 90 })
+      expect(getTonightRecommendations).toHaveBeenCalledWith({ players: 6, maxTime: 90, scope: 'library' })
     })
 
     it('enregistre chaque changement de table et le dit', async () => {
@@ -150,7 +182,7 @@ describe('HomePage', () => {
       expect(screen.getByRole('heading', { name: 'Ce que jouent les autres membres' })).toBeInTheDocument()
       expect(screen.getByRole('heading', { name: 'Faciles à expliquer' })).toBeInTheDocument()
       expect(screen.getByText('Joué par 3 membres cette année')).toBeInTheDocument()
-      expect(getTonightRecommendations).toHaveBeenCalledWith({ players: 4, maxTime: 60 })
+      expect(getTonightRecommendations).toHaveBeenCalledWith({ players: 4, maxTime: 60, scope: 'library' })
     })
 
     it('redemande les idées quand on change la table, et ne filtre plus la durée avec « Peu importe »', async () => {
@@ -161,7 +193,7 @@ describe('HomePage', () => {
       await userEvent.click(screen.getByRole('button', { name: '2' }))
       await userEvent.click(screen.getByRole('button', { name: 'Peu importe' }))
 
-      expect(getTonightRecommendations).toHaveBeenLastCalledWith({ players: 2, maxTime: null })
+      expect(getTonightRecommendations).toHaveBeenLastCalledWith({ players: 2, maxTime: null, scope: 'library' })
       expect(await screen.findByText(/Pour 2 joueurs/)).toBeInTheDocument()
     })
 
@@ -171,7 +203,7 @@ describe('HomePage', () => {
       getTonightRecommendations.mockResolvedValue({ popular: [], easy: [{ game: partage, reason: 'Facile à aborder' }] })
       render(<MemoryRouter><HomePage /></MemoryRouter>)
 
-      await screen.findByRole('heading', { name: 'Nouveautés pour vous' })
+      await screen.findByRole('tab', { name: 'Nouveautés pour vous' })
       expect(screen.getAllByText('Jeu Doublon')).toHaveLength(1)
       expect(screen.queryByRole('heading', { name: 'Pour votre table' })).not.toBeInTheDocument()
     })

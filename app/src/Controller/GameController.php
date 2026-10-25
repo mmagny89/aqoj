@@ -96,6 +96,7 @@ class GameController extends AbstractController
 
     #[Route('/api/games/home-reco', name: 'api_games_home_reco', methods: ['GET'])]
     public function homeRecommendations(
+        Request $request,
         RecommendationService $service,
         UserPreferenceRepository $prefRepository,
     ): JsonResponse {
@@ -104,7 +105,7 @@ class GameController extends AbstractController
             return $this->json(['recommendations' => [], 'families' => [], 'coldStart' => false, 'declared' => [], 'table' => null]);
         }
 
-        $result = $service->recommendHomeDiscover($user);
+        $result = $service->recommendHomeDiscover($user, $request->query->getString('scope') === 'library');
 
         $serialize = fn(array $list) => array_map(
             fn($r) => ['game' => $r['game'], 'reason' => $r['reason']],
@@ -138,7 +139,7 @@ class GameController extends AbstractController
 
         $players = $request->query->getInt('players') ?: null;
         $maxTime = $request->query->getInt('maxTime') ?: null;
-        $result  = $service->recommendTonight($user, $players, $maxTime);
+        $result  = $service->recommendTonight($user, $players, $maxTime, $request->query->getString('scope') === 'library');
 
         $serialize = fn(array $list) => array_map(fn($r) => ['game' => $r['game'], 'reason' => $r['reason']], $list);
 

@@ -115,6 +115,36 @@ final class HomeRecommendationTest extends ApiTestCase
         self::assertStringContainsString('Facile à aborder', $table['easy'][0]['reason']);
     }
 
+    public function testLePerimetreLudothequeNeGardeQueLesJeuxDeLAssociationEtDesMembres(): void
+    {
+        $client = static::createClient();
+        $moi = $this->register($client, 'perimetre@example.test');
+        $this->register($client, 'voisin@example.test');
+        $annee = (int) date('Y');
+        $this->creerJeu('Zzper Asso', $annee - 2, 1.8, 7.6, 5000);
+        $this->creerJeu('Zzper Voisin', $annee - 2, 1.8, 7.6, 5000);
+        $this->creerJeu('Zzper Le Mien', $annee - 2, 1.8, 7.6, 5000);
+        $this->creerJeu('Zzper Hors', $annee - 2, 1.8, 7.6, 5000);
+        $conn = static::getContainer()->get(Connection::class);
+        $conn->executeStatement('INSERT INTO association_game (game_id) SELECT id FROM game WHERE bgg_id = ?', ['zz' . md5('Zzper Asso')]);
+        foreach ([['Zzper Voisin', 'voisin@example.test'], ['Zzper Le Mien', 'perimetre@example.test']] as [$jeu, $email]) {
+            $conn->executeStatement(
+                'INSERT INTO user_game (user_id, game_id) VALUES ((SELECT id FROM app_user WHERE email = ?), (SELECT id FROM game WHERE bgg_id = ?))',
+                [$email, 'zz' . md5($jeu)],
+            );
+        }
+
+        $table = $this->call($client, 'GET', '/api/games/home-tonight?scope=library', token: $moi);
+        $noms = array_column(array_column($table['easy'], 'game'), 'name');
+        sort($noms);
+        self::assertSame(['Zzper Asso', 'Zzper Le Mien', 'Zzper Voisin'], $noms);
+
+        $reco = $this->call($client, 'GET', '/api/games/home-reco?scope=library', token: $moi);
+        $noms = array_column(array_column($reco['recent'], 'game'), 'name');
+        sort($noms);
+        self::assertSame(['Zzper Asso', 'Zzper Voisin'], array_values(array_diff($noms, ['Zzper Le Mien'])));
+    }
+
     public function testLesJeuxDesAutresMembresNeSortentQuAPartirDeDeuxJoueurs(): void
     {
         $client = static::createClient();

@@ -10,6 +10,10 @@ use Doctrine\Persistence\ManagerRegistry;
 
 class GameRepository extends ServiceEntityRepository
 {
+    /** Jeu présent dans la ludothèque de l'association ou dans celle d'au moins un membre. */
+    public const IN_LIBRARY = '(EXISTS (SELECT 1 FROM association_game ag WHERE ag.game_id = g.id)
+        OR EXISTS (SELECT 1 FROM user_game ugl WHERE ugl.game_id = g.id))';
+
     public function __construct(ManagerRegistry $registry)
     {
         parent::__construct($registry, Game::class);
@@ -119,6 +123,7 @@ class GameRepository extends ServiceEntityRepository
      * Triés par note BGG décroissante — scoring simple côté service.
      *
      * @param string[] $familyKeys filtre dur sur mechanic_families si non vide
+     * @param bool     $library    true : seulement les jeux de la ludothèque de l'association ou d'un membre
      */
     public function findDiscoverForRecommendation(
         User $user,
@@ -133,6 +138,7 @@ class GameRepository extends ServiceEntityRepository
         bool $baseGamesOnly = false,
         ?float $maxComplexity = null,
         ?int $minVotes = null,
+        bool $library = false,
     ): array {
         $conn = $this->getEntityManager()->getConnection();
 
@@ -140,19 +146,26 @@ class GameRepository extends ServiceEntityRepository
             'g.mechanics::text != \'[]\'',          // jeux enrichis uniquement
             'g.rating_bgg IS NOT NULL',
             'g.rating_bgg >= 6.5',
-            // Exclure les jeux de la collection
-            'NOT EXISTS (SELECT 1 FROM user_game ug WHERE ug.game_id = g.id AND ug.user_id = ?)',
+        ];
+        $params = [];
+
+        if ($library) {
+            // Ludothèque de l'association et des membres : on y joue, donc la collection du joueur n'est pas exclue.
+            // Seule l'appartenance sort, jamais le propriétaire.
+            $conditions[] = self::IN_LIBRARY;
+        } else {
+            $conditions[] = 'NOT EXISTS (SELECT 1 FROM user_game ug WHERE ug.game_id = g.id AND ug.user_id = ?)';
             // Exclure les rééditions/versions collector de jeux déjà en collection.
             // implements_bgg_ids est un tableau jsonb de bgg_id (strings).
             // On utilise EXISTS + jsonb_array_elements_text car && n'existe pas sur jsonb.
-            "NOT EXISTS (
+            $conditions[] = "NOT EXISTS (
                 SELECT 1
                 FROM jsonb_array_elements_text(g.implements_bgg_ids) impl_id
                 JOIN game g2 ON g2.bgg_id = impl_id
                 JOIN user_game ug2 ON ug2.game_id = g2.id AND ug2.user_id = ?
-            )",
-        ];
-        $params = [$user->getId(), $user->getId()];
+            )";
+            array_push($params, $user->getId(), $user->getId());
+        }
 
         if (!empty($familyKeys)) {
             $jsonClauses = array_map(fn($k) => 'g.mechanic_families::jsonb @> ?::jsonb', $familyKeys);
