@@ -60,7 +60,7 @@ final class PasswordTest extends ApiTestCase
         $this->call($client, 'POST', '/api/auth/reset-password', ['token' => $jeton, 'password' => 'court']);
         self::assertResponseStatusCodeSame(422);
 
-        static::getContainer()->get(Connection::class)->executeStatement("UPDATE password_reset_request SET expires_at = NOW() - INTERVAL '1 minute'");
+        static::getContainer()->get(Connection::class)->executeStatement("UPDATE user_token SET expires_at = NOW() - INTERVAL '1 minute'");
         $reponse = $this->call($client, 'POST', '/api/auth/reset-password', ['token' => $jeton, 'password' => 'nouveau-mot-de-passe']);
         self::assertResponseStatusCodeSame(422);
         self::assertStringContainsString('invalide ou expiré', $reponse['error']);

@@ -18,7 +18,7 @@ const users = {
   total: 2, page: 1, perPage: 50,
   items: [
     { id: 1, email: 'admin@example.test', role: 'member', isAdmin: true, createdAt: '2026-10-01T10:00:00+00:00', invitationLabel: null },
-    { id: 2, email: 'joueur@example.test', role: 'member', isAdmin: false, createdAt: '2026-10-02T10:00:00+00:00', invitationLabel: 'Soirée' },
+    { id: 2, email: 'joueur@example.test', role: 'member', isAdmin: false, emailVerified: false, createdAt: '2026-10-02T10:00:00+00:00', invitationLabel: 'Soirée' },
   ],
 }
 
@@ -51,6 +51,14 @@ describe('AdminMembers', () => {
 
     expect(updateUserRole).toHaveBeenCalledWith(2, 'vip')
     expect(screen.getByText('Membre (vous)')).toBeInTheDocument()
+  })
+
+  it('signale les comptes dont l’adresse n’est pas confirmée', async () => {
+    render(<AdminMembers />)
+
+    const ligne = (await screen.findByText('joueur@example.test')).closest('li')
+
+    expect(within(ligne).getByText('Non confirmé')).toBeInTheDocument()
   })
 
   it('filtre les comptes par rôle', async () => {

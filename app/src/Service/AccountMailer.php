@@ -35,6 +35,18 @@ final readonly class AccountMailer
         ], $link, 'Choisir un nouveau mot de passe');
     }
 
+    public function sendVerificationLink(User $user, string $token): void
+    {
+        $link = rtrim($this->publicUrl, '/').'/verifier-adresse?jeton='.$token;
+
+        $this->send($user, 'Confirmez votre adresse e-mail', [
+            'Bienvenue sur « À quoi on joue » ! Une dernière étape : confirmer que cette adresse est bien la vôtre.',
+            'Ce lien est valable sept jours et ne sert qu\'une fois :',
+            $link,
+            "Si vous n'avez pas créé de compte, ignorez ce message : sans confirmation, le compte est supprimé au bout de quatorze jours.",
+        ], $link, 'Confirmer mon adresse');
+    }
+
     public function sendPasswordChanged(User $user): void
     {
         $this->send($user, 'Votre mot de passe a été modifié', [

@@ -19,7 +19,10 @@ async function request(path, options = {}) {
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: 'Erreur réseau' }))
-    throw new Error(err.error || `HTTP ${res.status}`)
+    const error = new Error(err.error || `HTTP ${res.status}`)
+    // Le code machine d'une erreur (ex. email_not_verified) permet à la page de proposer la bonne suite.
+    error.code = err.code
+    throw error
   }
   return res.json()
 }
@@ -35,6 +38,12 @@ export const login = (email, password) =>
   request('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) })
 
 export const getMe = () => request('/auth/me')
+
+// Confirmation de l'adresse e-mail
+export const verifyEmail = (token) =>
+  request('/auth/verify-email', { method: 'POST', body: JSON.stringify({ token }) })
+export const resendVerification = (email) =>
+  request('/auth/resend-verification', { method: 'POST', body: JSON.stringify({ email }) })
 
 // Mot de passe oublié, réinitialisation et changement ; numéro d'adhérent
 export const forgotPassword = (email) =>

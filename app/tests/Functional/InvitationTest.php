@@ -201,10 +201,13 @@ final class InvitationTest extends ApiTestCase
 
     private function inscrire(KernelBrowser $client, string $email, string $code): string
     {
-        $reponse = $this->call($client, 'POST', '/api/auth/register', ['email' => $email, 'password' => 'mot-de-passe-solide', 'code' => $code]);
+        $this->call($client, 'POST', '/api/auth/register', ['email' => $email, 'password' => 'mot-de-passe-solide', 'code' => $code]);
         self::assertResponseStatusCodeSame(201);
 
-        return $reponse['token'];
+        // La session vient avec la confirmation de l'adresse : on la confirme, puis on se connecte.
+        static::getContainer()->get(Connection::class)->executeStatement('UPDATE app_user SET email_verified_at = NOW() WHERE email = ?', [$email]);
+
+        return $this->call($client, 'POST', '/api/auth/login', ['email' => $email, 'password' => 'mot-de-passe-solide'])['token'];
     }
 
     private function refuser(KernelBrowser $client, string $email, string $code): void

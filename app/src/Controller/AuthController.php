@@ -7,7 +7,7 @@ use App\Entity\User;
 use App\Repository\InvitationCodeRepository;
 use App\Repository\UserRepository;
 use App\Service\AccountMailer;
-use App\Service\PasswordResetTokens;
+use App\Service\UserTokens;
 use App\Service\JwtService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -37,6 +37,8 @@ class AuthController extends AbstractController
         JwtService $jwt,
         RateLimiterFactoryInterface $registerLimiter,
         InvitationCodeRepository $invitations,
+        UserTokens $tokens,
+        AccountMailer $mailer,
         #[Autowire(env: 'bool:REGISTRATION_REQUIRES_CODE')]
         bool $requiresCode,
     ): JsonResponse {
@@ -90,10 +92,78 @@ class AuthController extends AbstractController
             return $this->json(['error' => self::INVALID_CODE], 422);
         }
 
+        // Pas de session avant d'avoir prouvé que l'adresse est la sienne : le lien arrive par e-mail.
+        $this->sendVerification($user, $tokens, $mailer);
+
         return $this->json([
-            'token' => $jwt->generateToken($user),
-            'user' => $user,
+            'verificationRequired' => true,
+            'message' => 'Compte créé. Un e-mail de confirmation vient de vous être envoyé.',
         ], 201);
+    }
+
+    /** Confirme l'adresse avec le lien reçu, et ouvre la session : c'est la preuve qu'on cherchait. */
+    #[Route('/api/auth/verify-email', name: 'api_auth_verify_email', methods: ['POST'])]
+    public function verifyEmail(
+        Request $request,
+        UserRepository $userRepository,
+        UserTokens $tokens,
+        EntityManagerInterface $em,
+        JwtService $jwt,
+        RateLimiterFactoryInterface $passwordResetLimiter,
+    ): JsonResponse {
+        $limit = $passwordResetLimiter->create('verify-'.($request->getClientIp() ?? 'inconnue'))->consume();
+        if (!$limit->isAccepted()) {
+            return $this->tooManyAttempts($limit);
+        }
+
+        $data = json_decode($request->getContent(), true);
+        $token = trim((string) (is_array($data) ? ($data['token'] ?? '') : ''));
+
+        $userId = $token !== '' ? $tokens->consume($token, UserTokens::EMAIL_VERIFICATION) : null;
+        $user = $userId !== null ? $userRepository->find($userId) : null;
+        if ($user === null) {
+            return $this->json(['error' => 'Lien invalide ou expiré. Demandez-en un nouveau.'], 422);
+        }
+
+        $user->markEmailVerified();
+        $em->flush();
+
+        return $this->json(['token' => $jwt->generateToken($user), 'user' => $user]);
+    }
+
+    /** Renvoie le lien de confirmation. Réponse identique que le compte existe, soit confirmé ou non. */
+    #[Route('/api/auth/resend-verification', name: 'api_auth_resend_verification', methods: ['POST'])]
+    public function resendVerification(
+        Request $request,
+        UserRepository $userRepository,
+        UserTokens $tokens,
+        AccountMailer $mailer,
+        RateLimiterFactoryInterface $passwordResetLimiter,
+    ): JsonResponse {
+        $data = json_decode($request->getContent(), true);
+        $email = trim(strtolower((string) (is_array($data) ? ($data['email'] ?? '') : '')));
+
+        $byAddress = $passwordResetLimiter->create('ip-'.($request->getClientIp() ?? 'inconnue'))->consume();
+        $byEmail = $passwordResetLimiter->create('verification-'.sha1($email))->consume();
+        if (!$byAddress->isAccepted() || !$byEmail->isAccepted()) {
+            return $this->tooManyAttempts($byAddress->isAccepted() ? $byEmail : $byAddress);
+        }
+
+        $user = $email !== '' ? $userRepository->findByEmail($email) : null;
+        if ($user !== null && !$user->isEmailVerified()) {
+            $this->sendVerification($user, $tokens, $mailer);
+        }
+
+        return $this->json(['message' => "Si un compte à confirmer existe avec cette adresse, un e-mail vient de lui être envoyé."], 202);
+    }
+
+    private function sendVerification(User $user, UserTokens $tokens, AccountMailer $mailer): void
+    {
+        try {
+            $mailer->sendVerificationLink($user, $tokens->issue($user, UserTokens::EMAIL_VERIFICATION));
+        } catch (\Throwable) {
+            // Un transport en panne ne doit pas faire échouer l'inscription : « renvoyer l'e-mail » reste possible.
+        }
     }
 
     #[Route('/api/auth/login', name: 'api_auth_login', methods: ['POST'])]
@@ -125,6 +195,14 @@ class AuthController extends AbstractController
             return $this->json(['error' => 'E-mail ou mot de passe incorrect.'], 401);
         }
 
+        // Le mot de passe est bon : on peut dire que l'adresse reste à confirmer sans rien révéler à un tiers.
+        if (!$user->isEmailVerified()) {
+            return $this->json([
+                'error' => 'Adresse e-mail non confirmée. Ouvrez le lien reçu par e-mail, ou demandez-en un nouveau.',
+                'code' => 'email_not_verified',
+            ], 403);
+        }
+
         return $this->json([
             'token' => $jwt->generateToken($user),
             'user' => $user,
@@ -150,7 +228,7 @@ class AuthController extends AbstractController
     public function forgotPassword(
         Request $request,
         UserRepository $userRepository,
-        PasswordResetTokens $tokens,
+        UserTokens $tokens,
         AccountMailer $mailer,
         RateLimiterFactoryInterface $passwordResetLimiter,
     ): JsonResponse {
@@ -166,7 +244,7 @@ class AuthController extends AbstractController
         $user = $email !== '' ? $userRepository->findByEmail($email) : null;
         if ($user !== null) {
             try {
-                $mailer->sendResetLink($user, $tokens->issue($user));
+                $mailer->sendResetLink($user, $tokens->issue($user, UserTokens::PASSWORD_RESET));
             } catch (\Throwable) {
                 // Un transport en panne ne doit pas se voir de l'extérieur : la réponse reste identique.
             }
@@ -179,7 +257,7 @@ class AuthController extends AbstractController
     public function resetPassword(
         Request $request,
         UserRepository $userRepository,
-        PasswordResetTokens $tokens,
+        UserTokens $tokens,
         AccountMailer $mailer,
         EntityManagerInterface $em,
         RateLimiterFactoryInterface $passwordResetLimiter,
@@ -198,13 +276,14 @@ class AuthController extends AbstractController
             return $this->json(['error' => 'Le mot de passe doit contenir au moins 8 caractères.'], 422);
         }
 
-        $userId = $token !== '' ? $tokens->consume($token) : null;
+        $userId = $token !== '' ? $tokens->consume($token, UserTokens::PASSWORD_RESET) : null;
         $user = $userId !== null ? $userRepository->find($userId) : null;
         if ($user === null) {
             return $this->json(['error' => 'Lien invalide ou expiré. Demandez-en un nouveau.'], 422);
         }
 
-        $user->changePasswordHash(password_hash($password, PASSWORD_BCRYPT, ['cost' => 12]));
+        // Recevoir ce lien prouve que l'adresse est la sienne : la confirmation vient avec.
+        $user->changePasswordHash(password_hash($password, PASSWORD_BCRYPT, ['cost' => 12]))->markEmailVerified();
         $em->flush();
         try {
             $mailer->sendPasswordChanged($user);
@@ -236,7 +315,7 @@ class AuthController extends AbstractController
             $payload = $jwt->decode(substr($header, 7));
             $user = $em->find(User::class, $payload->sub);
 
-            return $user !== null && $jwt->isRevoked($user, $payload) ? null : $user;
+            return $user !== null && !$jwt->accepts($user, $payload) ? null : $user;
         } catch (\Throwable) {
             return null;
         }

@@ -34,11 +34,11 @@ final class JwtAuthenticator extends AbstractAuthenticator implements Authentica
             return false;
         }
 
-        // Un jeton révoqué (mot de passe changé depuis) se comporte comme un jeton expiré : la requête reste anonyme.
+        // Un jeton révoqué (mot de passe changé depuis) ou d'un compte non confirmé se comporte comme un jeton expiré : la requête reste anonyme.
         $user = $this->users->find($id);
         $payload = $this->payload($request);
 
-        return !($user !== null && $payload !== null && $this->jwt->isRevoked($user, $payload));
+        return !($user !== null && $payload !== null && !$this->jwt->accepts($user, $payload));
     }
 
     public function authenticate(Request $request): Passport
