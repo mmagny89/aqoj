@@ -1,53 +1,37 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useId, useRef } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { getRecommendations, getUserPreferences, getThemeMappings } from '../api'
 import GameCard from '../components/GameCard'
 import { useAuth } from '../context/AuthContext'
-import { ENGINES, SUPPORT_FAMILIES, EXTRA_FAMILIES, familyLabel, familyColor, EXTRA_COLORS } from '../utils/engelstein'
-
-const ENGINE_ICONS = {
-  worker_placement: '🏗️', deck_building: '🃏', engine_building: '⚙️',
-  area_control: '🗺️', hand_management: '✋', auction: '🔨',
-}
-const SUPPORT_ICONS = {
-  card_play: '🂠', spatial_placement: '🧩', movement: '🚶',
-  resource_management: '💰', resolution: '🎲', uncertainty: '🎭',
-  cooperation: '🤝', scoring: '🏆',
-}
-const EXTRA_ICONS = { solo: '🧍', real_time: '⏰', dexterity: '🤸', legacy: '📖' }
+import { ENGINES, SUPPORT_FAMILIES, EXTRA_FAMILIES, familyLabel } from '../utils/engelstein'
 
 /* ── Chip sélectionnable ─────────────────────────────────────────────── */
-function Chip({ active, onClick, icon, label, colorClass }) {
+function Chip({ active, onClick, icon, label }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
-        active
-          ? (colorClass || 'bg-amber-500 text-white border-amber-500')
-          : 'bg-stone-50 text-stone-600 border-stone-200 hover:bg-stone-100'
-      }`}
-    >
-      {icon && <span>{icon}</span>}
-      <span>{label}</span>
+    <button type="button" onClick={onClick} aria-pressed={active} className="chip !min-h-11 text-sm">
+      {icon && <span aria-hidden="true" className="mr-1.5">{icon}</span>}
+      {label}
     </button>
   )
 }
 
-/* ── Section filtres (collapsible) ───────────────────────────────────── */
+/* ── Section filtres (repliable) ─────────────────────────────────────── */
 function FilterSection({ title, children, defaultOpen = true }) {
   const [open, setOpen] = useState(defaultOpen)
+  const id = useId()
   return (
-    <div className="border-b border-stone-100 pb-4">
+    <div className="border-b-2 border-ink/15 pb-4">
       <button
         type="button"
         onClick={() => setOpen(v => !v)}
-        className="flex items-center justify-between w-full text-xs font-semibold text-stone-500 uppercase tracking-wide mb-2"
+        aria-expanded={open}
+        aria-controls={id}
+        className="mb-1 flex min-h-11 w-full items-center justify-between text-left font-bold"
       >
         <span>{title}</span>
-        <span className="text-stone-300">{open ? '▲' : '▼'}</span>
+        <span aria-hidden="true" className="text-stone-600">{open ? '−' : '+'}</span>
       </button>
-      {open && children}
+      <div id={id} hidden={!open}>{children}</div>
     </div>
   )
 }
@@ -61,61 +45,49 @@ function ResultsGrid({ results, loading, error }) {
   const items = sub === 'ext' ? exps : base
 
   if (loading) return (
-    <div className="flex items-center justify-center h-32 gap-2 text-stone-400">
-      <div className="w-4 h-4 border-2 border-stone-200 border-t-amber-400 rounded-full animate-spin" />
-      <span className="text-sm">Chargement…</span>
-    </div>
+    <p role="status" className="flex h-32 items-center justify-center gap-3 text-stone-600">
+      <span className="h-5 w-5 animate-spin rounded-full border-[3px] border-stone-300 border-t-brand-red" aria-hidden="true" />
+      Chargement…
+    </p>
   )
 
-  if (error) return (
-    <div className="text-center py-8 text-stone-400 text-sm">
-      <div className="text-2xl mb-2">😕</div>{error}
-    </div>
-  )
+  if (error) return <p role="alert" className="panel border-brand-red bg-amber-100 p-4 font-bold">{error}</p>
 
   return (
     <div>
-      {/* Sous-onglets toujours affichés */}
-      <div className="flex gap-2 mb-4">
+      <div role="group" aria-label="Type de fiches" className="mb-4 flex flex-wrap gap-2">
         {[
-          { key: 'base', label: '🎲 Jeux de base', count: base.length },
-          { key: 'ext',  label: '➕ Extensions',   count: exps.length },
+          { key: 'base', label: 'Jeux de base', count: base.length },
+          { key: 'ext',  label: 'Extensions',   count: exps.length },
         ].map(t => (
           <button
             key={t.key}
+            type="button"
+            aria-pressed={sub === t.key}
             onClick={() => setSub(t.key)}
             disabled={t.count === 0}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all disabled:opacity-40 disabled:cursor-default ${
-              sub === t.key
-                ? 'bg-amber-500 text-white border-amber-500'
-                : 'bg-white text-stone-600 border-stone-200 hover:bg-stone-50'
-            }`}
+            className="chip disabled:cursor-default disabled:opacity-40"
           >
             {t.label}
-            <span className={`px-1.5 py-0.5 rounded-full font-bold text-[10px] ${sub === t.key ? 'bg-white/30 text-white' : 'bg-stone-100 text-stone-500'}`}>
-              {t.count}
-            </span>
+            <span className="ml-2 text-sm opacity-80">{t.count}</span>
           </button>
         ))}
       </div>
 
       {items.length === 0 ? (
-        <div className="text-center py-10 text-stone-400">
-          <div className="text-3xl mb-2">{sub === 'ext' ? '🧩' : '📭'}</div>
-          <p className="text-sm">
-            {sub === 'ext'
-              ? 'Aucune extension ne correspond à ces critères.'
-              : 'Aucun jeu de base ne correspond exactement.'}
-          </p>
-        </div>
+        <p className="panel mx-auto max-w-xl p-6 text-center text-stone-700">
+          {sub === 'ext'
+            ? 'Aucune extension ne correspond à ces critères.'
+            : 'Aucun jeu de base ne correspond exactement.'}
+        </p>
       ) : (
         <>
-          <p className="text-xs text-stone-400 mb-3">{items.length} jeu{items.length > 1 ? 'x' : ''}</p>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+          <p className="mb-3 text-stone-600" aria-live="polite">{items.length} jeu{items.length > 1 ? 'x' : ''}</p>
+          <ul className="m-0 grid list-none grid-cols-2 gap-4 p-0 sm:grid-cols-3 sm:gap-5 xl:grid-cols-4">
             {items.map(({ game, reason }, i) => (
-              <GameCard key={game.id} game={game} reason={reason} rank={i + 1} />
+              <li key={game.id}><GameCard game={game} reason={reason} rank={i + 1} /></li>
             ))}
-          </div>
+          </ul>
         </>
       )}
     </div>
@@ -138,10 +110,11 @@ function ResultsPanel({
   }, [collectionLoading, discoverLoading, collectionResults, discoverResults])
 
   if (!searched) return (
-    <div className="flex flex-col items-center justify-center h-64 text-stone-300 gap-3">
-      <div className="text-6xl">🎲</div>
-      <p className="text-sm">Renseignez vos critères et lancez la recherche</p>
-    </div>
+    <section className="panel mx-auto flex max-w-xl flex-col items-center gap-3 p-8 text-center">
+      <img src="/edj-mascotte.png" alt="" width="120" height="133" className="h-28 w-auto" />
+      <p className="font-display text-2xl">Dites-nous ce qu'il vous faut</p>
+      <p className="text-stone-600">Renseignez vos critères, puis lancez la recherche.</p>
+    </section>
   )
 
   const colCount = collectionResults?.length ?? '…'
@@ -149,42 +122,34 @@ function ResultsPanel({
 
   return (
     <div>
-      {/* Onglets principaux collection / découverte */}
-      <div className="flex gap-1 border-b border-stone-200 mb-5">
+      <div role="tablist" aria-label="Où chercher" className="mb-5 flex flex-wrap gap-2">
         {[
-          { key: 'collection', label: '📚 Ma collection', count: colCount },
-          { key: 'discover',   label: '🔭 À découvrir',   count: disCount },
+          { key: 'collection', label: 'Ma collection', count: colCount },
+          { key: 'discover',   label: 'À découvrir',   count: disCount },
         ].map(tab => (
           <button
             key={tab.key}
+            type="button"
+            role="tab"
+            id={`reco-${tab.key}`}
+            aria-selected={activeTab === tab.key}
+            aria-controls="reco-panneau"
             onClick={() => setActiveTab(tab.key)}
-            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors -mb-px ${
-              activeTab === tab.key
-                ? 'border-amber-500 text-amber-700'
-                : 'border-transparent text-stone-500 hover:text-stone-700'
-            }`}
+            className={`chip ${activeTab === tab.key ? 'is-on' : ''}`}
           >
             {tab.label}
-            <span className={`text-xs px-1.5 py-0.5 rounded-full font-bold ${
-              activeTab === tab.key ? 'bg-amber-100 text-amber-700' : 'bg-stone-100 text-stone-500'
-            }`}>{tab.count}</span>
+            <span className="ml-2 text-sm opacity-80">{tab.count}</span>
           </button>
         ))}
       </div>
 
-      {activeTab === 'collection' ? (
-        <ResultsGrid
-          results={collectionResults ?? []}
-          loading={collectionLoading}
-          error={collectionError}
-        />
-      ) : (
-        <ResultsGrid
-          results={discoverResults ?? []}
-          loading={discoverLoading}
-          error={discoverError}
-        />
-      )}
+      <div id="reco-panneau" role="tabpanel" aria-labelledby={`reco-${activeTab}`}>
+        {activeTab === 'collection' ? (
+          <ResultsGrid results={collectionResults ?? []} loading={collectionLoading} error={collectionError} />
+        ) : (
+          <ResultsGrid results={discoverResults ?? []} loading={discoverLoading} error={discoverError} />
+        )}
+      </div>
     </div>
   )
 }
@@ -287,23 +252,24 @@ export default function RecommendationPage() {
   }, [user, fromHome])
 
   if (!user) return (
-    <div className="max-w-6xl mx-auto px-4 py-16 text-center text-stone-500">
-      <div className="text-5xl mb-4">🔒</div>
-      <p className="font-semibold text-lg text-stone-800 mb-2">Connexion requise</p>
-      <p className="text-sm mb-6">Les recommandations sont personnalisées depuis votre collection BGG.</p>
-      <Link to="/connexion" className="bg-amber-500 hover:bg-amber-600 text-white font-bold px-6 py-3 rounded-xl">Se connecter</Link>
+    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-10">
+      <section className="panel mx-auto flex max-w-xl flex-col items-center gap-3 p-8 text-center">
+        <img src="/edj-mascotte.png" alt="" width="120" height="133" className="h-28 w-auto" />
+        <h1 className="text-4xl">Connexion requise</h1>
+        <p className="text-stone-600">Les recommandations sont personnalisées depuis votre collection BGG.</p>
+        <Link to="/connexion" className="btn btn-primary">Se connecter</Link>
+      </section>
     </div>
   )
 
   const activeFiltersCount = selectedFamilies.length + selectedCategories.length
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-8">
+    <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-10 lg:py-8">
 
-      {/* Header */}
       <div className="mb-6">
-        <h2 className="text-3xl font-black text-stone-900">Ce soir on joue à…</h2>
-        <p className="text-stone-400 text-sm mt-1">Recommandations personnalisées depuis votre collection BGG</p>
+        <h1 className="text-4xl leading-tight sm:text-5xl">Ce soir on joue à…</h1>
+        <p className="mt-1 text-lg text-stone-600">Des idées tirées de votre collection BGG, selon la table et le temps.</p>
       </div>
 
       <form onSubmit={handleSubmit}>
@@ -315,9 +281,9 @@ export default function RecommendationPage() {
             ${filtersOpen ? 'block' : 'hidden lg:block'}
           `}>
             <div className="flex items-center justify-between">
-              <h3 className="font-bold text-stone-800">Filtres</h3>
+              <h2 className="text-2xl">Filtres</h2>
               {activeFiltersCount > 0 && (
-                <button type="button" onClick={clearAll} className="text-xs text-stone-400 hover:text-red-500 hover:underline">
+                <button type="button" onClick={clearAll} className="inline-flex min-h-11 items-center font-bold text-brand-blue underline underline-offset-4">
                   Réinitialiser ({activeFiltersCount})
                 </button>
               )}
@@ -325,20 +291,11 @@ export default function RecommendationPage() {
 
             {/* Suggestions issues des préférences */}
             {userPrefs?.topEngines?.length > 0 && (
-              <div className="bg-amber-50 rounded-xl p-3">
-                <p className="text-xs font-semibold text-amber-700 mb-2">✨ Vos styles favoris</p>
-                <div className="flex flex-wrap gap-1.5">
+              <div className="rounded-xl border-[3px] border-ink bg-amber-100 p-3">
+                <p className="mb-2 font-bold">Vos styles favoris</p>
+                <div className="flex flex-wrap gap-2">
                   {userPrefs.topEngines.map(key => (
-                    <button
-                      key={key}
-                      type="button"
-                      onClick={() => toggle(key)}
-                      className={`text-xs px-2.5 py-1 rounded-full border font-medium transition-all ${
-                        selectedFamilies.includes(key) ? familyColor(key) : 'bg-white border-amber-200 text-amber-700 hover:bg-amber-100'
-                      }`}
-                    >
-                      {familyLabel(key)}
-                    </button>
+                    <Chip key={key} active={selectedFamilies.includes(key)} onClick={() => toggle(key)} label={familyLabel(key)} />
                   ))}
                 </div>
               </div>
@@ -346,13 +303,11 @@ export default function RecommendationPage() {
 
             {/* Joueurs */}
             <FilterSection title="Nombre de joueurs">
-              <div className="flex flex-wrap gap-1.5">
+              <div className="flex flex-wrap gap-2">
                 {[1, 2, 3, 4, 5, 6, 7, 8].map(n => (
                   <button
-                    key={n} type="button" onClick={() => setPlayers(n)}
-                    className={`w-9 h-9 rounded-lg font-bold text-sm transition-all ${
-                      players === n ? 'bg-amber-500 text-white shadow' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
-                    }`}
+                    key={n} type="button" onClick={() => setPlayers(n)} aria-pressed={players === n}
+                    className="chip min-w-11 justify-center !px-0"
                   >{n}</button>
                 ))}
               </div>
@@ -360,17 +315,17 @@ export default function RecommendationPage() {
 
             {/* Durée */}
             <FilterSection title="Durée maximum">
-              <div className="text-center mb-2">
-                <span className="text-lg font-black text-amber-600">
+              <div className="mb-2 text-center">
+                <span className="font-display text-3xl">
                   {maxTime < 60 ? `${maxTime} min` : `${Math.floor(maxTime / 60)}h${maxTime % 60 ? maxTime % 60 + 'm' : ''}`}
                 </span>
               </div>
               <input
-                type="range" min={15} max={240} step={15} value={maxTime}
+                type="range" min={15} max={240} step={15} value={maxTime} aria-label="Durée maximum, en minutes"
                 onChange={e => setMaxTime(Number(e.target.value))}
-                className="w-full accent-amber-500"
+                className="h-11 w-full accent-brand-red"
               />
-              <div className="flex justify-between text-xs text-stone-300 mt-1">
+              <div className="mt-1 flex justify-between text-sm text-stone-600">
                 <span>15m</span><span>1h</span><span>2h</span><span>3h</span><span>4h</span>
               </div>
             </FilterSection>
@@ -383,9 +338,7 @@ export default function RecommendationPage() {
                     key={key}
                     active={selectedFamilies.includes(key)}
                     onClick={() => toggle(key)}
-                    icon={ENGINE_ICONS[key]}
                     label={familyLabel(key)}
-                    colorClass={selectedFamilies.includes(key) ? familyColor(key) : null}
                   />
                 ))}
               </div>
@@ -399,9 +352,7 @@ export default function RecommendationPage() {
                     key={key}
                     active={selectedFamilies.includes(key)}
                     onClick={() => toggle(key)}
-                    icon={SUPPORT_ICONS[key]}
                     label={familyLabel(key)}
-                    colorClass={selectedFamilies.includes(key) ? 'bg-stone-700 text-white border-stone-700' : null}
                   />
                 ))}
               </div>
@@ -415,9 +366,7 @@ export default function RecommendationPage() {
                     key={key}
                     active={selectedFamilies.includes(key)}
                     onClick={() => toggle(key)}
-                    icon={EXTRA_ICONS[key]}
                     label={familyLabel(key)}
-                    colorClass={selectedFamilies.includes(key) ? (EXTRA_COLORS?.[key] || 'bg-stone-700 text-white border-stone-700') : null}
                   />
                 ))}
               </div>
@@ -434,7 +383,6 @@ export default function RecommendationPage() {
                       onClick={() => toggleCat(item.label)}
                       icon={item.emoji}
                       label={item.label}
-                      colorClass={selectedCategories.includes(item.label) ? 'bg-amber-500 text-white border-amber-500' : null}
                     />
                   ))}
                 </div>
@@ -452,7 +400,6 @@ export default function RecommendationPage() {
                       onClick={() => toggleCat(item.label)}
                       icon={item.emoji}
                       label={item.label}
-                      colorClass={selectedCategories.includes(item.label) ? 'bg-blue-500 text-white border-blue-500' : null}
                     />
                   ))}
                 </div>
@@ -463,9 +410,9 @@ export default function RecommendationPage() {
             <button
               type="submit"
               disabled={colLoading || disLoading}
-              className="w-full bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-white font-black py-3.5 rounded-xl text-base transition-all shadow-sm"
+              className="btn btn-primary w-full"
             >
-              {(colLoading || disLoading) ? 'Recherche…' : '🎲 Trouver des jeux'}
+              {(colLoading || disLoading) ? 'Recherche…' : 'Trouver des jeux'}
             </button>
           </aside>
 
@@ -474,16 +421,12 @@ export default function RecommendationPage() {
             <button
               type="button"
               onClick={() => setFiltersOpen(v => !v)}
+              aria-expanded={filtersOpen}
               className="w-full min-h-12 flex items-center justify-between px-4 panel text-base font-bold mb-0"
             >
-              <span>🎛️ Filtres {activeFiltersCount > 0 && `(${activeFiltersCount})`}</span>
-              <span className="text-stone-400">{filtersOpen ? '▲' : '▼'}</span>
+              <span>Filtres {activeFiltersCount > 0 && `(${activeFiltersCount})`}</span>
+              <span aria-hidden="true">{filtersOpen ? '−' : '+'}</span>
             </button>
-            {filtersOpen && (
-              <div className="mb-4">
-                {/* Les filtres s'affichent au-dessus (sidebar réutilisée) */}
-              </div>
-            )}
           </div>
 
           {/* ── Zone résultats ────────────────────────────────────────── */}

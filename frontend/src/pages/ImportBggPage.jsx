@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import { importBgg, getMe } from '../api'
+import { ErrorMessage, Field } from '../components/forms'
 import { useAuth } from '../context/AuthContext'
 
 export default function ImportBggPage() {
@@ -38,99 +40,71 @@ export default function ImportBggPage() {
   const isExistingUsername = user?.bggUsername && user.bggUsername === username.trim()
 
   return (
-    <div className="max-w-lg mx-auto px-4 py-8">
-      <h2 className="text-3xl font-black text-stone-900 mb-2">Importer depuis BGG</h2>
-      <p className="text-stone-500 mb-8">
-        Importez votre collection BoardGameGeek pour la retrouver dans votre ludothèque.
-      </p>
+    <div className="mx-auto flex max-w-2xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-10 lg:py-8">
+      <div>
+        <h1 className="text-4xl leading-tight sm:text-5xl">Importer depuis BGG</h1>
+        <p className="mt-1 text-lg text-stone-600">
+          Reprenez votre collection BoardGameGeek pour la retrouver dans votre ludothèque.
+        </p>
+      </div>
 
       {user?.bggUsername && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6 flex items-center gap-3">
-          <span className="text-amber-600 text-xl">🔗</span>
-          <div>
-            <p className="text-sm font-semibold text-amber-800">Compte BGG lié</p>
-            <p className="text-sm text-amber-700">{user.bggUsername}</p>
-          </div>
-        </div>
+        <p className="panel flex items-center gap-3 bg-amber-100 p-4">
+          <span className="badge bg-brand-yellow">Compte BGG lié</span>
+          <strong>{user.bggUsername}</strong>
+        </p>
       )}
 
-      <form onSubmit={handleImport} className="bg-white rounded-2xl border border-stone-200 shadow-sm p-6 space-y-4">
-        <div>
-          <label className="block text-sm font-semibold text-stone-600 mb-2">
-            Pseudo BoardGameGeek
-          </label>
-          <input
-            type="text"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            placeholder="ex: Kikigamer42"
-            className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-amber-400 text-stone-900"
-          />
-        </div>
+      <form onSubmit={handleImport} className="panel flex flex-col gap-4 p-5 sm:p-6">
+        <Field
+          label="Pseudo BoardGameGeek"
+          type="text"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+          placeholder="Votre pseudo sur BGG"
+          autoComplete="off"
+        />
 
-        <button
-          type="submit"
-          disabled={loading || !username.trim()}
-          className="w-full bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-white font-bold py-3 rounded-xl transition-all"
-        >
-          {loading ? (
-            <span className="flex items-center justify-center gap-2">
-              <span className="inline-block w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-              Import en cours… (peut prendre 1-2 min)
-            </span>
-          ) : isExistingUsername ? (
-            'Synchroniser ma collection →'
-          ) : (
-            'Importer ma collection →'
-          )}
+        <button type="submit" disabled={loading || !username.trim()} className="btn btn-primary w-full">
+          {loading
+            ? 'Import en cours… (1 à 2 minutes)'
+            : isExistingUsername ? 'Synchroniser ma collection' : 'Importer ma collection'}
         </button>
+        {loading && <p role="status" className="text-center text-stone-600">Patientez, on parle à BoardGameGeek.</p>}
       </form>
 
-      {error && (
-        <div className="mt-4 bg-red-50 border border-red-200 text-red-700 rounded-xl p-4 text-sm">
-          {error}
-        </div>
-      )}
+      <ErrorMessage>{error}</ErrorMessage>
 
       {status && (
-        <div className="mt-4 bg-green-50 border border-green-200 rounded-xl p-4">
-          <div className="text-green-800 font-bold mb-1">✅ Import terminé !</div>
-          <p className="text-green-700 text-sm">{status.message}</p>
-          <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-3 text-center text-sm">
-            <div className="bg-white rounded-lg p-3 shadow-sm">
-              <div className="font-bold text-xl text-stone-900">{status.total}</div>
-              <div className="text-stone-400">Total</div>
-            </div>
-            <div className="bg-white rounded-lg p-3 shadow-sm">
-              <div className="font-bold text-xl text-green-600">{status.imported}</div>
-              <div className="text-stone-400">Nouveaux</div>
-            </div>
-            {status.enriched > 0 && (
-              <div className="bg-white rounded-lg p-3 shadow-sm">
-                <div className="font-bold text-xl text-amber-600">{status.enriched}</div>
-                <div className="text-stone-400">Enrichis</div>
+        <section className="panel flex flex-col gap-4 bg-cream p-5 sm:p-6" aria-labelledby="titre-bilan" role="status">
+          <h2 id="titre-bilan" className="text-2xl">Import terminé</h2>
+          <p>{status.message}</p>
+          <dl className="m-0 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {[
+              ['Total', status.total],
+              ['Nouveaux', status.imported],
+              ...(status.enriched > 0 ? [['Enrichis', status.enriched]] : []),
+              ['Déjà présents', status.skipped],
+            ].map(([label, value]) => (
+              <div key={label} className="rounded-xl border-[3px] border-ink bg-paper p-3 text-center">
+                <dd className="m-0 font-display text-3xl leading-none">{value}</dd>
+                <dt className="mt-1 text-sm font-bold text-stone-600">{label}</dt>
               </div>
-            )}
-            <div className="bg-white rounded-lg p-3 shadow-sm">
-              <div className="font-bold text-xl text-stone-400">{status.skipped}</div>
-              <div className="text-stone-400">Déjà présents</div>
-            </div>
-          </div>
-          <a href="/ludotheque" className="mt-4 block text-center text-amber-600 hover:underline text-sm font-medium">
-            Voir ma ludothèque →
-          </a>
-        </div>
+            ))}
+          </dl>
+          <Link to="/ludotheque" className="btn btn-secondary self-start">Voir ma ludothèque</Link>
+        </section>
       )}
 
-      <div className="mt-8 bg-stone-100 rounded-xl p-4 text-sm text-stone-500">
-        <p className="font-semibold text-stone-700 mb-2">ℹ️ Comment trouver votre pseudo BGG ?</p>
-        <ol className="list-decimal list-inside space-y-1">
-          <li>Rendez-vous sur boardgamegeek.com</li>
-          <li>Connectez-vous à votre compte</li>
-          <li>Votre pseudo apparaît en haut à droite</li>
-          <li>Assurez-vous que votre collection est publique</li>
+      <section className="panel p-5 sm:p-6" aria-labelledby="titre-pseudo">
+        <h2 id="titre-pseudo" className="mb-2 text-2xl">Trouver votre pseudo BGG</h2>
+        <ol className="m-0 flex list-decimal flex-col gap-1 pl-5 text-stone-700">
+          <li>Rendez-vous sur boardgamegeek.com.</li>
+          <li>Connectez-vous à votre compte.</li>
+          <li>Votre pseudo apparaît en haut à droite.</li>
+          <li>Assurez-vous que votre collection est publique.</li>
         </ol>
-      </div>
+      </section>
     </div>
   )
 }

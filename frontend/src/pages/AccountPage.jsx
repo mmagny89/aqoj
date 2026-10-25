@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { exportAccount, deleteAccount } from '../api'
+import { ErrorMessage, Field } from '../components/forms'
 
 export default function AccountPage() {
   const { user, logout } = useAuth()
@@ -41,71 +42,57 @@ export default function AccountPage() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-8 space-y-6">
-      <h1 className="text-2xl font-black text-stone-900">Mon compte</h1>
-      <p className="text-sm text-stone-600">Connecté·e avec {user?.email}</p>
+    <div className="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-10 lg:py-8">
+      <div>
+        <h1 className="text-4xl leading-tight sm:text-5xl">Mon compte</h1>
+        <p className="mt-1 text-lg text-stone-600">Connecté·e avec <strong className="text-ink">{user?.email}</strong></p>
+      </div>
 
-      {error && <p role="alert" className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>}
+      <ErrorMessage>{error}</ErrorMessage>
 
-      <section className="bg-white rounded-2xl border border-stone-200 shadow-sm p-6 space-y-3">
-        <h2 className="font-bold text-stone-900">Récupérer mes données</h2>
-        <p className="text-sm text-stone-600">
+      <section className="panel flex flex-col gap-3 p-5 sm:p-6" aria-labelledby="titre-export">
+        <h2 id="titre-export" className="text-2xl">Récupérer mes données</h2>
+        <p className="text-stone-600">
           Un fichier JSON avec votre compte, votre ludothèque, vos notes, vos parties et vos préférences.
         </p>
-        <button
-          type="button"
-          onClick={handleExport}
-          className="px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold"
-        >
-          Télécharger mes données
-        </button>
+        <div>
+          <button type="button" onClick={handleExport} className="btn btn-secondary">
+            Télécharger mes données
+          </button>
+        </div>
       </section>
 
-      <section className="bg-white rounded-2xl border border-red-200 shadow-sm p-6 space-y-3">
-        <h2 className="font-bold text-red-800">Supprimer mon compte</h2>
-        <p className="text-sm text-stone-600">
+      <section className="panel flex flex-col gap-3 border-brand-red p-5 sm:p-6" aria-labelledby="titre-suppression">
+        <h2 id="titre-suppression" className="text-2xl">Supprimer mon compte</h2>
+        <p className="text-stone-600">
           Votre compte, votre ludothèque, vos parties et vos préférences sont effacés immédiatement et
           définitivement.
         </p>
         {confirming ? (
-          <form onSubmit={handleDelete} className="space-y-3">
-            <label className="block text-sm font-medium text-stone-700" htmlFor="delete-password">
-              Votre mot de passe, pour confirmer
-            </label>
-            <input
-              id="delete-password"
+          <form onSubmit={handleDelete} className="flex flex-col gap-3">
+            <Field
+              label="Votre mot de passe, pour confirmer"
               type="password"
               autoComplete="current-password"
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border border-stone-300 focus:outline-none focus:ring-2 focus:ring-red-400"
             />
-            <div className="flex gap-2">
-              <button
-                type="submit"
-                disabled={busy}
-                className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 disabled:opacity-60 text-white text-sm font-semibold"
-              >
+            <div className="flex flex-wrap gap-3">
+              <button type="submit" disabled={busy} className="btn bg-brand-red">
                 Supprimer définitivement
               </button>
-              <button
-                type="button"
-                onClick={() => { setConfirming(false); setPassword('') }}
-                className="px-4 py-2 rounded-lg border border-stone-300 text-sm text-stone-700 hover:bg-stone-100"
-              >
+              <button type="button" onClick={() => { setConfirming(false); setPassword('') }} className="btn bg-paper">
                 Annuler
               </button>
             </div>
           </form>
         ) : (
-          <button
-            type="button"
-            onClick={() => setConfirming(true)}
-            className="px-4 py-2 rounded-lg border border-red-300 text-red-700 text-sm font-semibold hover:bg-red-50"
-          >
-            Supprimer mon compte
-          </button>
+          <div>
+            <button type="button" onClick={() => setConfirming(true)} className="btn bg-paper">
+              Supprimer mon compte
+            </button>
+          </div>
         )}
       </section>
     </div>
