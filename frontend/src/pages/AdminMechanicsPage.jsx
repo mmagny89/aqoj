@@ -257,7 +257,7 @@ export default function AdminMechanicsPage() {
         />
       </form>
 
-      <div role="tablist" aria-label="Familles" className="flex flex-wrap gap-2">
+      <div role="tablist" aria-label="Familles" className="tab-list">
         {tabs.map(tab => (
           <button
             key={tab.key}
@@ -267,7 +267,7 @@ export default function AdminMechanicsPage() {
             aria-selected={activeTab === tab.key}
             aria-controls="meca-panneau"
             onClick={() => setActiveTab(tab.key)}
-            className={`chip ${activeTab === tab.key ? 'is-on' : ''}`}
+            className="tab"
           >
             {tab.label}
             <span className="ml-2 text-sm opacity-80">{tab.count}</span>

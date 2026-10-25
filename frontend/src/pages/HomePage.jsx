@@ -196,13 +196,12 @@ function DecadeTabs({ byDecade }) {
 
   return (
     <div>
-      <div role="tablist" aria-label="Décennies" className="mb-5 flex gap-2 overflow-x-auto pb-1">
+      <div role="tablist" aria-label="Décennies" className="mb-4 flex gap-1.5 overflow-x-auto pb-1">
         {labels.map(label => (
           <button key={label} type="button" role="tab" id={`epoque-${label}`} aria-selected={active === label} aria-controls="epoque-panneau"
-            onClick={() => setActive(label)} className="chip shrink-0" aria-pressed={undefined}
-            style={active === label ? { background: 'var(--color-ink)', color: 'var(--color-paper)' } : undefined}>
+            onClick={() => setActive(label)} className="chip chip-sm shrink-0">
             {label}
-            <span className="ml-2 text-sm opacity-80">{byDecade[label].length}</span>
+            <span className="ml-1.5 opacity-80">{byDecade[label].length}</span>
           </button>
         ))}
       </div>
@@ -223,11 +222,10 @@ function DiscoverTabs({ tabs }) {
   return (
     <section aria-labelledby="titre-decouvrir">
       <h2 id="titre-decouvrir" className="sr-only">À découvrir</h2>
-      <div role="tablist" aria-label="À découvrir" className="mb-5 flex gap-2 overflow-x-auto pb-1">
+      <div role="tablist" aria-label="À découvrir" className="tab-list mb-5">
         {tabs.map(({ id, label }) => (
           <button key={id} type="button" role="tab" id={`onglet-${id}`} aria-selected={current.id === id} aria-controls="onglet-panneau"
-            onClick={() => setActive(id)} className="chip shrink-0"
-            style={current.id === id ? { background: 'var(--color-ink)', color: 'var(--color-paper)' } : undefined}>
+            onClick={() => setActive(id)} className="tab">
             {label}
           </button>
         ))}

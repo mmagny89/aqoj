@@ -32,7 +32,7 @@ function ResultTabs({ baseGames, expansions, activeTab, onTab }) {
   ]
 
   return (
-    <div role="tablist" aria-label="Type de résultats" className="mb-5 flex flex-wrap gap-2">
+    <div role="tablist" aria-label="Type de résultats" className="tab-list mb-5">
       {tabs.map(tab => (
         <button
           key={tab.key}
@@ -42,7 +42,7 @@ function ResultTabs({ baseGames, expansions, activeTab, onTab }) {
           aria-selected={activeTab === tab.key}
           aria-controls="resultats-panneau"
           onClick={() => onTab(tab.key)}
-          className={`chip ${activeTab === tab.key ? 'is-on' : ''}`}
+          className="tab"
         >
           {tab.label}
           <span className="ml-2 text-sm opacity-80">{tab.count}</span>

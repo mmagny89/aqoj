@@ -186,6 +186,45 @@
     color: var(--color-paper);
   }
 
+  /* Onglets : bande à onglets dossier, posée sur un filet d'encre. Les sous-onglets restent des puces (.chip .chip-sm). */
+  .tab-list {
+    display: flex;
+    gap: 0.25rem;
+    overflow-x: auto;
+    border-bottom: 3px solid var(--color-ink);
+  }
+
+  .tab {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.75rem;
+    margin-bottom: -3px;
+    padding: 0 1rem;
+    border: 3px solid transparent;
+    border-bottom-width: 0;
+    border-radius: 0.75rem 0.75rem 0 0;
+    background: transparent;
+    color: var(--color-ink);
+    font-weight: 800;
+    cursor: pointer;
+  }
+
+  .tab:hover {
+    background: color-mix(in srgb, var(--color-paper) 60%, transparent);
+  }
+
+  .tab[aria-selected="true"] {
+    border-color: var(--color-ink);
+    border-bottom: 3px solid var(--color-paper);
+    background: var(--color-paper);
+  }
+
+  .chip[aria-selected="true"] {
+    background: var(--color-ink);
+    color: var(--color-paper);
+  }
+
   /* Filtre fin : 28 px visibles, zone tactile de 44 px (le ::after déborde sur la hauteur, pas sur le côté). */
   .chip-sm {
     position: relative;
