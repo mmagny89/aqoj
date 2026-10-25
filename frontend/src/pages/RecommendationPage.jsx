@@ -6,9 +6,10 @@ import { useAuth } from '../context/AuthContext'
 import { ENGINES, SUPPORT_FAMILIES, EXTRA_FAMILIES, familyLabel } from '../utils/engelstein'
 
 /* ── Chip sélectionnable ─────────────────────────────────────────────── */
-function Chip({ active, onClick, icon, label }) {
+function Chip({ active, onClick, icon, label, small = false }) {
   return (
-    <button type="button" onClick={onClick} aria-pressed={active} className="chip !min-h-11 text-sm">
+    <button type="button" onClick={onClick} aria-pressed={active} className={small ? 'chip chip-sm' : 'chip !min-h-11 text-sm'}>
+      {small && <span aria-hidden="true" className="mr-1 inline-block w-3 text-center">{active ? '✓' : ''}</span>}
       {icon && <span aria-hidden="true" className="mr-1.5">{icon}</span>}
       {label}
     </button>
@@ -273,11 +274,14 @@ export default function RecommendationPage() {
 
             {/* Suggestions issues des préférences */}
             {favoriteStyles.length > 0 && (
-              <div className="rounded-xl border-[3px] border-ink bg-amber-100 p-3">
-                <p className="mb-2 font-bold">Vos styles favoris</p>
-                <div className="flex flex-wrap gap-2">
+              <div role="group" aria-labelledby="styles-favoris" className="rounded-xl border-2 border-ink bg-amber-100 px-3 py-2.5">
+                <div className="mb-1.5 flex items-baseline justify-between gap-2">
+                  <p id="styles-favoris" className="m-0 text-sm font-bold">Vos styles favoris</p>
+                  <span className="text-xs text-stone-600">{selectedFamilies.filter(k => favoriteStyles.includes(k)).length} / {favoriteStyles.length}</span>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
                   {favoriteStyles.map(key => (
-                    <Chip key={key} active={selectedFamilies.includes(key)} onClick={() => toggle(key)} label={familyLabel(key)} />
+                    <Chip small key={key} active={selectedFamilies.includes(key)} onClick={() => toggle(key)} label={familyLabel(key)} />
                   ))}
                 </div>
               </div>
