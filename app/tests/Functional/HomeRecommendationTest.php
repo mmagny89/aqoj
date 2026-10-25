@@ -6,24 +6,49 @@ use Doctrine\DBAL\Connection;
 
 final class HomeRecommendationTest extends ApiTestCase
 {
-    public function testSansHistoriqueNiGoutsOnProposeDesNouveautesAbordables(): void
+    public function testLesNouveautesSontLeTopBggDesSortiesRecentesEtAVenir(): void
     {
         $client = static::createClient();
         $token = $this->register($client, 'froid@example.test');
         $annee = (int) date('Y');
-        $this->creerJeu('Zzfroid Bon', $annee - 1, 2.3, 8.0, 5000);
-        $this->creerJeu('Zzfroid Ancien', $annee - 6, 2.3, 8.5, 5000);
-        $this->creerJeu('Zzfroid Expert', $annee - 1, 4.2, 8.5, 5000);
-        $this->creerJeu('Zzfroid Confidentiel', $annee - 1, 2.3, 9.0, 20);
-        $this->creerJeu('Zzfroid Extension', $annee - 1, 2.3, 8.5, 5000, extension: true);
+        $this->creerJeu('Zznouv Suivi', $annee, 2.3, 8.0, 5000);
+        $this->creerJeu('Zznouv AVenir', $annee + 1, 3.0, 7.0, 800);
+        $this->creerJeu('Zznouv Discret', $annee, 2.3, 7.5, 60);
+        $this->creerJeu('Zznouv Ancien', $annee - 3, 2.3, 8.5, 9000);
+        $this->creerJeu('Zznouv Trop Loin', $annee + 3, 2.3, 8.5, 9000);
+        $this->creerJeu('Zznouv Mediocre', $annee, 2.3, 4.5, 4000);
+        $this->creerJeu('Zznouv Confidentiel', $annee, 2.3, 9.0, 5);
+        $this->creerJeu('Zznouv Extension', $annee, 2.3, 8.5, 6000, extension: true);
 
         $reco = $this->call($client, 'GET', '/api/games/home-reco', token: $token);
 
         self::assertResponseIsSuccessful();
         self::assertTrue($reco['coldStart']);
-        self::assertSame([], $reco['byDecade']);
-        self::assertSame(['Zzfroid Bon'], array_column(array_column($reco['recent'], 'game'), 'name'));
-        self::assertStringContainsString('facile à aborder', $reco['recent'][0]['reason']);
+        // Les plus votés d'abord ; ni extension, ni jeu à moins de 6/10, ni jeu quasi inconnu, ni hors fenêtre.
+        self::assertSame(['Zznouv Suivi', 'Zznouv AVenir', 'Zznouv Discret'], array_column(array_column($reco['recent'], 'game'), 'name'));
+        self::assertStringContainsString('Sorti en ' . $annee, $reco['recent'][0]['reason']);
+        self::assertStringContainsString('À paraître en ' . ($annee + 1), $reco['recent'][1]['reason']);
+    }
+
+    public function testLesNouveautesNeProposentPasCeQueLeJoueurAdejaEtSontLimiteesADix(): void
+    {
+        $client = static::createClient();
+        $token = $this->register($client, 'dix@example.test');
+        $annee = (int) date('Y');
+        for ($i = 1; $i <= 12; $i++) {
+            $this->creerJeu(sprintf('Zzdix %02d', $i), $annee, 2.0, 7.0, 1000 - $i);
+        }
+        static::getContainer()->get(Connection::class)->executeStatement(
+            'INSERT INTO user_game (user_id, game_id) VALUES ((SELECT id FROM app_user WHERE email = ?), (SELECT id FROM game WHERE name = ?))',
+            ['dix@example.test', 'Zzdix 01'],
+        );
+
+        $reco = $this->call($client, 'GET', '/api/games/home-reco', token: $token);
+        $noms = array_column(array_column($reco['recent'], 'game'), 'name');
+
+        self::assertCount(10, $noms);
+        self::assertNotContains('Zzdix 01', $noms);
+        self::assertSame('Zzdix 02', $noms[0]);
     }
 
     public function testLesGoutsDeclaresDonnentUnProfil(): void
@@ -31,8 +56,8 @@ final class HomeRecommendationTest extends ApiTestCase
         $client = static::createClient();
         $token = $this->register($client, 'gouts@example.test');
         $annee = (int) date('Y');
-        $this->creerJeu('Zzgout Coop', $annee - 1, 2.0, 7.8, 3000, familles: ['cooperation']);
-        $this->creerJeu('Zzgout Encheres', $annee - 1, 2.0, 7.8, 3000, familles: ['auction']);
+        $this->creerJeu('Zzgout Coop', $annee, 2.0, 7.8, 3000, familles: ['cooperation']);
+        $this->creerJeu('Zzgout Encheres', $annee, 2.0, 7.8, 3000, familles: ['auction']);
 
         $reponse = $this->call($client, 'PUT', '/api/user/taste', ['families' => ['cooperation']], $token);
         self::assertResponseIsSuccessful();
@@ -43,40 +68,8 @@ final class HomeRecommendationTest extends ApiTestCase
         self::assertFalse($reco['coldStart']);
         self::assertSame(['cooperation'], $reco['families']);
         self::assertSame(['cooperation'], $reco['declared']);
-        self::assertSame(['Zzgout Coop'], array_column(array_column($reco['recent'], 'game'), 'name'));
-    }
-
-    public function testLaFenetreDesNouveautesCouvreCinqAns(): void
-    {
-        $client = static::createClient();
-        $token = $this->register($client, 'fenetre@example.test');
-        $annee = (int) date('Y');
-        $this->creerJeu('Zzfen Limite', $annee - 4, 2.0, 7.8, 3000, familles: ['cooperation']);
-        $this->creerJeu('Zzfen Dehors', $annee - 5, 2.0, 7.8, 3000, familles: ['cooperation']);
-        $this->call($client, 'PUT', '/api/user/taste', ['families' => ['cooperation']], $token);
-
-        $reco = $this->call($client, 'GET', '/api/games/home-reco', token: $token);
-
-        self::assertSame(['Zzfen Limite'], array_column(array_column($reco['recent'], 'game'), 'name'));
-        $anciens = array_merge(...array_values(array_map(fn(array $liste) => array_column(array_column($liste, 'game'), 'name'), $reco['byDecade'])));
-        self::assertContains('Zzfen Dehors', $anciens);
-        self::assertNotContains('Zzfen Limite', $anciens);
-        self::assertStringContainsString('Nouveauté ' . ($annee - 4), $reco['recent'][0]['reason']);
-    }
-
-    public function testUneNouveauteMoinsNoteeMonteAuDessusDUnClassiqueComparable(): void
-    {
-        $client = static::createClient();
-        $token = $this->register($client, 'ordre@example.test');
-        $annee = (int) date('Y');
-        // Même note brute, mais le classique a des milliers de votes : sans seuil adapté, la nouveauté serait écartée.
-        $this->creerJeu('Zzord Classique', $annee - 12, 2.0, 7.9, 20000, familles: ['cooperation']);
-        $this->creerJeu('Zzord Nouveau', $annee, 2.0, 7.9, 250, familles: ['cooperation']);
-        $this->call($client, 'PUT', '/api/user/taste', ['families' => ['cooperation']], $token);
-
-        $reco = $this->call($client, 'GET', '/api/games/home-reco', token: $token);
-
-        self::assertSame(['Zzord Nouveau'], array_column(array_column($reco['recent'], 'game'), 'name'));
+        // Les goûts n'orientent plus les nouveautés : ils classent les décennies et les recommandations.
+        self::assertSame(['Zzgout Coop', 'Zzgout Encheres'], array_column(array_column($reco['recent'], 'game'), 'name'));
     }
 
     public function testLaDecouverteFaitRemonterLesNouveautesMemeNoyeesParLesClassiques(): void
@@ -121,11 +114,11 @@ final class HomeRecommendationTest extends ApiTestCase
         $moi = $this->register($client, 'perimetre@example.test');
         $this->register($client, 'voisin@example.test');
         $annee = (int) date('Y');
-        $this->creerJeu('Zzper Asso', $annee - 2, 1.8, 7.6, 5000);
-        $this->creerJeu('Zzper Voisin', $annee - 2, 1.8, 7.6, 5000);
-        $this->creerJeu('Zzper Le Mien', $annee - 2, 1.8, 7.6, 5000);
-        $this->creerJeu('Zzper Hors', $annee - 2, 1.8, 7.6, 5000);
-        $this->creerJeu('Zzper Modeste', $annee - 2, 1.8, 5.0, 10);
+        $this->creerJeu('Zzper Asso', $annee, 1.8, 7.6, 5000);
+        $this->creerJeu('Zzper Voisin', $annee, 1.8, 7.6, 5000);
+        $this->creerJeu('Zzper Le Mien', $annee, 1.8, 7.6, 5000);
+        $this->creerJeu('Zzper Hors', $annee, 1.8, 7.6, 5000);
+        $this->creerJeu('Zzper Modeste', $annee, 1.8, 5.0, 10);
         $conn = static::getContainer()->get(Connection::class);
         foreach (['Zzper Asso', 'Zzper Modeste'] as $jeu) {
             $conn->executeStatement('INSERT INTO association_game (game_id) SELECT id FROM game WHERE bgg_id = ?', ['zz' . md5($jeu)]);
@@ -153,10 +146,11 @@ final class HomeRecommendationTest extends ApiTestCase
         sort($noms);
         self::assertSame(['Zzper Asso', 'Zzper Le Mien', 'Zzper Modeste', 'Zzper Voisin'], $noms);
 
+        // Les nouveautés BGG ne dépendent pas du périmètre, mais jamais ce que j'ai déjà ; « Modeste » (5/10, 10 votes) est écartée.
         $reco = $this->call($client, 'GET', '/api/games/home-reco?scope=library', token: $moi);
         $noms = array_column(array_column($reco['recent'], 'game'), 'name');
         sort($noms);
-        self::assertSame(['Zzper Asso', 'Zzper Le Mien', 'Zzper Modeste', 'Zzper Voisin'], $noms);
+        self::assertSame(['Zzper Asso', 'Zzper Hors', 'Zzper Voisin'], $noms);
     }
 
     public function testLesJeuxDesAutresMembresNeSortentQuAPartirDeDeuxJoueurs(): void
