@@ -272,10 +272,18 @@ class GameRepository extends ServiceEntityRepository
             "SELECT id FROM game
              WHERE unaccent(LOWER(name)) LIKE unaccent(LOWER(:q))
                 OR unaccent(LOWER(COALESCE(name_original, ''))) LIKE unaccent(LOWER(:q))
-             -- Jeux de base en premier, puis par note BGG décroissante
-             ORDER BY is_expansion ASC, rating_bgg DESC NULLS LAST
+             -- Le titre exact d'abord, puis ceux qui commencent par la saisie, puis le reste ;
+             -- à égalité, jeux de base avant extensions, puis note BGG décroissante
+             ORDER BY (unaccent(LOWER(name)) = unaccent(LOWER(:exact)) OR unaccent(LOWER(COALESCE(name_original, ''))) = unaccent(LOWER(:exact))) DESC,
+                      (unaccent(LOWER(name)) LIKE unaccent(LOWER(:prefix)) OR unaccent(LOWER(COALESCE(name_original, ''))) LIKE unaccent(LOWER(:prefix))) DESC,
+                      is_expansion ASC, rating_bgg DESC NULLS LAST
              LIMIT :limit",
-            ['q' => '%' . addcslashes($query, '%_\\') . '%', 'limit' => $limit],
+            [
+                'q'      => '%' . addcslashes($query, '%_\\') . '%',
+                'exact'  => $query,
+                'prefix' => addcslashes($query, '%_\\') . '%',
+                'limit'  => $limit,
+            ],
         );
         if ($ids === []) {
             return [];

@@ -1,6 +1,7 @@
 import { useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import ImportBggTab from '../components/ImportBggTab'
+import ImportMyLudoTab from '../components/ImportMyLudoTab'
 
 const TABS = [
   { key: 'bgg', label: 'Compte BGG' },
@@ -57,7 +58,7 @@ export default function ImportPage() {
 
       <div id="import-panneau" role="tabpanel" aria-labelledby={`import-${active}`}>
         {active === 'bgg' && <ImportBggTab />}
-        {active === 'myludo' && <ComingSoon>L'import de votre collection MyLudo arrive dans un instant.</ComingSoon>}
+        {active === 'myludo' && <ImportMyLudoTab />}
         {active === 'parties' && <ComingSoon>L'import de vos parties MyLudo viendra plus tard.</ComingSoon>}
       </div>
     </div>

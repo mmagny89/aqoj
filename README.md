@@ -55,6 +55,10 @@ Plateforme de découverte et recommandation de jeux de société, connectée à 
 - Les filtres thématiques sont chargés dynamiquement depuis les mappings admin (plus de liste figée dans le code)
 - Suggestions de filtres basées sur les préférences mécaniques de l'utilisateur
 
+### Import (menu « Import »)
+- Trois onglets : **Compte BGG**, **Ma collection MyLudo**, **Mes parties MyLudo** (à venir).
+- **MyLudo** : on dépose l'export CSV de sa ludothèque ; le fichier est rapproché du catalogue (MyLudo ne donne pas d'identifiant BGG), puis une interface permet de **départager les homonymes**, de **chercher les jeux introuvables** ou de les laisser de côté. Rien n'est ajouté avant la confirmation ; la note personnelle est reprise.
+
 ### Accueil sans compte BGG
 - Le questionnaire de goûts se remplit aussi (et s'efface) dans **Mon compte → Mes goûts**. Tant que rien n'est déclaré, l'accueil le rappelle ; les goûts déclarés passent avant ceux déduits de l'historique.
 - Sans historique ni notes, l'accueil propose des **nouveautés accessibles** (5 dernières années, complexité ≤ 3, assez de votes) et un questionnaire « Ce que vous aimez » (six styles au plus), enregistré sur le compte et jamais écrasé par le recalcul des préférences.

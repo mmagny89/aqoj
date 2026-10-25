@@ -5,7 +5,7 @@ import { MemoryRouter } from 'react-router-dom'
 import ImportPage from './ImportPage'
 
 vi.mock('../context/AuthContext', () => ({ useAuth: () => ({ user: { email: 'a@example.test' }, login: vi.fn() }) }))
-vi.mock('../api', () => ({ importBgg: vi.fn(), getMe: vi.fn() }))
+vi.mock('../api', () => ({ importBgg: vi.fn(), getMe: vi.fn(), analyzeMyLudo: vi.fn(), importMyLudo: vi.fn(), searchGames: vi.fn() }))
 
 const renderAt = (url = '/importer') => render(<MemoryRouter initialEntries={[url]}><ImportPage /></MemoryRouter>)
 

@@ -79,4 +79,32 @@ class UserGameRepository
             );
         }
     }
+
+    /**
+     * Ajoute des jeux à la ludothèque d'un joueur (ceux qui y sont déjà restent) et pose la note personnelle
+     * quand elle est fournie, sans jamais effacer une note existante.
+     *
+     * @param array<int, float|null> $ratingsByGameId gameId => note (null = pas de note)
+     *
+     * @return array{added: int, existing: int}
+     */
+    public function addMany(User $user, array $ratingsByGameId): array
+    {
+        if ($ratingsByGameId === []) {
+            return ['added' => 0, 'existing' => 0];
+        }
+
+        $existing = count(array_intersect_key($ratingsByGameId, $this->getOwnedGameIds($user)));
+
+        foreach ($ratingsByGameId as $gameId => $rating) {
+            $this->conn->executeStatement(
+                'INSERT INTO user_game (user_id, game_id, bgg_user_rating) VALUES (?, ?, ?)
+                 ON CONFLICT (user_id, game_id) DO UPDATE
+                 SET bgg_user_rating = COALESCE(EXCLUDED.bgg_user_rating, user_game.bgg_user_rating)',
+                [$user->getId(), $gameId, $rating],
+            );
+        }
+
+        return ['added' => count($ratingsByGameId) - $existing, 'existing' => $existing];
+    }
 }
