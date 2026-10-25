@@ -1,16 +1,18 @@
 # À quoi on joue
 
-[![Qualité et déploiement](https://github.com/mmagny89/aqoj/actions/workflows/qualite.yml/badge.svg?branch=develop)](https://github.com/mmagny89/aqoj/actions/workflows/qualite.yml)
+[![Qualité et déploiement](https://github.com/mmagny89/aqoj/actions/workflows/qualite.yml/badge.svg?branch=main)](https://github.com/mmagny89/aqoj/actions/workflows/qualite.yml)
+[![Release](https://github.com/mmagny89/aqoj/actions/workflows/release.yml/badge.svg)](https://github.com/mmagny89/aqoj/actions/workflows/release.yml)
 [![Version](https://img.shields.io/github/v/tag/mmagny89/aqoj?label=version&sort=semver)](CHANGELOG.md)
+[![Licence propriétaire](https://img.shields.io/badge/licence-propri%C3%A9taire-lightgrey)](LICENSE)
+[![Conventional Commits](https://img.shields.io/badge/Conventional_Commits-1.0.0-fe5196?logo=conventionalcommits&logoColor=white)](https://www.conventionalcommits.org/fr/v1.0.0/)
 ![PHP](https://img.shields.io/badge/PHP-8.5-777BB4?logo=php&logoColor=white)
 ![Symfony](https://img.shields.io/badge/Symfony-8.1-000000?logo=symfony&logoColor=white)
 ![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-18-4169E1?logo=postgresql&logoColor=white)
+![FrankenPHP](https://img.shields.io/badge/FrankenPHP-1.13-5A4FCF)
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?logo=tailwindcss&logoColor=white)
-[![Licence propriétaire](https://img.shields.io/badge/licence-propri%C3%A9taire-lightgrey)](LICENSE)
-[![Conventional Commits](https://img.shields.io/badge/Conventional_Commits-1.0.0-fe5196?logo=conventionalcommits&logoColor=white)](https://www.conventionalcommits.org/fr/v1.0.0/)
 
-Plateforme de découverte et recommandation de jeux de société, connectée à BoardGameGeek.
+Plateforme de découverte et de recommandation de jeux de société pour les membres de l'association Envie de Jouer, alimentée par BoardGameGeek (BGG). Beaucoup de membres n'ont pas de compte BGG (leur ludothèque est sur MyLudo, qui n'a pas d'API) : le site se sert de l'export CSV de MyLudo et de goûts déclarés, pas seulement de BGG.
 
 ## Stack technique
 
@@ -27,10 +29,10 @@ Plateforme de découverte et recommandation de jeux de société, connectée à 
 ## Fonctionnalités
 
 ### Ludothèque personnelle
-- Import de la collection depuis BoardGameGeek (username BGG)
-- Synchronisation des notes personnelles BGG (1–10) sur chaque jeu
+- Import de la collection depuis **BoardGameGeek** (pseudo BGG) ou depuis l'**export CSV de MyLudo** (voir « Import »)
+- Notes personnelles (1–10) reprises de BGG ou de MyLudo
 - Vue en deux onglets principaux :
-  - **⭐ Déjà joués** — jeux avec une note BGG, triés par note décroissante
+  - **⭐ Déjà joués** — jeux avec une note, triés par note décroissante
   - **🎁 Pas encore joués** — jeux sans note, triés alphabétiquement
 - Chaque onglet dispose de deux sous-onglets **🎲 Jeux de base** et **➕ Extensions**
 - Infinite scroll sur chaque onglet
@@ -40,10 +42,31 @@ Plateforme de découverte et recommandation de jeux de société, connectée à 
   - Catégories BGG favorites
   - Recalcul automatique si les préférences sont absentes
 
-### Recommandations personnalisées
+### Accueil
+- **La table** : le bandeau « Qu'est-ce qu'on joue ce soir ? » se règle librement (1 à 8 joueurs, de 15 min à « peu importe ») et **s'enregistre sur le compte** à chaque changement. On la retrouve à la visite suivante et sur la page de recommandation.
+- **Pour votre table** — deux rangées qui suivent la table :
+  - **Ce que jouent les autres membres** : jeux de base joués dans l'année par au moins deux joueurs distincts. Seuls des totaux sortent, jamais qui a joué.
+  - **Faciles à expliquer** : jeux du catalogue de complexité ≤ 2,5, nouveautés favorisées.
+- **Nouveautés pour vous** : jeux des **5 dernières années** proches de votre profil. Bonus de récence continu et seuil de confiance réduit pour les jeux peu votés.
+- **Oubliés de votre ludothèque**, puis **Par époque** (décennies précédant les nouveautés).
+- **Sans historique ni compte BGG** (démarrage à froid) : « Nouveautés à découvrir », jeux de base récents, abordables (complexité ≤ 3) et assez votés, sans filtre de mécanique, puis le questionnaire de goûts.
+- Un même jeu ne s'affiche qu'une fois sur la page.
+
+### Mes goûts (questionnaire)
+- Jusqu'à six styles de jeu, à remplir sur l'accueil (démarrage à froid) ou dans **Mon compte → Mes goûts**, où on peut aussi tout effacer.
+- Ils passent **avant** les goûts déduits de l'historique (notes, parties aimées), qui les complètent jusqu'à quatre familles ; le recalcul des préférences ne les efface jamais.
+- Tant que rien n'est déclaré, l'accueil le rappelle (« Plus tard » masque le rappel une semaine).
+
+### Import (menu « Import »)
+- Trois onglets : **Compte BGG**, **Ma collection MyLudo**, **Mes parties MyLudo** (à venir).
+- **MyLudo** : on dépose l'export CSV de sa ludothèque. MyLudo ne donne pas d'identifiant BGG : le fichier est rapproché du catalogue par le titre (avec ou sans sous-titre, sans accents ni ponctuation) et l'année d'édition. Une interface permet ensuite de **départager les homonymes**, de **chercher les jeux introuvables** ou de les laisser de côté. Rien n'est ajouté avant la confirmation ; le fichier n'est pas conservé ; la note personnelle est reprise sans effacer une note existante.
+- **Ludothèque de l'association** : un administrateur choisit « La ludothèque de l'association » comme destination, puis importe un export MyLudo ou le compte BGG de l'association (pseudo obligatoire, jamais celui de l'administrateur). La liste est consultable et un jeu mal importé se retire. Elle n'alimente pas encore les recommandations.
+
+### Recommandations personnalisées (page « Ce soir on joue »)
 - **Ma collection** — recommande parmi les jeux possédés, scorés par note personnelle + fraîcheur + qualité BGG
-- **À découvrir** — suggère des jeux hors collection avec un seuil de qualité BGG ≥ 6.5
+- **À découvrir** — suggère des jeux hors collection (qualité BGG ≥ 6.5), avec un lot de nouveautés ajouté à la sélection et une qualité notée de façon continue, pour que les jeux récents ne soient pas noyés par les classiques
 - Jusqu'à **30 résultats** par onglet, séparés en sous-onglets Jeux de base / Extensions
+- Elle part de la table enregistrée sur l'accueil quand l'adresse n'en porte pas
 - Filtres disponibles dans la barre latérale :
   - Nombre de joueurs
   - Durée maximale (15 min → 4h)
@@ -53,22 +76,7 @@ Plateforme de découverte et recommandation de jeux de société, connectée à 
   - **Thèmes & univers** — catégories mappées dans l'interface admin
   - **Types de jeu** — catégories mappées dans l'interface admin
 - Les filtres thématiques sont chargés dynamiquement depuis les mappings admin (plus de liste figée dans le code)
-- Suggestions de filtres basées sur les préférences mécaniques de l'utilisateur
-
-### Import (menu « Import »)
-- Trois onglets : **Compte BGG**, **Ma collection MyLudo**, **Mes parties MyLudo** (à venir).
-- **MyLudo** : on dépose l'export CSV de sa ludothèque ; le fichier est rapproché du catalogue (MyLudo ne donne pas d'identifiant BGG), puis une interface permet de **départager les homonymes**, de **chercher les jeux introuvables** ou de les laisser de côté. Rien n'est ajouté avant la confirmation ; la note personnelle est reprise.
-
-- **Ludothèque de l'association** : un administrateur choisit « La ludothèque de l'association » comme destination, puis importe un export MyLudo ou le compte BGG de l'association ; la liste est consultable, et un jeu mal importé se retire.
-
-### Accueil sans compte BGG
-- Le questionnaire de goûts se remplit aussi (et s'efface) dans **Mon compte → Mes goûts**. Tant que rien n'est déclaré, l'accueil le rappelle ; les goûts déclarés passent avant ceux déduits de l'historique.
-- Sans historique ni notes, l'accueil propose des **nouveautés accessibles** (5 dernières années, complexité ≤ 3, assez de votes) et un questionnaire « Ce que vous aimez » (six styles au plus), enregistré sur le compte et jamais écrasé par le recalcul des préférences.
-
-### Accueil : pour votre table
-- La table se choisit librement dans le bandeau (1 à 8 joueurs, de 15 min à « peu importe ») et **s'enregistre sur le compte** à chaque changement : on la retrouve à la visite suivante et sur la page de recommandation.
-- Le nombre de joueurs et la durée choisis dans le bandeau pilotent deux rangées : **ce que jouent les autres membres** (jeux de base joués dans l'année par au moins deux joueurs distincts, sans jamais dire qui) et **faciles à expliquer** (complexité ≤ 2,5, nouveautés favorisées).
-- Les nouveautés couvrent les **5 dernières années**, avec un bonus continu et un seuil de confiance adapté aux jeux peu votés.
+- « Vos styles favoris » reprend les goûts déclarés puis les moteurs déduits de l'historique
 
 ### Moteur de mécaniques (modèle Engelstein)
 Chaque jeu est analysé selon 18 familles de mécaniques :
@@ -105,7 +113,7 @@ Ces mappings alimentent directement les filtres de la page Recommandations.
 Explications sur le fonctionnement du site, du modèle de recommandation, du modèle Engelstein, du score de similarité et du calcul de préférences mécaniques.
 
 ### Recherche
-- Recherche textuelle dans le catalogue (jusqu'à 200 résultats)
+- Recherche textuelle dans le catalogue (jusqu'à 200 résultats), le titre exact d'abord, puis les titres qui commencent par la saisie, puis le reste
 - Inclut les extensions et packs promo
 - Enrichissement automatique depuis BGG pour les jeux absents de la base
 
@@ -278,26 +286,23 @@ aqoj/
 │
 ├── app/                            # Symfony 8.1 — API JSON
 │   ├── src/
-│   │   ├── Command/                # Commandes CLI
+│   │   ├── Command/                # Commandes CLI (import et enrichissement BGG, comptes, ménage…)
 │   │   │   ├── ImportCatalogueCommand.php  # app:import:catalogue <fichier> --source=bgg
 │   │   │   ├── ImportBggCsvCommand.php     # ZIP déposé → importeur (tâche planifiée)
 │   │   │   ├── EnrichGamesPendingCommand.php
 │   │   │   ├── SyncBggNewReleasesCommand.php
-│   │   │   ├── RelinkExpansionsCommand.php
-│   │   │   ├── RecomputeMechanicFamiliesCommand.php
-│   │   │   └── SeedGamesCommand.php
+│   │   │   └── …                           # RelinkExpansions, RecomputeMechanicFamilies, SeedGames, comptes, purge
 │   │   ├── Controller/             # Endpoints API
-│   │   │   ├── AuthController.php
-│   │   │   ├── GameController.php
-│   │   │   ├── UserController.php
-│   │   │   └── AdminController.php
-│   │   ├── Entity/                 # Entités Doctrine
-│   │   │   ├── Game.php
-│   │   │   ├── User.php
-│   │   │   ├── UserGame.php
-│   │   │   ├── UserPreference.php
-│   │   │   └── ThemeMapping.php
-│   │   ├── Repository/             # Requêtes DB
+│   │   │   ├── AuthController.php, AccountController.php
+│   │   │   ├── GameController.php          # catalogue, recherche, recommandations, accueil
+│   │   │   ├── BggController.php           # import BGG (ma ludothèque ou celle de l'association)
+│   │   │   ├── MyLudoController.php        # import MyLudo : analyse puis confirmation
+│   │   │   ├── UserPreferenceController.php # préférences, goûts (PUT /user/taste), table (PUT /user/table)
+│   │   │   ├── SessionController.php       # parties jouées
+│   │   │   └── Admin*Controller.php        # statistiques, membres, invitations, catalogue, mappings, ludothèque de l'asso
+│   │   ├── Entity/                 # Game, User, UserPreference, GameSession, InvitationCode, mappings
+│   │   ├── Repository/             # Requêtes DB (dont UserGame et AssociationGame, en DBAL)
+│   │   ├── MyLudo/                 # CsvParser (export MyLudo) et Matcher (rapprochement avec le catalogue)
 │   │   ├── Scheduler/              # Planification des tâches BGG (worker)
 │   │   ├── Catalogue/              # Import : sources (Import/), rapprochement (CatalogueImporter)
 │   │   ├── Security/               # Authentification JWT du pare-feu
@@ -305,23 +310,29 @@ aqoj/
 │   │       ├── BggApiService.php         # Appels API BGG
 │   │       ├── GameEnrichmentService.php # Hydratation des entités
 │   │       ├── MechanicFamilyResolver.php
-│   │       ├── RecommendationService.php
+│   │       ├── RecommendationService.php # accueil, découverte, table du soir, démarrage à froid
 │   │       └── UserPreferenceService.php
-│   └── migrations/                 # Migrations Doctrine
+│   └── migrations/                 # Migrations Doctrine (SQL écrit à la main)
 │
 └── frontend/                       # React 18 + Vite + Tailwind v4 (build statique servi par FrankenPHP)
     └── src/
         ├── pages/
-        │   ├── HomePage.jsx
-        │   ├── LibraryPage.jsx        # Ludothèque (sous-onglets base/ext)
+        │   ├── HomePage.jsx           # Accueil : table, pour votre table, nouveautés, goûts
         │   ├── RecommendationPage.jsx # Recommandations (filtres dynamiques)
+        │   ├── LibraryPage.jsx        # Ludothèque (sous-onglets base/ext)
+        │   ├── ImportPage.jsx         # Import : onglets BGG, MyLudo, parties
+        │   ├── AccountPage.jsx        # Compte : numéro d'adhérent, goûts, mot de passe, données
         │   ├── GameDetailPage.jsx     # Fiche jeu + extensions + similarité
-        │   ├── SearchPage.jsx
+        │   ├── SearchPage.jsx, SessionsPage.jsx
         │   ├── HelpPage.jsx           # /aide — explication du moteur
-        │   ├── AdminPage.jsx
-        │   └── AdminThemesPage.jsx
+        │   └── Admin*.jsx             # Tableau de bord, mécaniques, thèmes
         ├── components/
-        │   └── GameCard.jsx           # Carte jeu (badge extension, % similarité)
+        │   ├── GameCard.jsx           # Carte jeu (badge extension, % similarité)
+        │   ├── TasteForm.jsx          # Questionnaire de goûts (accueil et compte)
+        │   ├── ImportBggTab.jsx, ImportMyLudoTab.jsx  # Onglets de la page Import (rapprochement MyLudo)
+        │   ├── AssociationLibraryPanel.jsx            # Contenu de la ludothèque de l'asso (admin)
+        │   ├── GamePicker.jsx         # Choisir un jeu dans la base (recherche locale)
+        │   └── AppShell.jsx           # Coque : rail latéral, barre d'onglets, recherche
         ├── utils/
         │   ├── engelstein.js          # Familles de mécaniques + couleurs
         │   └── categories.js          # Catégories BGG (recherche)

@@ -1,6 +1,6 @@
 # À quoi on joue
 
-Plateforme de découverte et de recommandation de jeux de société, alimentée par BoardGameGeek (BGG). Dépôt `mmagny89/aqoj`, API Symfony + front React en headless, même origine.
+Plateforme de découverte et de recommandation de jeux de société, alimentée par BoardGameGeek (BGG). Beaucoup de membres n'ont pas de compte BGG (leur ludothèque est sur MyLudo, sans API) : ne jamais supposer une collection BGG ; l'import MyLudo passe par l'export CSV, et les goûts déclarés servent de profil. Dépôt `mmagny89/aqoj`, API Symfony + front React en headless, même origine.
 - Résumés chargés selon le dossier : `app/CLAUDE.md` (back), `frontend/CLAUDE.md` (front). Fonctionnalités et procédures d'exploitation (tâches planifiées, import CSV) : `README.md` ; infrastructure : `README.docker.md`.
 
 ## État
