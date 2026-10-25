@@ -5,7 +5,6 @@ import { getForgottenGems, getHomeRecommendations, getTonightRecommendations, sa
 import GameCard from '../components/GameCard'
 import { DiceIcon, DownloadIcon, SearchIcon, ShelfIcon } from '../components/icons'
 import { familyLabel, familyColor, isEngine } from '../utils/engelstein'
-import TasteForm, { TASTES_MAX } from '../components/TasteForm'
 
 const PLAYERS = [1, 2, 3, 4, 5, 6, 7, 8]
 const DURATIONS = [
@@ -125,20 +124,7 @@ function TonightSection({ tonight, players, maxTime }) {
   )
 }
 
-/* ── Questionnaire de goûts ──────────────────────────────────────────── */
-function TasteSection({ initial, onSaved }) {
-  return (
-    <section className="panel flex flex-col gap-4 p-5 sm:p-7" aria-labelledby="titre-gouts">
-      <div>
-        <h2 id="titre-gouts" className="text-2xl sm:text-3xl">Ce que vous aimez</h2>
-        <p className="mt-1 text-stone-600">Choisissez jusqu’à {TASTES_MAX} styles : nous affinons les suggestions, sans compte BGG.</p>
-      </div>
-      <TasteForm initial={initial} onSaved={onSaved} />
-    </section>
-  )
-}
-
-// Rappel discret pour qui a déjà un profil déduit mais n'a rien déclaré : « Plus tard » le masque une semaine.
+// Rappel discret pour qui n'a rien déclaré (profil déduit ou démarrage à froid) : le questionnaire vit dans le compte : « Plus tard » le masque une semaine.
 const INVITE_KEY = 'aqoj_gouts_plus_tard'
 const INVITE_DELAY = 7 * 24 * 3600 * 1000
 
@@ -268,7 +254,6 @@ export default function HomePage() {
   const [forgotten, setForgotten]     = useState([])
   const [recoLoading, setRecoLoading] = useState(false)
   const [recoError, setRecoError]     = useState(null)
-  const [reloadKey, setReloadKey]     = useState(0)
   const [scope, setScope]             = useState(storedScope)
 
   // La table du bandeau pilote les idées « pour votre table » ; « Peu importe » (4 h) ne filtre pas la durée.
@@ -303,7 +288,7 @@ export default function HomePage() {
       })
       .catch(err  => setRecoError(err.message))
       .finally(() => { setRecoLoading(false); setTableReady(true) })
-  }, [user, authLoading, reloadKey, scope])
+  }, [user, authLoading, scope])
 
   // Les « oubliés » sont ceux de la ludothèque commune : sans objet quand on cherche dans tout le catalogue.
   useEffect(() => {
@@ -335,8 +320,7 @@ export default function HomePage() {
   const hasDecades   = reco?.byDecade && Object.keys(reco.byDecade).length > 0
   const hasForgotten = forgotten.length > 0
   const coldStart    = reco?.coldStart === true
-  const showTaste    = !recoLoading && reco !== null && (coldStart || reco.declared?.length > 0)
-  const showInvite   = !recoLoading && reco !== null && !coldStart && !(reco.declared?.length > 0)
+  const showInvite   = !recoLoading && reco !== null && !(reco.declared?.length > 0)
 
   const tabs = [
     hasRecent && {
@@ -423,7 +407,6 @@ export default function HomePage() {
 
           {!recoLoading && tabs.length > 0 && <DiscoverTabs key={scope} tabs={tabs} />}
 
-          {showTaste && <TasteSection initial={reco.declared ?? []} onSaved={() => setReloadKey(k => k + 1)} />}
           {showInvite && <TasteInvite />}
 
           {!recoLoading && !recoError && reco !== null && tabs.length === 0 && (
