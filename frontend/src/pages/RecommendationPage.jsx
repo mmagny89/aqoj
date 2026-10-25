@@ -152,7 +152,6 @@ export default function RecommendationPage() {
   const [activeTab,          setActiveTab]          = useState('collection')
   const [ready,              setReady]              = useState(false)
   const [filtersOpen,        setFiltersOpen]        = useState(false)
-  const [userPrefs,          setUserPrefs]          = useState(null)
   const [themeGroups,        setThemeGroups]        = useState({ themes: [], types: [] })
   // Map label → liste de bggCategories (pour l'expansion lors de la soumission)
   const [themeLabelToCats,   setThemeLabelToCats]   = useState({})
@@ -161,7 +160,6 @@ export default function RecommendationPage() {
   useEffect(() => {
     if (user) {
       getUserPreferences().then(prefs => {
-        setUserPrefs(prefs)
         // Point de départ : la table enregistrée (sauf si l'adresse en porte une) et les styles favoris, goûts déclarés d'abord.
         if (prefs?.table && !fromHome) {
           setPlayers(prefs.table.players)
@@ -242,9 +240,6 @@ export default function RecommendationPage() {
     </div>
   )
 
-  // Goûts déclarés d'abord, puis ceux déduits de l'historique
-  const favoriteStyles = [...new Set([...(userPrefs?.declaredFamilies ?? []), ...(userPrefs?.topEngines ?? [])])]
-
   const activeFiltersCount = selectedFamilies.length + selectedCategories.length
 
   return (
@@ -302,7 +297,7 @@ export default function RecommendationPage() {
             </FilterSection>
 
             {/* Moteurs Engelstein */}
-            <FilterSection title="Style / Moteur" defaultOpen={false}>
+            <FilterSection title="Style / Moteur">
               <div className="flex flex-wrap gap-1.5">
                 {Object.keys(ENGINES).map(key => (
                   <Chip
@@ -393,20 +388,6 @@ export default function RecommendationPage() {
 
           {/* ── Zone résultats ────────────────────────────────────────── */}
           <div className="flex-1 min-w-0">
-            {/* Styles favoris : au-dessus des résultats, sur une seule bande */}
-            {favoriteStyles.length > 0 && (
-              <div role="group" aria-labelledby="styles-favoris" className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1.5">
-                <p id="styles-favoris" className="m-0 text-sm font-bold">
-                  Vos styles favoris <span className="font-normal text-stone-600">({selectedFamilies.filter(k => favoriteStyles.includes(k)).length}/{favoriteStyles.length})</span>
-                </p>
-                <div className="flex flex-wrap gap-1.5">
-                  {favoriteStyles.map(key => (
-                    <Chip small key={key} active={selectedFamilies.includes(key)} onClick={() => toggle(key)} label={familyLabel(key)} />
-                  ))}
-                </div>
-              </div>
-            )}
-
             <ResultsPanel results={results} activeTab={activeTab} onTabChange={setActiveTab} />
           </div>
 
