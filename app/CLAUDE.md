@@ -17,6 +17,7 @@ Symfony 8.1, PHP 8.5 (FrankenPHP en mode worker), Doctrine, PostgreSQL 18. Pas d
 - Les contrôleurs gardent leurs propres contrôles (`AuthController::extractUser()`, `isAdmin()`) en seconde ligne et pour les routes à identité facultative (`/api/games*`, qui marquent les jeux possédés).
 - `tests/Functional/AccessControlTest.php` liste les routes admin : y ajouter toute nouvelle route admin.
 - Limitation : `login` (5 essais par quart d'heure pour une même paire adresse + e-mail), `login_ip` (20 par adresse), `register` (5 par heure et par adresse), réponse 429 avec `Retry-After`. L'adresse vient de `X-Forwarded-For` (`trusted_proxies` = `SYMFONY_TRUSTED_PROXIES`, vide en dev, `private_ranges` derrière Traefik). Stockage dans `cache.rate_limiter` (fichiers) : à déplacer sur un stockage partagé si le back passe à plusieurs instances.
+- Catalogue public en lecture seule pour BG-TCG : API Platform 5 sur `Game` (`GET /api/catalogue/games`, `/api/catalogue/games/{bggId}`), seuls les champs du groupe `catalogue:read` sortent. Pagination 100 (500 au plus, `itemsPerPage`, `page`), filtres `name`, `bggType`, `isExpansion`, `yearPublished|complexity|playingTime|minPlayers|maxPlayers|bggRank|usersRated|lastSyncedAt[gte|lte|gt|lt]`, tri `order[<champ>]`. Sert la base telle quelle, jamais d'appel à BGG. Description : `/api/docs.jsonopenapi`. Un champ ajouté au groupe est publié : relire `web-security-checklist` avant.
 - Le front est servi sur la même origine : pas de CORS.
 
 ## Tests et analyse
