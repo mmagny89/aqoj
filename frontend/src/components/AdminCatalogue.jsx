@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { getAdminGame, getAdminGameFilters, getAdminGames, getAdminJobs } from '../api'
+import { getAdminGame, getAdminGameFilters, getAdminGames, getAdminJobs, killAdminJob, stopAdminJob } from '../api'
 
 const COMMANDS = {
   'app:import:catalogue': 'Import d’un fichier',
@@ -8,6 +8,7 @@ const COMMANDS = {
   'app:bgg:sync-new': 'Nouveautés BGG',
   'app:bgg:relink-expansions': 'Liens des extensions',
   'app:maintenance:purge': 'Ménage hebdomadaire',
+  'app:translate:descriptions': 'Traduction des descriptions',
 }
 
 const STATUS = {
@@ -16,6 +17,7 @@ const STATUS = {
   skipped: { label: 'Sautée', style: 'bg-amber-100 text-amber-700' },
   running: { label: 'En cours', style: 'bg-blue-100 text-blue-700' },
   interrupted: { label: 'Interrompue', style: 'bg-stone-200 text-stone-600' },
+  cancelled: { label: 'Arrêtée', style: 'bg-stone-200 text-stone-700' },
 }
 
 const FILTERS = [
@@ -64,7 +66,69 @@ function Metrics({ metrics }) {
   )
 }
 
-function RunCard({ run }) {
+/**
+ * Arrêt d'une tâche en cours. « Arrêter » est une demande : la tâche finit son lot, l'enregistre et rend la main.
+ * « Forcer l'arrêt » (qui perd le lot en cours) n'apparaît qu'une fois la demande faite, ou pour une exécution
+ * dite interrompue, et demande confirmation.
+ */
+function StopControls({ run, onChanged }) {
+  const [busy, setBusy] = useState(false)
+  const [confirming, setConfirming] = useState(false)
+  const [error, setError] = useState(null)
+  const name = COMMANDS[run.command] ?? run.command
+
+  const act = async (action) => {
+    setBusy(true)
+    setError(null)
+    try {
+      await action(run.id)
+      setConfirming(false)
+      onChanged()
+    } catch (e) {
+      setError(e.message)
+      onChanged()
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const canForce = run.stopRequestedAt || run.status === 'interrupted'
+
+  return (
+    <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-stone-100 pt-3">
+      {run.stopRequestedAt && run.status === 'running' && (
+        <p role="status" className="m-0 text-xs text-stone-600">Arrêt demandé à {fmtDate(run.stopRequestedAt)} : la tâche termine son lot en cours.</p>
+      )}
+      {run.status === 'running' && !run.stopRequestedAt && (
+        <button type="button" disabled={busy} onClick={() => act(stopAdminJob)} aria-label={`Arrêter : ${name}`}
+          className="min-h-11 rounded-lg border border-stone-300 bg-white px-3 text-sm font-semibold text-stone-700 hover:bg-stone-50 disabled:opacity-50">
+          Arrêter
+        </button>
+      )}
+      {canForce && !confirming && (
+        <button type="button" disabled={busy} onClick={() => setConfirming(true)} aria-label={`Forcer l’arrêt : ${name}`}
+          className="min-h-11 rounded-lg border border-red-300 bg-white px-3 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50">
+          Forcer l’arrêt
+        </button>
+      )}
+      {confirming && (
+        <div role="group" aria-label="Confirmer l’arrêt forcé" className="flex flex-wrap items-center gap-2">
+          <p className="m-0 text-xs text-red-700">Le lot en cours sera perdu ; les précédents restent acquis.</p>
+          <button type="button" disabled={busy} onClick={() => act(killAdminJob)}
+            className="min-h-11 rounded-lg bg-red-600 px-3 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50">
+            Confirmer l’arrêt forcé
+          </button>
+          <button type="button" onClick={() => setConfirming(false)} className="min-h-11 rounded-lg border border-stone-300 bg-white px-3 text-sm text-stone-600">
+            Annuler
+          </button>
+        </div>
+      )}
+      {error && <p role="alert" className="m-0 w-full text-xs text-red-700">{error}</p>}
+    </div>
+  )
+}
+
+function RunCard({ run, onChanged }) {
   return (
     <article className="rounded-xl border border-stone-200 bg-white p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -77,6 +141,7 @@ function RunCard({ run }) {
       {run.arguments && <p className="mt-1 break-all font-mono text-xs text-stone-500">{run.arguments}</p>}
       <Metrics metrics={run.metrics} />
       {run.error && <p role="alert" className="mt-2 rounded-lg bg-red-50 p-2 text-xs text-red-700">{run.error}</p>}
+      {(run.status === 'running' || run.status === 'interrupted') && <StopControls run={run} onChanged={onChanged} />}
     </article>
   )
 }
@@ -88,9 +153,20 @@ export function JobsPanel() {
   const [status, setStatus] = useState('')
   const [error, setError] = useState(null)
 
+  const [reloadKey, setReloadKey] = useState(0)
+  const reload = () => setReloadKey(k => k + 1)
+
   useEffect(() => {
     getAdminJobs({ command, status, limit: 50 }).then(setData).catch(e => setError(e.message))
-  }, [command, status])
+  }, [command, status, reloadKey])
+
+  // Tant qu'une tâche tourne, la liste se rafraîchit : on voit l'arrêt demandé prendre effet.
+  const anyRunning = data?.runs.some(r => r.status === 'running') || data?.last.some(r => r.status === 'running')
+  useEffect(() => {
+    if (!anyRunning) return undefined
+    const timer = setInterval(() => setReloadKey(k => k + 1), 10000)
+    return () => clearInterval(timer)
+  }, [anyRunning])
 
   if (error) return <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</p>
   if (!data) return <p className="text-sm text-stone-400">Chargement…</p>
@@ -101,7 +177,7 @@ export function JobsPanel() {
         <h3 id="derniere-execution" className="mb-3 text-xs font-bold uppercase tracking-wide text-stone-400">Dernière exécution de chaque tâche</h3>
         {data.last.length === 0
           ? <p className="text-sm text-stone-400">Aucune exécution enregistrée pour l’instant.</p>
-          : <div className="grid gap-3 sm:grid-cols-2">{data.last.map(run => <RunCard key={run.command} run={run} />)}</div>}
+          : <div className="grid gap-3 sm:grid-cols-2">{data.last.map(run => <RunCard key={run.command} run={run} onChanged={reload} />)}</div>}
       </section>
 
       <section aria-labelledby="historique">
@@ -124,7 +200,7 @@ export function JobsPanel() {
         </div>
         {data.runs.length === 0
           ? <p className="text-sm text-stone-400">Aucune exécution ne correspond.</p>
-          : <div className="space-y-3">{data.runs.map(run => <RunCard key={run.id} run={run} />)}</div>}
+          : <div className="space-y-3">{data.runs.map(run => <RunCard key={run.id} run={run} onChanged={reload} />)}</div>}
       </section>
     </div>
   )

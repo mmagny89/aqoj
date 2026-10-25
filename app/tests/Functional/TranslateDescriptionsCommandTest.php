@@ -5,6 +5,8 @@ namespace App\Tests\Functional;
 use Doctrine\DBAL\Connection;
 use Symfony\Bundle\FrameworkBundle\Console\Application;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
+use Symfony\Component\Console\Input\ArrayInput;
+use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\Console\Tester\CommandTester;
 use Symfony\Component\HttpClient\MockHttpClient;
 use Symfony\Component\HttpClient\Response\MockResponse;
@@ -81,6 +83,35 @@ final class TranslateDescriptionsCommandTest extends KernelTestCase
         self::assertSame(1, $code);
         self::assertCount(3, $this->sent);
         self::assertStringContainsString('ne répond pas', $tester->getDisplay());
+    }
+
+    public function testUneDemandeDArretInterrompLePassageEtLeJournalLEnregistreCommeArretee(): void
+    {
+        $conn = static::getContainer()->get(Connection::class);
+        $this->jeu('Zzstop A', rang: 1);
+        $this->jeu('Zzstop B', rang: 2);
+        $this->jeu('Zzstop C', rang: 3);
+        static::bootKernel();
+        $translated = 0;
+        static::getContainer()->set('test.translate_http_client', new MockHttpClient(function (string $m, string $u, array $o) use ($conn, &$translated): MockResponse {
+            // Un administrateur demande l'arrêt pendant le premier jeu ; la tâche ne relit la demande qu'une fois par seconde.
+            if (++$translated === 1) {
+                $conn->executeStatement("UPDATE job_run SET stop_requested_at = NOW() WHERE command = 'app:translate:descriptions' AND status = 'running'");
+                usleep(1_100_000);
+            }
+
+            return new MockResponse(json_encode(['translatedText' => array_map(fn($p) => "FR: $p", json_decode($o['body'], true)['q'])]));
+        }));
+
+        $application = new Application(static::$kernel);
+        $application->setAutoExit(false);
+        $code = $application->run(new ArrayInput(['command' => 'app:translate:descriptions', '--limit' => '5']), new BufferedOutput());
+
+        self::assertSame(0, $code);
+        self::assertSame(1, $translated, 'Seul le jeu en cours est traduit, les suivants attendent le prochain passage.');
+        $job = $conn->fetchAssociative("SELECT status, metrics FROM job_run WHERE command = 'app:translate:descriptions' ORDER BY id DESC LIMIT 1");
+        self::assertSame('cancelled', $job['status']);
+        self::assertTrue(json_decode($job['metrics'], true)['arret_demande']);
     }
 
     public function testLeModeDryRunNAppellePasLeService(): void

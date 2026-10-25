@@ -80,8 +80,13 @@ class ImportBggCsvCommand extends Command
             $report = $this->catalogueImporter->import(CsvBggImporter::SOURCE, new \SplFileInfo($csvPath), $includeExpansions);
             $io->success(ImportCatalogueCommand::summary($report, false));
 
-            $this->archiveZip($zipPath, $archiveDir);
-            $io->text('ZIP archivé dans ' . self::ARCHIVE_DIR);
+            if ($this->recorder->stopRequested()) {
+                // Import interrompu : le ZIP reste en place, le prochain passage le reprendra en entier.
+                $io->warning('Arrêt demandé par un administrateur : le ZIP n\'est pas archivé.');
+            } else {
+                $this->archiveZip($zipPath, $archiveDir);
+                $io->text('ZIP archivé dans ' . self::ARCHIVE_DIR);
+            }
         } catch (InvalidSourceException $exception) {
             $io->error($exception->getMessage());
 

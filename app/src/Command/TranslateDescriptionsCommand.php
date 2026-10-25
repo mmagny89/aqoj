@@ -71,6 +71,11 @@ final class TranslateDescriptionsCommand extends Command
             if (microtime(true) - $started > $budget) {
                 break;
             }
+            if ($this->recorder->stopRequested()) {
+                $io->warning('Arrêt demandé par un administrateur.');
+                $this->recorder->note(['arret_demande' => true]);
+                break;
+            }
             $game = $this->games->find((int) $id);
             if ($game === null) {
                 continue;

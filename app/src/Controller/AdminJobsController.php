@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Service\JobRunControl;
 use Doctrine\DBAL\Connection;
+use Psr\Log\LoggerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -13,7 +15,7 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
 
 /**
  * Historique des tâches d'import et de synchronisation (table `job_run`, voir JobRunSubscriber).
- * Lecture seule : le planificateur reste le seul à les lancer.
+ * Aucune tâche ne se lance d'ici (le planificateur reste le seul à le faire) ; on peut en arrêter une en cours.
  */
 #[IsGranted('ROLE_ADMIN')]
 final class AdminJobsController extends AbstractController
@@ -22,7 +24,7 @@ final class AdminJobsController extends AbstractController
     private const INTERRUPTED_AFTER = '12 hours';
 
     private const SELECT = <<<SQL
-        SELECT id, command, arguments, started_at, finished_at, exit_code, metrics, error,
+        SELECT id, command, arguments, started_at, finished_at, exit_code, metrics, error, stop_requested_at,
                EXTRACT(EPOCH FROM (finished_at - started_at))::int AS duration,
                CASE WHEN status = 'running' AND started_at < NOW() - INTERVAL '12 hours' THEN 'interrupted' ELSE status END AS status
         FROM job_run
@@ -58,6 +60,31 @@ final class AdminJobsController extends AbstractController
         ]);
     }
 
+    /** Demande à une tâche en cours de s'arrêter proprement : elle finit son lot, l'enregistre, puis rend la main. */
+    #[Route('/api/admin/jobs/{id}/stop', name: 'api_admin_jobs_stop', requirements: ['id' => '\\d+'], methods: ['POST'])]
+    public function stop(int $id, JobRunControl $control, LoggerInterface $logger): JsonResponse
+    {
+        if (!$control->requestStop($id)) {
+            return $this->json(['error' => 'Cette exécution n\'est plus en cours.'], 409);
+        }
+        $logger->warning('Arrêt demandé pour l\'exécution {id} par {admin}.', ['id' => $id, 'admin' => $this->getUser()?->getUserIdentifier()]);
+
+        return $this->json(['id' => $id, 'stopRequested' => true], 202);
+    }
+
+    /** Arrêt de force, pour une tâche qui ne réagit plus (ou dont le processus a disparu : la ligne est alors clôturée). */
+    #[Route('/api/admin/jobs/{id}/kill', name: 'api_admin_jobs_kill', requirements: ['id' => '\\d+'], methods: ['POST'])]
+    public function kill(int $id, JobRunControl $control, LoggerInterface $logger): JsonResponse
+    {
+        $terminated = $control->forceStop($id);
+        if (null === $terminated) {
+            return $this->json(['error' => 'Cette exécution n\'est plus en cours.'], 409);
+        }
+        $logger->warning('Arrêt forcé de l\'exécution {id} par {admin} ({sessions} session(s)).', ['id' => $id, 'admin' => $this->getUser()?->getUserIdentifier(), 'sessions' => $terminated]);
+
+        return $this->json(['id' => $id, 'terminated' => $terminated]);
+    }
+
     /**
      * @param array<string, mixed> $row
      *
@@ -76,6 +103,7 @@ final class AdminJobsController extends AbstractController
             'exitCode' => null === $row['exit_code'] ? null : (int) $row['exit_code'],
             'metrics' => json_decode((string) $row['metrics'], true) ?: new \stdClass(),
             'error' => $row['error'],
+            'stopRequestedAt' => $this->iso($row['stop_requested_at']),
         ];
     }
 

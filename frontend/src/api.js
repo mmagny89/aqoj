@@ -161,6 +161,8 @@ const query = (params = {}) => {
   return qs.toString() ? '?' + qs : ''
 }
 export const getAdminJobs = (params) => request('/admin/jobs' + query(params))
+export const stopAdminJob = (id) => request(`/admin/jobs/${id}/stop`, { method: 'POST' })
+export const killAdminJob = (id) => request(`/admin/jobs/${id}/kill`, { method: 'POST' })
 export const getAdminGameFilters = () => request('/admin/games/filters')
 export const getAdminGames = (params) => request('/admin/games' + query(params))
 export const getAdminGame = (bggId) => request(`/admin/games/${bggId}`)

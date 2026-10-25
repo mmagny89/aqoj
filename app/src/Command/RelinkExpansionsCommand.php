@@ -87,6 +87,12 @@ class RelinkExpansionsCommand extends Command
         $io->progressStart(count($chunks));
 
         foreach ($chunks as $chunk) {
+            if ($this->recorder->stopRequested()) {
+                $io->warning('Arrêt demandé par un administrateur.');
+                $this->recorder->note(['arret_demande' => true]);
+                break;
+            }
+
             try {
                 $dataList = $this->bggApi->fetchGamesDetails($chunk);
                 foreach ($dataList as $data) {

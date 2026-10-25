@@ -128,6 +128,14 @@ class EnrichGamesPendingCommand extends Command
         $batches  = array_chunk($bggIds, BggApiService::MAX_IDS);
 
         foreach ($batches as $i => $chunk) {
+            // Un administrateur a demandé l'arrêt : les lots déjà traités sont acquis, la suite attend le prochain passage.
+            if ($this->recorder->stopRequested()) {
+                $progressBar->clear();
+                $io->warning('Arrêt demandé par un administrateur.');
+                $this->recorder->note(['arret_demande' => true]);
+                break;
+            }
+
             try {
                 $games = $this->repository->findByBggIds($chunk);
                 $byBggId = [];

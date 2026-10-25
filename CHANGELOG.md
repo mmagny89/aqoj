@@ -12,6 +12,8 @@ version devient le texte de sa release GitHub.
 
 ### Ajouté
 
+- **Arrêt des tâches depuis l'administration** : une tâche en cours se laisse arrêter proprement (elle finit son lot) ou de force si elle ne
+  répond plus ; une exécution restée « en cours » après la disparition de son processus se clôture de la même façon.
 - **Description en français** : BoardGameGeek n'en fournit qu'une, en anglais. Elle est traduite automatiquement, sur nos
   serveurs (aucun texte envoyé à un tiers), signalée « Traduction automatique », avec un accès à l'original anglais. Ouvrir la
   fiche d'un jeu la traduit ; le reste du catalogue est traduit au fil de l'eau, la ludothèque de l'association en premier.

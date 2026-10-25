@@ -131,6 +131,12 @@ class SyncBggNewReleasesCommand extends Command
         $errors   = 0;
 
         foreach (array_chunk($newIds, 20) as $chunk) {
+            if ($this->recorder->stopRequested()) {
+                $io->warning('Arrêt demandé par un administrateur.');
+                $this->recorder->note(['arret_demande' => true]);
+                break;
+            }
+
             try {
                 $gamesData = $this->bggApi->fetchGamesDetails($chunk);
                 foreach ($gamesData as $data) {

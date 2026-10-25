@@ -67,6 +67,12 @@ final class CatalogueImporter
                 $created += $batchCreated;
                 $updated += $batchUpdated;
                 $batch = [];
+
+                // Arrêt demandé par un administrateur : les lots déjà écrits sont acquis, le reste est laissé.
+                if ($this->recorder->stopRequested()) {
+                    $this->recorder->note(['arret_demande' => true]);
+                    break;
+                }
             }
         }
         [$batchCreated, $batchUpdated] = $dryRun ? [0, 0] : $this->flushBatch($batch);
