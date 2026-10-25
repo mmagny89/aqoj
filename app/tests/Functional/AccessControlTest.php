@@ -22,6 +22,8 @@ final class AccessControlTest extends ApiTestCase
         yield 'invitations (liste)' => ['GET', '/api/admin/invitations'];
         yield 'invitations (création)' => ['POST', '/api/admin/invitations'];
         yield 'invitations (révocation)' => ['POST', '/api/admin/invitations/1/revoke'];
+        yield 'tâches (arrêt demandé)' => ['POST', '/api/admin/jobs/1/stop'];
+        yield 'tâches (arrêt forcé)' => ['POST', '/api/admin/jobs/1/kill'];
         yield 'ludothèque asso (liste)' => ['GET', '/api/admin/association/games'];
         yield 'ludothèque asso (retrait)' => ['DELETE', '/api/admin/association/games/1'];
         yield 'comptes (liste)' => ['GET', '/api/admin/users'];

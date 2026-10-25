@@ -4,3 +4,12 @@ framework:
         # (scheduler_default), qui exécute ses messages à la volée.
         transports:
             sync: 'sync://'
+
+        buses:
+            messenger.bus.default:
+                middleware:
+                    # Le worker vit des jours avec une seule connexion à la base. Si elle tombe (redémarrage de
+                    # PostgreSQL, arrêt forcé d'une tâche par l'administration), la tâche suivante repart sur une
+                    # connexion neuve au lieu d'échouer jusqu'au prochain redémarrage du conteneur.
+                    - doctrine_ping_connection
+                    - doctrine_close_connection
