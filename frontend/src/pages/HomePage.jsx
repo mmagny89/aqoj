@@ -308,11 +308,15 @@ export default function HomePage() {
       .finally(() => { setRecoLoading(false); setTableReady(true) })
   }, [user, authLoading, reloadKey, scope])
 
-  // Les « oubliés » viennent de la ludothèque personnelle : le périmètre ne les concerne pas.
+  // Les « oubliés » sont ceux de la ludothèque commune : sans objet quand on cherche dans tout le catalogue.
   useEffect(() => {
     if (authLoading || !user) return
-    getForgottenGems().then(setForgotten).catch(() => setForgotten([]))
-  }, [user, authLoading])
+    if (scope !== 'library') {
+      setForgotten([])
+      return
+    }
+    getForgottenGems({ scope }).then(setForgotten).catch(() => setForgotten([]))
+  }, [user, authLoading, scope])
 
   useEffect(() => {
     if (authLoading || !user || !tableReady) return
@@ -366,13 +370,13 @@ export default function HomePage() {
     },
     hasForgotten && {
       id: 'oublies',
-      label: 'Oubliés de votre ludothèque',
+      label: 'Oubliés de la ludothèque',
       content: (
         <>
           <div className="mb-4 flex justify-end">
             <Link to="/ludotheque" className="inline-flex min-h-11 items-center font-bold text-brand-blue underline underline-offset-4">Ma ludothèque</Link>
           </div>
-          <Carousel items={forgotten} label="Oubliés de votre ludothèque" />
+          <Carousel items={forgotten} label="Oubliés de la ludothèque" />
         </>
       ),
     },

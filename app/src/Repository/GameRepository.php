@@ -142,18 +142,21 @@ class GameRepository extends ServiceEntityRepository
     ): array {
         $conn = $this->getEntityManager()->getConnection();
 
-        $conditions = [
-            'g.mechanics::text != \'[]\'',          // jeux enrichis uniquement
-            'g.rating_bgg IS NOT NULL',
-            'g.rating_bgg >= 6.5',
-        ];
-        $params = [];
+        $conditions = [];
+        $params     = [];
 
         if ($library) {
             // Ludothèque de l'association et des membres : on y joue, donc la collection du joueur n'est pas exclue.
             // Seule l'appartenance sort, jamais le propriétaire.
             $conditions[] = self::IN_LIBRARY;
+            // Une ludothèque est petite : aucun seuil de note, de votes ni de mécaniques n'écarte un jeu qu'on peut sortir.
+            // Les goûts classent (scoreGames) mais ne filtrent pas.
+            $familyKeys = [];
+            $minVotes   = null;
         } else {
+            $conditions[] = 'g.mechanics::text != \'[]\'';          // jeux enrichis uniquement
+            $conditions[] = 'g.rating_bgg IS NOT NULL';
+            $conditions[] = 'g.rating_bgg >= 6.5';
             $conditions[] = 'NOT EXISTS (SELECT 1 FROM user_game ug WHERE ug.game_id = g.id AND ug.user_id = ?)';
             // Exclure les rééditions/versions collector de jeux déjà en collection.
             // implements_bgg_ids est un tableau jsonb de bgg_id (strings).
@@ -256,6 +259,23 @@ class GameRepository extends ServiceEntityRepository
         return array_values(array_filter(
             array_map(fn(int $id) => $indexed[$id] ?? null, array_map('intval', $ids))
         ));
+    }
+
+    /** Jeux de base de la ludothèque de l'association et des membres, sans doublon. */
+    public function findLibraryGames(): array
+    {
+        $ids = $this->getEntityManager()->getConnection()->fetchFirstColumn(
+            'SELECT g.id FROM game g WHERE g.is_expansion = false AND ' . self::IN_LIBRARY
+        );
+        if ($ids === []) {
+            return [];
+        }
+
+        return $this->createQueryBuilder('g')
+            ->where('g.id IN (:ids)')
+            ->setParameter('ids', $ids)
+            ->getQuery()
+            ->getResult();
     }
 
     public function findExistingBggIds(array $bggIds): array

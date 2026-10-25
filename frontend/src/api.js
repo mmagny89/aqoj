@@ -89,7 +89,7 @@ export const getRecommendations = (params = {}) => {
   return request('/games/recommendation?' + qs)
 }
 
-export const getForgottenGems = () => request('/games/forgotten')
+export const getForgottenGems = ({ scope } = {}) => request('/games/forgotten' + (scope === 'library' ? '?scope=library' : ''))
 
 export const getHomeRecommendations = ({ scope } = {}) => request('/games/home-reco' + (scope === 'library' ? '?scope=library' : ''))
 export const getTonightRecommendations = ({ players, maxTime, scope } = {}) => {

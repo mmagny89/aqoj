@@ -148,6 +148,7 @@ class GameController extends AbstractController
 
     #[Route('/api/games/forgotten', name: 'api_games_forgotten', methods: ['GET'])]
     public function forgotten(
+        Request $request,
         RecommendationService $service,
     ): JsonResponse {
         $user = $this->appUser();
@@ -155,7 +156,7 @@ class GameController extends AbstractController
             return $this->json(['error' => 'Authentification requise.'], 401);
         }
 
-        $results = $service->findForgottenGems($user);
+        $results = $service->findForgottenGems($user, $request->query->getString('scope') === 'library');
 
         return $this->json(array_map(fn($r) => [
             'game'   => $r['game'],

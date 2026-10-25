@@ -125,8 +125,11 @@ final class HomeRecommendationTest extends ApiTestCase
         $this->creerJeu('Zzper Voisin', $annee - 2, 1.8, 7.6, 5000);
         $this->creerJeu('Zzper Le Mien', $annee - 2, 1.8, 7.6, 5000);
         $this->creerJeu('Zzper Hors', $annee - 2, 1.8, 7.6, 5000);
+        $this->creerJeu('Zzper Modeste', $annee - 2, 1.8, 5.0, 10);
         $conn = static::getContainer()->get(Connection::class);
-        $conn->executeStatement('INSERT INTO association_game (game_id) SELECT id FROM game WHERE bgg_id = ?', ['zz' . md5('Zzper Asso')]);
+        foreach (['Zzper Asso', 'Zzper Modeste'] as $jeu) {
+            $conn->executeStatement('INSERT INTO association_game (game_id) SELECT id FROM game WHERE bgg_id = ?', ['zz' . md5($jeu)]);
+        }
         foreach ([['Zzper Voisin', 'voisin@example.test'], ['Zzper Le Mien', 'perimetre@example.test']] as [$jeu, $email]) {
             $conn->executeStatement(
                 'INSERT INTO user_game (user_id, game_id) VALUES ((SELECT id FROM app_user WHERE email = ?), (SELECT id FROM game WHERE bgg_id = ?))',
@@ -137,12 +140,18 @@ final class HomeRecommendationTest extends ApiTestCase
         $table = $this->call($client, 'GET', '/api/games/home-tonight?scope=library', token: $moi);
         $noms = array_column(array_column($table['easy'], 'game'), 'name');
         sort($noms);
-        self::assertSame(['Zzper Asso', 'Zzper Le Mien', 'Zzper Voisin'], $noms);
+        // Aucun seuil de note ni de votes en ludothèque : « Modeste » (5/10, 10 votes) est proposé.
+        self::assertSame(['Zzper Asso', 'Zzper Le Mien', 'Zzper Modeste', 'Zzper Voisin'], $noms);
+
+        $oublies = $this->call($client, 'GET', '/api/games/forgotten?scope=library', token: $moi);
+        $noms = array_column(array_column($oublies, 'game'), 'name');
+        sort($noms);
+        self::assertSame(['Zzper Asso', 'Zzper Le Mien', 'Zzper Modeste', 'Zzper Voisin'], $noms);
 
         $reco = $this->call($client, 'GET', '/api/games/home-reco?scope=library', token: $moi);
         $noms = array_column(array_column($reco['recent'], 'game'), 'name');
         sort($noms);
-        self::assertSame(['Zzper Asso', 'Zzper Voisin'], array_values(array_diff($noms, ['Zzper Le Mien'])));
+        self::assertSame(['Zzper Asso', 'Zzper Le Mien', 'Zzper Modeste', 'Zzper Voisin'], $noms);
     }
 
     public function testLesJeuxDesAutresMembresNeSortentQuAPartirDeDeuxJoueurs(): void
