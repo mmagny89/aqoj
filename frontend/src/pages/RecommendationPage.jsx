@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { useState, useEffect, useRef } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import { getRecommendations, getUserPreferences, getThemeMappings } from '../api'
 import GameCard from '../components/GameCard'
 import { useAuth } from '../context/AuthContext'
@@ -192,9 +192,16 @@ function ResultsPanel({
 /* ── Page principale ─────────────────────────────────────────────────── */
 export default function RecommendationPage() {
   const { user } = useAuth()
+  // L'accueil envoie `?joueurs=3&duree=60` : la recherche part d'elle-même avec ces valeurs.
+  const [searchParams] = useSearchParams()
+  const fromHome = searchParams.has('joueurs')
+  const positive = (key, fallback) => {
+    const value = Number(searchParams.get(key))
+    return Number.isInteger(value) && value > 0 ? value : fallback
+  }
 
-  const [players,            setPlayers]            = useState(4)
-  const [maxTime,            setMaxTime]            = useState(60)
+  const [players,            setPlayers]            = useState(() => positive('joueurs', 4))
+  const [maxTime,            setMaxTime]            = useState(() => positive('duree', 60))
   const [selectedFamilies,   setSelectedFamilies]   = useState([])
   const [selectedCategories, setSelectedCategories] = useState([])
   const [collectionResults,  setCollectionResults]  = useState(null)
@@ -271,6 +278,14 @@ export default function RecommendationPage() {
       .finally(() => setDisLoading(false))
   }
 
+  const autoSearched = useRef(false)
+  useEffect(() => {
+    if (!user || !fromHome || autoSearched.current) return
+    autoSearched.current = true
+    handleSubmit()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- une seule recherche automatique, avec les valeurs de l'URL
+  }, [user, fromHome])
+
   if (!user) return (
     <div className="max-w-6xl mx-auto px-4 py-16 text-center text-stone-500">
       <div className="text-5xl mb-4">🔒</div>
@@ -292,11 +307,11 @@ export default function RecommendationPage() {
       </div>
 
       <form onSubmit={handleSubmit}>
-        <div className="flex gap-6 items-start">
+        <div className="flex flex-col lg:flex-row gap-6 lg:items-start">
 
           {/* ── Panneau filtres (sidebar) ─────────────────────────────── */}
           <aside className={`
-            w-72 flex-shrink-0 bg-white rounded-2xl border border-stone-200 shadow-sm p-5 space-y-4
+            w-full lg:w-72 flex-shrink-0 panel p-5 space-y-4
             ${filtersOpen ? 'block' : 'hidden lg:block'}
           `}>
             <div className="flex items-center justify-between">
@@ -455,11 +470,11 @@ export default function RecommendationPage() {
           </aside>
 
           {/* ── Bouton mobile toggle filtres ─────────────────────────── */}
-          <div className="lg:hidden w-full">
+          <div className="order-first lg:hidden w-full">
             <button
               type="button"
               onClick={() => setFiltersOpen(v => !v)}
-              className="w-full flex items-center justify-between px-4 py-3 bg-white rounded-xl border border-stone-200 shadow-sm text-sm font-semibold text-stone-700 mb-4"
+              className="w-full min-h-12 flex items-center justify-between px-4 panel text-base font-bold mb-0"
             >
               <span>🎛️ Filtres {activeFiltersCount > 0 && `(${activeFiltersCount})`}</span>
               <span className="text-stone-400">{filtersOpen ? '▲' : '▼'}</span>
