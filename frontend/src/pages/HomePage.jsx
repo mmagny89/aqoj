@@ -19,8 +19,18 @@ const DURATIONS = [
 ]
 const DEFAULT_TABLE = { players: 4, maxTime: 60 }
 
+/* Une rangée de filtres : libellé et puces sur la même ligne dès 640 px. */
+function FilterRow({ id, label, children }) {
+  return (
+    <div role="group" aria-labelledby={id} className="flex flex-wrap items-center gap-1.5">
+      <span id={id} className="mr-1 w-16 shrink-0 text-sm font-bold">{label}</span>
+      {children}
+    </div>
+  )
+}
+
 /* ── Bandeau « Qu'est-ce qu'on joue ce soir ? » ──────────────────────── */
-function Hero({ table, onTableChange, saved }) {
+function Hero({ table, onTableChange, saved, scopeSwitch }) {
   const navigate = useNavigate()
   const { players, maxTime } = table
 
@@ -30,43 +40,39 @@ function Hero({ table, onTableChange, saved }) {
   }
 
   return (
-    <section aria-labelledby="titre-hero" className="panel relative flex gap-6 overflow-hidden px-5 py-7 shadow-token-lg sm:px-9 sm:py-9">
-      <form onSubmit={submit} className="flex min-w-0 flex-1 flex-col gap-5">
-        <div>
-          <h1 id="titre-hero" className="text-3xl leading-[1.05] sm:text-5xl">Qu'est-ce qu'on joue ce soir&nbsp;?</h1>
-          <p className="mt-2 max-w-xl text-lg text-stone-600">Dites-nous qui est autour de la table, on choisit dans la ludothèque.</p>
-        </div>
+    <section aria-labelledby="titre-hero" className="panel px-4 py-4 sm:px-6 sm:py-5">
+      <form onSubmit={submit} className="flex min-w-0 flex-col gap-2.5">
+        <h1 id="titre-hero" className="text-2xl leading-tight sm:text-3xl">Qu'est-ce qu'on joue ce soir&nbsp;?</h1>
 
-        <fieldset className="m-0 flex flex-wrap items-center gap-2 border-0 p-0">
-          <legend className="mb-1 float-left w-full font-bold sm:float-none sm:mb-0 sm:w-24 sm:inline-block">Joueurs</legend>
+        <FilterRow id="filtre-joueurs" label="Joueurs">
           {PLAYERS.map(n => (
-            <button key={n} type="button" className="chip" aria-pressed={players === n} onClick={() => onTableChange({ ...table, players: n })}>
+            <button key={n} type="button" className="chip chip-sm min-w-8 justify-center" aria-pressed={players === n} onClick={() => onTableChange({ ...table, players: n })}>
               {n}
             </button>
           ))}
-        </fieldset>
+        </FilterRow>
 
-        <fieldset className="m-0 flex flex-wrap items-center gap-2 border-0 p-0">
-          <legend className="mb-1 float-left w-full font-bold sm:float-none sm:mb-0 sm:w-24 sm:inline-block">Durée</legend>
+        <FilterRow id="filtre-duree" label="Durée">
           {DURATIONS.map(({ label, value }) => (
-            <button key={value} type="button" className="chip" aria-pressed={maxTime === value} onClick={() => onTableChange({ ...table, maxTime: value })}>
+            <button key={value} type="button" className="chip chip-sm" aria-pressed={maxTime === value} onClick={() => onTableChange({ ...table, maxTime: value })}>
               {label}
             </button>
           ))}
-        </fieldset>
+        </FilterRow>
 
-        <div className="flex flex-wrap items-center gap-4">
-          <button type="submit" className="btn btn-primary px-8">Trouver un jeu</button>
+        {scopeSwitch}
+
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pt-1">
+          <button type="submit" className="btn btn-primary px-6">Trouver un jeu</button>
           <Link to="/rechercher" className="inline-flex min-h-11 items-center gap-2 font-bold text-brand-blue underline underline-offset-4">
-            <SearchIcon width={20} height={20} /> Chercher par nom
+            <SearchIcon width={18} height={18} /> Chercher par nom
           </Link>
+          <p role="status" className="m-0 text-sm text-stone-600 empty:hidden">
+            {saved === 'ok' && 'Table enregistrée.'}
+            {saved === 'error' && 'Impossible d’enregistrer la table pour l’instant.'}
+          </p>
         </div>
-        <p role="status" className="m-0 min-h-6 text-stone-600">
-          {saved === 'ok' && 'Table enregistrée : on la retrouvera à votre prochaine visite.'}
-          {saved === 'error' && 'Impossible d’enregistrer la table pour l’instant.'}
-        </p>
       </form>
-      <img src="/edj-mascotte.png" alt="" width="250" height="278" className="hidden h-auto w-56 shrink-0 self-center object-contain lg:block xl:w-64" />
     </section>
   )
 }
@@ -192,14 +198,13 @@ function storedScope() {
 
 function ScopeSwitch({ scope, onChange }) {
   return (
-    <fieldset className="m-0 flex flex-wrap items-center gap-2 border-0 p-0">
-      <legend className="mb-1 float-left w-full font-bold sm:float-none sm:mb-0 sm:mr-3 sm:w-auto sm:inline-block">Chercher dans</legend>
+    <FilterRow id="filtre-perimetre" label="Parmi">
       {SCOPES.map(({ value, label }) => (
-        <button key={value} type="button" className="chip" aria-pressed={scope === value} onClick={() => onChange(value)}>
+        <button key={value} type="button" className="chip chip-sm" aria-pressed={scope === value} onClick={() => onChange(value)}>
           {label}
         </button>
       ))}
-    </fieldset>
+    </FilterRow>
   )
 }
 
@@ -385,9 +390,8 @@ export default function HomePage() {
 
   return (
     <div className="mx-auto flex max-w-7xl flex-col gap-10 px-4 py-6 sm:px-6 lg:px-10 lg:py-8">
-      <Hero table={table} onTableChange={changeTable} saved={tableSaved} />
-
-      {!authLoading && user && <ScopeSwitch scope={scope} onChange={changeScope} />}
+      <Hero table={table} onTableChange={changeTable} saved={tableSaved}
+        scopeSwitch={!authLoading && user ? <ScopeSwitch scope={scope} onChange={changeScope} /> : null} />
 
       {!authLoading && user && hasTonight && <TonightSection tonight={tonightShown} players={players} maxTime={maxTime} />}
 
