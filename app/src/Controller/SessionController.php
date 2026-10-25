@@ -95,4 +95,34 @@ class SessionController extends AbstractController
 
         return $this->json($session, 201);
     }
+
+    /** Supprime une partie du joueur connecté. Celle d'un autre joueur répond 404, comme une partie inexistante. */
+    #[Route('/api/sessions/{id}', name: 'api_sessions_delete', requirements: ['id' => '\d+'], methods: ['DELETE'])]
+    public function delete(
+        int $id,
+        GameSessionRepository $repository,
+        EntityManagerInterface $em,
+        UserPreferenceService $prefService,
+    ): JsonResponse {
+        $user = $this->appUser();
+        if (!$user) {
+            return $this->json(['error' => 'Authentification requise.'], 401);
+        }
+
+        $session = $repository->find($id);
+        if ($session === null || $session->getUser()?->getId() !== $user->getId()) {
+            return $this->json(['error' => 'Partie introuvable.'], 404);
+        }
+
+        $liked = $session->getRating() === 5;
+        $em->remove($session);
+        $em->flush();
+
+        // Une partie aimée comptait dans les styles de jeu : on les recalcule.
+        if ($liked) {
+            try { $prefService->recompute($user); } catch (\Throwable) { /* non bloquant */ }
+        }
+
+        return new JsonResponse(null, 204);
+    }
 }

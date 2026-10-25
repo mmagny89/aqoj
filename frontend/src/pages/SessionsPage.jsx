@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { getSessions, getSessionsSummary, createSession } from '../api'
+import { getSessions, getSessionsSummary, createSession, deleteSession } from '../api'
 import GamePicker from '../components/GamePicker'
 import { coverColor, initials } from '../components/GameCard'
 import { gameImage } from '../utils/game'
@@ -37,6 +37,26 @@ export default function SessionsPage() {
       .finally(() => setLoading(false))
     getSessionsSummary().then(setSummary).catch(() => {})
   }, [])
+
+  // Suppression en deux gestes : le bouton demande confirmation avant d'effacer la partie.
+  const [confirming, setConfirming] = useState(null)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState(null)
+
+  const remove = async (id) => {
+    setDeleting(true)
+    setDeleteError(null)
+    try {
+      await deleteSession(id)
+      setSessions(prev => prev.filter(s => s.id !== id))
+      setConfirming(null)
+      getSessionsSummary().then(setSummary).catch(() => {})
+    } catch (err) {
+      setDeleteError(err.message || 'Impossible de supprimer cette partie.')
+    } finally {
+      setDeleting(false)
+    }
+  }
 
   const loadMore = async () => {
     setLoadingMore(true)
@@ -229,6 +249,22 @@ export default function SessionsPage() {
                           {' · '}{s.playersCount} joueur{s.playersCount > 1 ? 's' : ''}{s.context && <> · {s.context}</>}
                         </p>
                         {s.note && <p className="m-0 mt-1 text-sm italic text-stone-700">« {s.note} »</p>}
+                        {confirming === s.id ? (
+                          <div role="group" aria-label="Confirmer la suppression" className="mt-1 flex flex-wrap items-center gap-2">
+                            <span className="text-sm font-bold">Supprimer cette partie ?</span>
+                            <button type="button" onClick={() => remove(s.id)} disabled={deleting} className="chip chip-sm bg-brand-red">
+                              {deleting ? 'Suppression…' : 'Oui, supprimer'}
+                            </button>
+                            <button type="button" onClick={() => { setConfirming(null); setDeleteError(null) }} className="chip chip-sm">Annuler</button>
+                            {deleteError && <span role="alert" className="text-sm font-bold text-brand-red">{deleteError}</span>}
+                          </div>
+                        ) : (
+                          <button type="button" onClick={() => { setConfirming(s.id); setDeleteError(null) }}
+                            aria-label={`Supprimer la partie de ${s.game?.name ?? 'ce jeu'} du ${formatDay(s.playedAt)}`}
+                            className="chip chip-sm mt-1 border-transparent bg-transparent font-normal text-stone-600 underline underline-offset-4">
+                            Supprimer
+                          </button>
+                        )}
                       </div>
                     </li>
                   )

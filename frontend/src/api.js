@@ -191,6 +191,7 @@ export const deleteThemeMapping = (id) =>
 
 // Sessions
 export const getSessions = ({ offset = 0, limit = 50 } = {}) => request(`/sessions?offset=${offset}&limit=${limit}`)
+export const deleteSession = (id) => request(`/sessions/${id}`, { method: 'DELETE' })
 export const getSessionsSummary = () => request('/sessions/summary')
 
 export const createSession = (data) =>
