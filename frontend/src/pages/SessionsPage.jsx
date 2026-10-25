@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import { getSessions, createSession } from '../api'
 import GamePicker from '../components/GamePicker'
+import { coverColor, initials } from '../components/GameCard'
+import { gameImage } from '../utils/game'
 
 const RATINGS = [
   { value: 5, label: 'Aimé', style: 'bg-brand-green text-paper' },
@@ -53,10 +56,19 @@ export default function SessionsPage() {
     }
   }
 
-  const formatDate = (iso) => {
-    const d = new Date(iso)
-    return d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })
+  const formatDay = (iso) => new Date(iso).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' })
+  const monthOf   = (iso) => new Date(iso).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })
+
+  // Regroupées par mois, les plus récentes d'abord (l'API les rend déjà triées).
+  const months = []
+  for (const s of sessions) {
+    const label = monthOf(s.playedAt)
+    const last = months[months.length - 1]
+    if (last?.label === label) last.items.push(s)
+    else months.push({ label, items: [s] })
   }
+  const distinctGames = new Set(sessions.map(s => s.game?.id ?? s.game?.name)).size
+  const liked = sessions.filter(s => s.rating === 5).length
 
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-10 lg:py-8">
@@ -159,24 +171,51 @@ export default function SessionsPage() {
       )}
 
       {sessions.length > 0 && (
-        <ul className="m-0 flex list-none flex-col gap-4 p-0">
-          {sessions.map((s) => {
-            const rating = RATINGS.find(r => r.value === s.rating)
-            return (
-              <li key={s.id} className="panel flex flex-col gap-1 p-4 sm:p-5">
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <h2 className="min-w-0 break-words font-sans text-lg font-bold">{s.game?.name ?? 'Jeu inconnu'}</h2>
-                  <time dateTime={s.playedAt} className="shrink-0 text-sm text-stone-600">{formatDate(s.playedAt)}</time>
-                </div>
-                <p className="flex flex-wrap items-center gap-2 text-stone-600">
-                  <span>{s.playersCount} joueur{s.playersCount > 1 ? 's' : ''}{s.context && <> · {s.context}</>}</span>
-                  {rating && <span className={`badge ${rating.style}`}>{rating.label}</span>}
-                </p>
-                {s.note && <p className="mt-1 italic text-stone-700">« {s.note} »</p>}
-              </li>
-            )
-          })}
-        </ul>
+        <>
+          <p className="m-0 flex flex-wrap items-center gap-2" aria-label="Bilan">
+            <span className="badge bg-cream">{sessions.length} partie{sessions.length > 1 ? 's' : ''}</span>
+            <span className="badge bg-cream">{distinctGames} jeu{distinctGames > 1 ? 'x' : ''} différent{distinctGames > 1 ? 's' : ''}</span>
+            {liked > 0 && <span className="badge bg-brand-green text-paper">{liked} aimée{liked > 1 ? 's' : ''}</span>}
+          </p>
+
+          {months.map(({ label, items }) => (
+            <section key={label} aria-labelledby={`mois-${label.replace(/\s/g, '-')}`}>
+              <h2 id={`mois-${label.replace(/\s/g, '-')}`} className="mb-2 text-2xl capitalize">{label}</h2>
+              <ul className="m-0 flex list-none flex-col gap-2.5 p-0">
+                {items.map((s) => {
+                  const rating = RATINGS.find(r => r.value === s.rating)
+                  const image = s.game ? gameImage(s.game) : null
+                  return (
+                    <li key={s.id} className="panel flex items-start gap-3 p-3">
+                      {image ? (
+                        <img src={image} alt="" loading="lazy" className="h-14 w-14 shrink-0 rounded-lg border-2 border-ink object-cover" />
+                      ) : (
+                        <span aria-hidden="true" className={`grid h-14 w-14 shrink-0 place-items-center rounded-lg border-2 border-ink font-display text-xl ${s.game ? coverColor(s.game) : 'bg-cream'}`}>
+                          {s.game ? initials(s.game.name) : '?'}
+                        </span>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-baseline justify-between gap-x-3">
+                          <h3 className="min-w-0 break-words font-sans text-base font-bold leading-snug">
+                            {s.game?.id ? (
+                              <Link to={`/games/${s.game.id}`} className="inline-block py-0.5 underline-offset-4 hover:underline">{s.game.name}</Link>
+                            ) : (s.game?.name ?? 'Jeu inconnu')}
+                          </h3>
+                          {rating && <span className={`badge shrink-0 ${rating.style}`}>{rating.label}</span>}
+                        </div>
+                        <p className="m-0 text-sm text-stone-600">
+                          <time dateTime={s.playedAt}>{formatDay(s.playedAt)}</time>
+                          {' · '}{s.playersCount} joueur{s.playersCount > 1 ? 's' : ''}{s.context && <> · {s.context}</>}
+                        </p>
+                        {s.note && <p className="m-0 mt-1 text-sm italic text-stone-700">« {s.note} »</p>}
+                      </div>
+                    </li>
+                  )
+                })}
+              </ul>
+            </section>
+          ))}
+        </>
       )}
     </div>
   )
