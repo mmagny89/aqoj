@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { searchGames } from '../api'
 import GameCard from '../components/GameCard'
+import FilterRow from '../components/FilterRow'
 import { ENGINES, familyLabel } from '../utils/engelstein'
 import { FILTER_THEMES, FILTER_TYPES, categoryInfo } from '../utils/categories'
 
@@ -54,7 +55,7 @@ function ResultTabs({ baseGames, expansions, activeTab, onTab }) {
 
 function Chip({ active, onClick, children }) {
   return (
-    <button type="button" className="chip" aria-pressed={active} onClick={onClick}>
+    <button type="button" className="chip chip-sm shrink-0" aria-pressed={active} onClick={onClick}>
       {children}
     </button>
   )
@@ -126,70 +127,65 @@ export default function SearchPage() {
 
   return (
     <div className="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-10 lg:py-8">
-      <div>
-        <h1 className="text-4xl leading-tight sm:text-5xl">Explorer</h1>
-        <p className="mt-1 text-lg text-stone-600">Par son nom, par style de jeu ou par thème.</p>
-      </div>
+      {/* Bandeau Explorer : jaune, pour ne pas se confondre avec les pages de recommandation */}
+      <section aria-labelledby="titre-explorer" className="panel flex flex-col gap-3 bg-brand-yellow p-4 shadow-token-lg sm:p-6">
+        <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+          <h1 id="titre-explorer" className="text-3xl leading-tight sm:text-4xl">Explorer le catalogue</h1>
+          <p className="m-0 text-sm font-bold">Par son nom, son style ou son thème</p>
+        </div>
 
-      {/* Recherche */}
-      <form role="search" onSubmit={e => e.preventDefault()} className="relative">
-        <label htmlFor="explorer-q" className="sr-only">Nom du jeu</label>
-        <input
-          id="explorer-q"
-          type="search"
-          autoFocus
-          value={query}
-          onChange={e => setQuery(e.target.value)}
-          placeholder="Nom du jeu : Azul, Catan, Pandemic…"
-          className="min-h-14 w-full rounded-2xl border-[3px] border-ink bg-paper px-5 text-lg shadow-token-sm outline-none placeholder:text-stone-400 focus-visible:outline-4 focus-visible:outline-offset-3 focus-visible:outline-brand-blue"
-        />
-        {loading && (
-          <span role="status" className="absolute right-4 top-1/2 -translate-y-1/2">
-            <span className="block h-5 w-5 animate-spin rounded-full border-[3px] border-stone-300 border-t-brand-red" aria-hidden="true" />
-            <span className="sr-only">Recherche en cours</span>
-          </span>
-        )}
-      </form>
+        <form role="search" onSubmit={e => e.preventDefault()} className="relative">
+          <label htmlFor="explorer-q" className="sr-only">Nom du jeu</label>
+          <input
+            id="explorer-q"
+            type="search"
+            autoFocus
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            placeholder="Nom du jeu : Azul, Catan, Pandemic…"
+            className="min-h-12 w-full rounded-xl border-[3px] border-ink bg-paper px-4 text-lg outline-none placeholder:text-stone-500 focus-visible:outline-4 focus-visible:outline-offset-3 focus-visible:outline-brand-blue"
+          />
+          {loading && (
+            <span role="status" className="absolute right-4 top-1/2 -translate-y-1/2">
+              <span className="block h-5 w-5 animate-spin rounded-full border-[3px] border-stone-300 border-t-brand-red" aria-hidden="true" />
+              <span className="sr-only">Recherche en cours</span>
+            </span>
+          )}
+        </form>
 
-      {/* Filtres : visibles tant qu'aucun texte n'est saisi */}
-      {!query.trim() && (
-        <div className="panel flex flex-col gap-6 p-5 sm:p-6">
-          <section aria-labelledby="f-styles">
-            <h2 id="f-styles" className="mb-3 text-2xl">Parcourir par style de jeu</h2>
-            <div className="flex flex-wrap gap-2">
+        {/* Filtres : visibles tant qu'aucun texte n'est saisi */}
+        {!query.trim() && (
+          <div className="flex flex-col gap-2">
+            <FilterRow scroll id="f-styles" label="Style">
               {Object.keys(ENGINES).map(key => (
                 <Chip key={key} active={selectedEngines.includes(key)} onClick={() => toggleEngine(key)}>
                   {familyLabel(key)}
                 </Chip>
               ))}
-            </div>
-          </section>
-
-          <section aria-labelledby="f-themes">
-            <h2 id="f-themes" className="mb-3 text-2xl">Ou par thème</h2>
-            <div className="mb-3 flex flex-wrap gap-2">
+            </FilterRow>
+            <FilterRow scroll id="f-themes" label="Thème">
               {FILTER_THEMES.map(cat => {
                 const { label, emoji } = categoryInfo(cat)
                 return (
                   <Chip key={cat} active={selectedCategory === cat} onClick={() => toggleCategory(cat)}>
-                    {emoji && <span aria-hidden="true" className="mr-1.5">{emoji}</span>}{label}
+                    {emoji && <span aria-hidden="true" className="mr-1">{emoji}</span>}{label}
                   </Chip>
                 )
               })}
-            </div>
-            <div className="flex flex-wrap gap-2">
+            </FilterRow>
+            <FilterRow scroll id="f-types" label="Type">
               {FILTER_TYPES.map(cat => {
                 const { label, emoji } = categoryInfo(cat)
                 return (
                   <Chip key={cat} active={selectedCategory === cat} onClick={() => toggleCategory(cat)}>
-                    {emoji && <span aria-hidden="true" className="mr-1.5">{emoji}</span>}{label}
+                    {emoji && <span aria-hidden="true" className="mr-1">{emoji}</span>}{label}
                   </Chip>
                 )
               })}
-            </div>
-          </section>
-        </div>
-      )}
+            </FilterRow>
+          </div>
+        )}
+      </section>
 
       {error && (
         <p role="alert" className="panel border-brand-red bg-amber-100 p-4 font-bold">{error}</p>
@@ -197,11 +193,7 @@ export default function SearchPage() {
 
       {/* État vide */}
       {!query.trim() && selectedEngines.length === 0 && !selectedCategory && (
-        <section className="panel mx-auto flex max-w-xl flex-col items-center gap-3 p-8 text-center">
-          <img src="/edj-mascotte.png" alt="" width="120" height="133" className="h-28 w-auto" />
-          <p className="font-display text-2xl">Tapez un nom ou choisissez un style</p>
-          <p className="text-stone-600">Les jeux sont cherchés dans la base, puis sur BGG si besoin.</p>
-        </section>
+        <p className="m-0 text-center text-stone-700">Tapez un nom ou choisissez un style : les jeux sont cherchés dans la base, puis sur BGG si besoin.</p>
       )}
 
       {searched && results.length === 0 && !loading && (
