@@ -5,7 +5,6 @@ namespace App\Controller;
 use App\Entity\GameSession;
 use App\Repository\GameRepository;
 use App\Repository\GameSessionRepository;
-use App\Service\JwtService;
 use App\Service\UserPreferenceService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -15,14 +14,13 @@ use Symfony\Component\Routing\Attribute\Route;
 
 class SessionController extends AbstractController
 {
+    use CurrentUser;
+
     #[Route('/api/sessions', name: 'api_sessions_list', methods: ['GET'])]
     public function list(
-        Request $request,
         GameSessionRepository $repository,
-        JwtService $jwt,
-        EntityManagerInterface $em,
     ): JsonResponse {
-        $user = AuthController::extractUser($request, $jwt, $em);
+        $user = $this->appUser();
         if (!$user) {
             return $this->json(['error' => 'Authentification requise.'], 401);
         }
@@ -34,11 +32,10 @@ class SessionController extends AbstractController
     public function create(
         Request $request,
         GameRepository $gameRepository,
-        JwtService $jwt,
         EntityManagerInterface $em,
         UserPreferenceService $prefService,
     ): JsonResponse {
-        $user = AuthController::extractUser($request, $jwt, $em);
+        $user = $this->appUser();
         if (!$user) {
             return $this->json(['error' => 'Authentification requise.'], 401);
         }

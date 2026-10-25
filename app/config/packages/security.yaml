@@ -17,4 +17,4 @@ security:
     # Les routes ouvertes (santé, authentification, catalogue, recherche) restent publiques.
     access_control:
         - { path: ^/api/admin, roles: ROLE_ADMIN }
-        - { path: ^/api/(auth/me|bgg|sessions|user), roles: ROLE_USER }
+        - { path: ^/api/(auth/(me|refresh)|bgg|sessions|user), roles: ROLE_USER }

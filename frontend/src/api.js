@@ -39,6 +39,9 @@ export const login = (email, password) =>
 
 export const getMe = () => request('/auth/me')
 
+// Renouvelle la session en cours (jeton de 8 h), sans mot de passe
+export const refreshSession = () => request('/auth/refresh', { method: 'POST' })
+
 // Confirmation de l'adresse e-mail
 export const verifyEmail = (token) =>
   request('/auth/verify-email', { method: 'POST', body: JSON.stringify({ token }) })

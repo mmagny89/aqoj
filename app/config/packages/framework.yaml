@@ -32,6 +32,22 @@ framework:
             policy: sliding_window
             limit: 5
             interval: '1 hour'
+        # API publique en lecture, par adresse. Plafonds larges exprès : une soirée d'association met vingt
+        # personnes derrière la même adresse, et chacune cherche en tapant. Le catalogue que BG-TCG aspire page
+        # à page (500 fiches par page) se lit en deux minutes ; la recherche, qui peut interroger BGG en repli,
+        # est la plus serrée des trois.
+        catalogue:
+            policy: sliding_window
+            limit: 240
+            interval: '1 minute'
+        search:
+            policy: sliding_window
+            limit: 120
+            interval: '1 minute'
+        public_api:
+            policy: sliding_window
+            limit: 600
+            interval: '1 minute'
         # Mot de passe oublié et réinitialisation : par adresse et par e-mail ciblé, contre l'inondation de
         # boîtes aux lettres et le balayage de jetons.
         password_reset:

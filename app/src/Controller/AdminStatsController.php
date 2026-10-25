@@ -2,28 +2,19 @@
 
 namespace App\Controller;
 
-use App\Service\JwtService;
 use Doctrine\DBAL\Connection;
-use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
-use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Component\Security\Http\Attribute\IsGranted;
 
+#[IsGranted('ROLE_ADMIN')]
 class AdminStatsController extends AbstractController
 {
     #[Route('/api/admin/stats', name: 'api_admin_stats', methods: ['GET'])]
     public function stats(
-        Request $request,
-        JwtService $jwt,
-        EntityManagerInterface $em,
         Connection $conn,
     ): JsonResponse {
-        $user = AuthController::extractUser($request, $jwt, $em);
-        if (!$user || !$user->isAdmin()) {
-            return $this->json(['error' => 'Accès refusé.'], 403);
-        }
-
         // ── Jeux ─────────────────────────────────────────────────────────────
         $games = $conn->fetchAssociative("
             SELECT

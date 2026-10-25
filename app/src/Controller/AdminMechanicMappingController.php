@@ -4,17 +4,20 @@ namespace App\Controller;
 
 use App\Entity\MechanicMapping;
 use App\Repository\MechanicMappingRepository;
-use App\Service\JwtService;
 use App\Service\MechanicFamilyResolver;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Component\Security\Http\Attribute\IsGranted;
 
+#[IsGranted('ROLE_ADMIN')]
 #[Route('/api/admin/mechanic-mappings')]
 class AdminMechanicMappingController extends AbstractController
 {
+    use CurrentUser;
+
     // Les 6 moteurs centraux (définis par le modèle Engelstein, pas en base)
     public const ENGINE_FAMILIES = [
         'worker_placement' => 'Placement d\'Ouvriers',
@@ -42,17 +45,12 @@ class AdminMechanicMappingController extends AbstractController
     public function __construct(
         private readonly MechanicMappingRepository $repository,
         private readonly EntityManagerInterface $em,
-        private readonly JwtService $jwt,
         private readonly MechanicFamilyResolver $familyResolver,
     ) {}
 
     #[Route('', name: 'admin_mechanic_mappings_list', methods: ['GET'])]
-    public function list(Request $request): JsonResponse
+    public function list(): JsonResponse
     {
-        if (!$this->isAdmin($request)) {
-            return $this->json(['error' => 'Accès refusé.'], 403);
-        }
-
         return $this->json([
             'mappings' => $this->repository->findBy([], ['engelsteinFamily' => 'ASC', 'bggMechanic' => 'ASC']),
             'families' => self::ENGELSTEIN_FAMILIES,
@@ -62,10 +60,6 @@ class AdminMechanicMappingController extends AbstractController
     #[Route('', name: 'admin_mechanic_mappings_create', methods: ['POST'])]
     public function create(Request $request): JsonResponse
     {
-        if (!$this->isAdmin($request)) {
-            return $this->json(['error' => 'Accès refusé.'], 403);
-        }
-
         $data = json_decode($request->getContent(), true) ?? [];
 
         $error = $this->validate($data);
@@ -91,10 +85,6 @@ class AdminMechanicMappingController extends AbstractController
     #[Route('/{id}', name: 'admin_mechanic_mappings_update', methods: ['PUT'])]
     public function update(int $id, Request $request): JsonResponse
     {
-        if (!$this->isAdmin($request)) {
-            return $this->json(['error' => 'Accès refusé.'], 403);
-        }
-
         $mapping = $this->repository->find($id);
         if (!$mapping) {
             return $this->json(['error' => 'Mapping introuvable.'], 404);
@@ -123,12 +113,8 @@ class AdminMechanicMappingController extends AbstractController
     }
 
     #[Route('/{id}', name: 'admin_mechanic_mappings_delete', methods: ['DELETE'])]
-    public function delete(int $id, Request $request): JsonResponse
+    public function delete(int $id, ): JsonResponse
     {
-        if (!$this->isAdmin($request)) {
-            return $this->json(['error' => 'Accès refusé.'], 403);
-        }
-
         $mapping = $this->repository->find($id);
         if (!$mapping) {
             return $this->json(['error' => 'Mapping introuvable.'], 404);
@@ -156,12 +142,8 @@ class AdminMechanicMappingController extends AbstractController
     }
 
     #[Route('/unmapped', name: 'admin_mechanic_mappings_unmapped', methods: ['GET'])]
-    public function unmapped(Request $request): JsonResponse
+    public function unmapped(): JsonResponse
     {
-        if (!$this->isAdmin($request)) {
-            return $this->json(['error' => 'Accès refusé.'], 403);
-        }
-
         $conn = $this->em->getConnection();
 
         $rows = $conn->fetchAllAssociative("
@@ -181,12 +163,8 @@ class AdminMechanicMappingController extends AbstractController
     }
 
     #[Route('/recompute', name: 'admin_mechanic_mappings_recompute', methods: ['POST'])]
-    public function recompute(Request $request): JsonResponse
+    public function recompute(): JsonResponse
     {
-        if (!$this->isAdmin($request)) {
-            return $this->json(['error' => 'Accès refusé.'], 403);
-        }
-
         $this->familyResolver->invalidateCache();
 
         $conn      = $this->em->getConnection();
@@ -257,10 +235,4 @@ class AdminMechanicMappingController extends AbstractController
         return $this->json(['updated' => $count]);
     }
 
-    private function isAdmin(Request $request): bool
-    {
-        $user = AuthController::extractUser($request, $this->jwt, $this->em);
-
-        return $user !== null && $user->isAdmin();
-    }
 }

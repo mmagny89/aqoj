@@ -8,7 +8,6 @@ use App\Repository\UserGameRepository;
 use App\Service\BggApiService;
 use App\Service\MechanicFamilyResolver;
 use App\Service\GameEnrichmentService;
-use App\Service\JwtService;
 use App\Service\RecommendationService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -20,15 +19,15 @@ use Symfony\Contracts\Cache\ItemInterface;
 
 class GameController extends AbstractController
 {
+    use CurrentUser;
+
     #[Route('/api/library', name: 'api_library', methods: ['GET'])]
     public function library(
         Request $request,
         GameRepository $repository,
         UserGameRepository $userGameRepository,
-        JwtService $jwt,
-        EntityManagerInterface $em,
     ): JsonResponse {
-        $user = AuthController::extractUser($request, $jwt, $em);
+        $user = $this->appUser();
         if (!$user) {
             return $this->json(['error' => 'Authentification requise.'], 401);
         }
@@ -68,10 +67,8 @@ class GameController extends AbstractController
     public function recommendation(
         Request $request,
         RecommendationService $service,
-        JwtService $jwt,
-        EntityManagerInterface $em,
     ): JsonResponse {
-        $user = AuthController::extractUser($request, $jwt, $em);
+        $user = $this->appUser();
         if (!$user) {
             return $this->json(['error' => 'Authentification requise pour les recommandations.'], 401);
         }
@@ -97,12 +94,9 @@ class GameController extends AbstractController
 
     #[Route('/api/games/home-reco', name: 'api_games_home_reco', methods: ['GET'])]
     public function homeRecommendations(
-        Request $request,
         RecommendationService $service,
-        JwtService $jwt,
-        EntityManagerInterface $em,
     ): JsonResponse {
-        $user = AuthController::extractUser($request, $jwt, $em);
+        $user = $this->appUser();
         if (!$user) {
             return $this->json(['recommendations' => [], 'families' => []]);
         }
@@ -128,12 +122,9 @@ class GameController extends AbstractController
 
     #[Route('/api/games/forgotten', name: 'api_games_forgotten', methods: ['GET'])]
     public function forgotten(
-        Request $request,
         RecommendationService $service,
-        JwtService $jwt,
-        EntityManagerInterface $em,
     ): JsonResponse {
-        $user = AuthController::extractUser($request, $jwt, $em);
+        $user = $this->appUser();
         if (!$user) {
             return $this->json(['error' => 'Authentification requise.'], 401);
         }
@@ -154,7 +145,6 @@ class GameController extends AbstractController
         BggApiService $bggService,
         GameEnrichmentService $enrichment,
         CacheInterface $cache,
-        JwtService $jwt,
         EntityManagerInterface $em,
     ): JsonResponse {
         $query = trim($request->query->getString('q'));
@@ -167,7 +157,7 @@ class GameController extends AbstractController
         $localOnly = $request->query->getBoolean('local');
 
         // Utilisateur connecté (optionnel) — pour marquer les jeux possédés
-        $user = AuthController::extractUser($request, $jwt, $em);
+        $user = $this->appUser();
         $ownedIds = $user ? $userGameRepository->getOwnedGameIds($user) : [];
 
         /** @param Game[] $games */
@@ -238,13 +228,10 @@ class GameController extends AbstractController
     #[Route('/api/games/{id}', name: 'api_game_detail', methods: ['GET'])]
     public function detail(
         int $id,
-        Request $request,
         GameRepository $repository,
         UserGameRepository $userGameRepository,
         MechanicFamilyResolver $familyResolver,
         GameEnrichmentService $enrichmentService,
-        JwtService $jwt,
-        EntityManagerInterface $em,
     ): JsonResponse {
         $game = $repository->find($id);
 
@@ -255,7 +242,7 @@ class GameController extends AbstractController
         // Premier enrichissement d'une fiche encore vide (un essai par jour au plus) ; le resync périodique est au cron.
         $enrichmentService->enrichIfNeeded($game);
 
-        $user = AuthController::extractUser($request, $jwt, $em);
+        $user = $this->appUser();
         $bggUserRating = null;
         if ($user) {
             $ratings = $userGameRepository->getBggUserRatings($user);

@@ -65,16 +65,7 @@ final class JwtAuthenticator extends AbstractAuthenticator implements Authentica
 
     private function payload(Request $request): ?\stdClass
     {
-        $header = $request->headers->get('Authorization', '');
-        if (!str_starts_with($header, 'Bearer ')) {
-            return null;
-        }
-
-        try {
-            return $this->jwt->decode(substr($header, 7));
-        } catch (\Throwable) {
-            return null;
-        }
+        return $this->jwt->payloadFromRequest($request);
     }
 
     private function userId(Request $request): ?int

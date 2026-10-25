@@ -20,6 +20,8 @@ use Symfony\Component\Routing\Attribute\Route;
 
 class AuthController extends AbstractController
 {
+    use CurrentUser;
+
     private const INVALID_CODE = "Code d'invitation invalide ou expiré.";
 
     /** Dit au formulaire d'inscription s'il doit réclamer un code d'invitation. */
@@ -34,7 +36,6 @@ class AuthController extends AbstractController
         Request $request,
         UserRepository $userRepository,
         EntityManagerInterface $em,
-        JwtService $jwt,
         RateLimiterFactoryInterface $registerLimiter,
         InvitationCodeRepository $invitations,
         UserTokens $tokens,
@@ -293,31 +294,36 @@ class AuthController extends AbstractController
         return $this->json(['message' => 'Mot de passe modifié. Vous pouvez vous connecter.']);
     }
 
-    #[Route('/api/auth/me', name: 'api_auth_me', methods: ['GET'])]
-    public function me(Request $request, JwtService $jwt, EntityManagerInterface $em): JsonResponse
+    /**
+     * Renouvelle la session en cours (jeton de 8 h) sans redemander le mot de passe, jusqu'à 30 jours après
+     * la connexion d'origine. Un jeton expiré, révoqué ou d'un compte non confirmé n'arrive jamais ici : le
+     * pare-feu en a fait un visiteur, et `access_control` répond 401.
+     */
+    #[Route('/api/auth/refresh', name: 'api_auth_refresh', methods: ['POST'])]
+    public function refresh(Request $request, JwtService $jwt): JsonResponse
     {
-        $user = $this->extractUser($request, $jwt, $em);
+        $user = $this->appUser();
+        $payload = $jwt->payloadFromRequest($request);
+        if ($user === null || $payload === null) {
+            return $this->json(['error' => 'Non authentifié.'], 401);
+        }
+
+        $token = $jwt->renew($user, $payload);
+        if ($token === null) {
+            return $this->json(['error' => 'Session expirée : reconnectez-vous.'], 401);
+        }
+
+        return $this->json(['token' => $token, 'user' => $user]);
+    }
+
+    #[Route('/api/auth/me', name: 'api_auth_me', methods: ['GET'])]
+    public function me(): JsonResponse
+    {
+        $user = $this->appUser();
         if (!$user) {
             return $this->json(['error' => 'Non authentifié.'], 401);
         }
 
         return $this->json($user);
-    }
-
-    public static function extractUser(Request $request, JwtService $jwt, EntityManagerInterface $em): ?User
-    {
-        $header = $request->headers->get('Authorization', '');
-        if (!str_starts_with($header, 'Bearer ')) {
-            return null;
-        }
-
-        try {
-            $payload = $jwt->decode(substr($header, 7));
-            $user = $em->find(User::class, $payload->sub);
-
-            return $user !== null && !$jwt->accepts($user, $payload) ? null : $user;
-        } catch (\Throwable) {
-            return null;
-        }
     }
 }
