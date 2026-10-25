@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { getForgottenGems, getHomeRecommendations, getTonightRecommendations, saveTable } from '../api'
 import GameCard from '../components/GameCard'
+import FilterRow from '../components/FilterRow'
 import { DiceIcon, DownloadIcon, SearchIcon, ShelfIcon } from '../components/icons'
 import { familyLabel, familyColor, isEngine } from '../utils/engelstein'
 
@@ -17,16 +18,6 @@ const DURATIONS = [
   { label: 'Peu importe', value: 240 },
 ]
 const DEFAULT_TABLE = { players: 4, maxTime: 60 }
-
-/* Une rangée de filtres : libellé et puces sur la même ligne dès 640 px. */
-function FilterRow({ id, label, children }) {
-  return (
-    <div role="group" aria-labelledby={id} className="flex flex-wrap items-center gap-1.5">
-      <span id={id} className="mr-1 w-16 shrink-0 text-sm font-bold">{label}</span>
-      {children}
-    </div>
-  )
-}
 
 /* ── Bandeau « Qu'est-ce qu'on joue ce soir ? » ──────────────────────── */
 function Hero({ table, onTableChange, saved, scopeSwitch }) {

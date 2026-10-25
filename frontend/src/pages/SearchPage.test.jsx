@@ -30,7 +30,8 @@ describe('SearchPage', () => {
   it('propose les filtres de style tant que rien n’est saisi', async () => {
     render(<MemoryRouter><SearchPage /></MemoryRouter>)
 
-    expect(screen.getByRole('heading', { name: 'Parcourir par style de jeu' })).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: 'Style' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Explorer le catalogue' })).toBeInTheDocument()
     await userEvent.click(screen.getAllByRole('button', { pressed: false })[0])
 
     expect(searchGames).toHaveBeenCalled()
