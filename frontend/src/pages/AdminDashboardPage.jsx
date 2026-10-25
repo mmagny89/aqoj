@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { getAdminStats } from '../api'
 import { useAuth } from '../context/AuthContext'
 import { GamesPanel, JobsPanel } from '../components/AdminCatalogue'
@@ -70,6 +70,46 @@ function fmtNum(n) {
   return n != null ? Number(n).toLocaleString('fr') : '—'
 }
 
+const TABS = [
+  ['catalogue', 'Catalogue'],
+  ['taches', 'Tâches'],
+  ['explorer', 'Explorer'],
+  ['communaute', 'Communauté'],
+  ['mappings', 'Mappings'],
+]
+
+/* ── Onglets : l'onglet courant vit dans l'URL (?onglet=), donc se partage et survit à un rechargement ── */
+function Tabs({ current, onChange }) {
+  const move = (event, index) => {
+    const step = { ArrowRight: 1, ArrowLeft: -1 }[event.key]
+    if (!step) return
+    event.preventDefault()
+    const next = TABS[(index + step + TABS.length) % TABS.length][0]
+    onChange(next)
+    document.getElementById(`onglet-${next}`)?.focus()
+  }
+  return (
+    <div role="tablist" aria-label="Sections du tableau de bord" className="flex gap-2 overflow-x-auto pb-1">
+      {TABS.map(([id, label], index) => (
+        <button
+          key={id}
+          type="button"
+          role="tab"
+          id={`onglet-${id}`}
+          aria-selected={current === id}
+          aria-controls="panneau-admin"
+          tabIndex={current === id ? 0 : -1}
+          onClick={() => onChange(id)}
+          onKeyDown={event => move(event, index)}
+          className={`min-h-11 shrink-0 rounded-xl px-4 text-sm font-semibold transition-colors ${current === id ? 'bg-stone-800 text-white' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'}`}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 /* ── Page principale ─────────────────────────────────────────────────── */
 export default function AdminDashboardPage() {
   const { user }         = useAuth()
@@ -78,12 +118,15 @@ export default function AdminDashboardPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError]     = useState(null)
   const [explorerFilter, setExplorerFilter] = useState('pending')
-  const explorerRef = useRef(null)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const requested = searchParams.get('onglet')
+  const tab = TABS.some(([id]) => id === requested) ? requested : 'catalogue'
+  const selectTab = (id) => setSearchParams(id === 'catalogue' ? {} : { onglet: id }, { replace: true })
 
   // Les cartes du catalogue ouvrent l'explorateur sur le filtre correspondant.
   const explore = (filter) => {
     setExplorerFilter(filter)
-    explorerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    selectTab('explorer')
   }
 
   useEffect(() => {
@@ -136,11 +179,18 @@ export default function AdminDashboardPage() {
         </Link>
       </div>
 
-      {/* ── Tâches d'import et de synchronisation ───────────────────── */}
+      <Tabs current={tab} onChange={selectTab} />
+
+      <div id="panneau-admin" role="tabpanel" aria-labelledby={`onglet-${tab}`} className="space-y-6">
+
+      {tab === 'taches' && (
       <Section title="Tâches d'import et de synchronisation" icon="📥">
         <JobsPanel />
       </Section>
 
+      )}
+
+      {tab === 'catalogue' && (<>
       {/* ── Jeux ─────────────────────────────────────────────────────── */}
       <Section title="Catalogue de jeux (jeux de base)" icon="🎲">
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
@@ -244,13 +294,18 @@ export default function AdminDashboardPage() {
         )}
       </Section>
 
-      {/* ── Explorateur du catalogue ─────────────────────────────────── */}
-      <div ref={explorerRef} className="scroll-mt-20">
-        <Section title="Explorer le catalogue" icon="🔎">
-          <GamesPanel filter={explorerFilter} onFilter={setExplorerFilter} />
-        </Section>
-      </div>
+      </>)}
 
+      {tab === 'explorer' && (
+      <>
+      {/* ── Explorateur du catalogue ─────────────────────────────────── */}
+      <Section title="Explorer le catalogue" icon="🔎">
+        <GamesPanel filter={explorerFilter} onFilter={setExplorerFilter} />
+      </Section>
+      </>
+      )}
+
+      {tab === 'communaute' && (<>
       {/* ── Utilisateurs ─────────────────────────────────────────────── */}
       <Section title="Utilisateurs" icon="👥">
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
@@ -292,7 +347,10 @@ export default function AdminDashboardPage() {
         </div>
       </Section>
 
+      </>)}
+
       {/* ── Mappings mécaniques & thématiques ────────────────────────── */}
+      {tab === 'mappings' && (
       <Section title="Mappings" icon="⚙️">
 
         {/* Mécaniques */}
@@ -327,7 +385,9 @@ export default function AdminDashboardPage() {
         </div>
 
       </Section>
+      )}
 
+      </div>
     </div>
   )
 }
