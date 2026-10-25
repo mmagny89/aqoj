@@ -3,14 +3,27 @@
 namespace App\Controller;
 
 use App\Repository\UserPreferenceRepository;
+use App\Service\MechanicFamilyResolver;
 use App\Service\UserPreferenceService;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Attribute\Route;
 
 class UserPreferenceController extends AbstractController
 {
     use CurrentUser;
+
+    /** Familles proposées par le questionnaire de goûts (moteurs, support, caractéristiques). */
+    private const TASTE_FAMILIES = [
+        ...MechanicFamilyResolver::ENGINE_FAMILIES,
+        'card_play', 'spatial_placement', 'movement', 'resource_management',
+        'resolution', 'uncertainty', 'cooperation', 'scoring',
+        ...MechanicFamilyResolver::EXTRA_FAMILIES,
+    ];
+
+    private const TASTE_MAX = 6;
 
     /** Retourne les préférences de l'utilisateur connecté (null si pas encore calculées). */
     #[Route('/api/user/preferences', name: 'api_user_preferences_get', methods: ['GET'])]
@@ -40,5 +53,37 @@ class UserPreferenceController extends AbstractController
         $pref = $prefService->recompute($user);
 
         return $this->json($pref->jsonSerialize());
+    }
+
+    /** Enregistre les goûts déclarés par le joueur ; ils servent tant que son historique ne suffit pas. */
+    #[Route('/api/user/taste', name: 'api_user_taste_put', methods: ['PUT'])]
+    public function saveTaste(
+        Request $request,
+        UserPreferenceRepository $prefRepository,
+        EntityManagerInterface $em,
+    ): JsonResponse {
+        $user = $this->appUser();
+        if (!$user) {
+            return $this->json(['error' => 'Authentification requise.'], 401);
+        }
+
+        $families = json_decode($request->getContent(), true)['families'] ?? null;
+        if (!is_array($families) || !array_is_list($families)) {
+            return $this->json(['error' => 'Liste de familles attendue.'], 400);
+        }
+
+        $families = array_values(array_unique(array_filter($families, 'is_string')));
+        if (array_diff($families, self::TASTE_FAMILIES) !== []) {
+            return $this->json(['error' => 'Famille inconnue.'], 400);
+        }
+        if (count($families) > self::TASTE_MAX) {
+            return $this->json(['error' => 'Six goûts au plus.'], 400);
+        }
+
+        $pref = $prefRepository->findOrCreate($user)->setDeclaredFamilies($families);
+        $em->persist($pref);
+        $em->flush();
+
+        return $this->json(['declaredFamilies' => $pref->getDeclaredFamilies()]);
     }
 }

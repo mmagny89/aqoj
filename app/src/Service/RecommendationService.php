@@ -11,6 +11,15 @@ use Doctrine\DBAL\Connection;
 
 class RecommendationService
 {
+    /** Fenêtre « jeux récents » du démarrage à froid : l'année courante et les quatre précédentes. */
+    private const COLD_START_YEARS = 5;
+
+    /** Complexité BGG (1-5) au-delà de laquelle un jeu n'est plus proposé à quelqu'un dont on ignore les goûts. */
+    private const COLD_START_MAX_COMPLEXITY = 3.0;
+
+    /** Nombre minimal de votes : écarte les fiches récentes dont la note ne veut encore rien dire. */
+    private const COLD_START_MIN_VOTES = 150;
+
     public function __construct(
         private readonly GameRepository $gameRepository,
         private readonly GameSessionRepository $sessionRepository,
@@ -135,20 +144,29 @@ class RecommendationService
      *   - `families`  : les 4 familles Engelstein les plus jouées
      *   - `recent`    : top 10 jeux récents (≥ année courante - 3) correspondant au profil
      *   - `byDecade`  : tableau ['2020s' => [...], '2010s' => [...], ...] top 5 par décennie
+     *   - `coldStart` : true quand ni l'historique ni le questionnaire ne donnent de profil ;
+     *                   `recent` propose alors des nouveautés accessibles, sans filtre de mécanique
+     *   - `declared`  : goûts déclarés par le joueur (pour préremplir le questionnaire)
      */
     public function recommendHomeDiscover(User $user): array
     {
         // 1. Profil mécanique — jeux notés en priorité, sinon toute la collection
-        $topFamilies = $this->getUserTopFamilies($user);
-
-        if (empty($topFamilies)) {
-            return ['families' => [], 'recent' => [], 'byDecade' => []];
-        }
-
+        $declared    = $this->getDeclaredFamilies($user);
+        $topFamilies = $this->getUserTopFamilies($user, $declared);
         $currentYear = (int) date('Y');
 
         // 2. Jeux à exclure (détestés)
         $excludeIds = $this->getDislikedGameIds($user);
+
+        if (empty($topFamilies)) {
+            return [
+                'families'  => [],
+                'recent'    => $this->coldStartRecent($user, $excludeIds, $currentYear),
+                'byDecade'  => [],
+                'coldStart' => true,
+                'declared'  => $declared,
+            ];
+        }
 
         // 3. Jeux récents (3 dernières années)
         $recentGames = $this->gameRepository->findDiscoverForRecommendation(
@@ -159,6 +177,7 @@ class RecommendationService
             limit:      30,
             minYear:    $currentYear - 3,
             excludeIds: $excludeIds,
+            baseGamesOnly: true,
         );
 
         $recent = array_slice(
@@ -191,6 +210,7 @@ class RecommendationService
                 minYear:    $min,
                 maxYear:    $max,
                 excludeIds: $excludeIds,
+                baseGamesOnly: true,
             );
 
             if (empty($games)) {
@@ -204,14 +224,61 @@ class RecommendationService
         }
 
         return [
-            'families' => $topFamilies,
-            'recent'   => $recent,
-            'byDecade' => $byDecade,
+            'families'  => $topFamilies,
+            'recent'    => $recent,
+            'byDecade'  => $byDecade,
+            'coldStart' => false,
+            'declared'  => $declared,
         ];
     }
 
+    /**
+     * Nouveautés pour quelqu'un dont on ne sait rien : jeux de base récents, abordables,
+     * bien notés par assez de monde. Pas de filtre de mécanique — on ne devine pas les goûts.
+     */
+    private function coldStartRecent(User $user, array $excludeIds, int $currentYear): array
+    {
+        $games = $this->gameRepository->findDiscoverForRecommendation(
+            $user,
+            players:       null,
+            maxTime:       null,
+            limit:         60,
+            minYear:       $currentYear - self::COLD_START_YEARS + 1,
+            excludeIds:    $excludeIds,
+            baseGamesOnly: true,
+            maxComplexity: self::COLD_START_MAX_COMPLEXITY,
+            minVotes:      self::COLD_START_MIN_VOTES,
+        );
+
+        $scored = array_map(function (Game $game) use ($currentYear): array {
+            $rating = $this->bayesianRating($game->getRatingBgg(), $game->getUsersRated());
+            $year   = $game->getYearPublished();
+            // Plus le jeu est récent, plus il monte : de 0 (il y a 5 ans) à 10 (cette année).
+            $recency = $year === null ? 0.0 : max(0, self::COLD_START_YEARS - ($currentYear - $year)) * 10 / self::COLD_START_YEARS;
+
+            $reason = ($year !== null ? "Nouveauté {$year}" : 'Nouveauté')
+                . ' · ' . number_format((float) $game->getRatingBgg(), 1) . '/10 sur BGG'
+                . ' · facile à aborder';
+
+            return ['game' => $game, 'score' => $rating * 5 + $recency, 'reason' => $reason];
+        }, $games);
+
+        usort($scored, fn($a, $b) => $b['score'] <=> $a['score']);
+
+        return array_slice($scored, 0, 10);
+    }
+
+    /** Goûts que le joueur a déclarés lui-même (questionnaire de l'accueil). */
+    private function getDeclaredFamilies(User $user): array
+    {
+        $raw = $this->conn->fetchOne('SELECT declared_families FROM user_preference WHERE user_id = ?', [$user->getId()]);
+        $families = $raw === false ? [] : json_decode((string) $raw, true);
+
+        return is_array($families) ? array_values(array_filter($families, 'is_string')) : [];
+    }
+
     /** Récupère les 4 familles Engelstein les plus représentées dans les jeux aimés. */
-    private function getUserTopFamilies(User $user): array
+    private function getUserTopFamilies(User $user, array $declared = []): array
     {
         // Priorité 1 : jeux bien notés sur BGG (>= 6) — signal fort "j'aime"
         $rows = $this->conn->fetchAllAssociative(
@@ -252,7 +319,12 @@ class RecommendationService
             $families = array_column($rows, 'family_key');
         }
 
-        // Fallback 3 : collection entière (hors jeux explicitement détestés)
+        // Priorité 3 : goûts déclarés — un choix explicite vaut mieux qu'une collection sans notes
+        if (empty($families)) {
+            $families = array_slice($declared, 0, 4);
+        }
+
+        // Fallback 4 : collection entière (hors jeux explicitement détestés)
         if (empty($families)) {
             $rows = $this->conn->fetchAllAssociative(
                 "SELECT family_key, COUNT(*) AS cnt

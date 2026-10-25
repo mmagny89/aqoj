@@ -130,6 +130,9 @@ class GameRepository extends ServiceEntityRepository
         ?int $maxYear = null,
         array $categoryKeys = [],
         array $excludeIds = [],
+        bool $baseGamesOnly = false,
+        ?float $maxComplexity = null,
+        ?int $minVotes = null,
     ): array {
         $conn = $this->getEntityManager()->getConnection();
 
@@ -186,6 +189,21 @@ class GameRepository extends ServiceEntityRepository
             foreach ($categoryKeys as $cat) {
                 $params[] = json_encode([$cat]);
             }
+        }
+
+        if ($baseGamesOnly) {
+            $conditions[] = 'g.is_expansion = false';
+        }
+
+        if ($maxComplexity !== null) {
+            // 0 = complexité inconnue : on ne la présente pas comme « accessible »
+            $conditions[] = 'g.complexity > 0 AND g.complexity <= ?';
+            $params[] = $maxComplexity;
+        }
+
+        if ($minVotes !== null) {
+            $conditions[] = 'g.users_rated >= ?';
+            $params[] = $minVotes;
         }
 
         if (!empty($excludeIds)) {

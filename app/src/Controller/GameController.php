@@ -98,7 +98,7 @@ class GameController extends AbstractController
     ): JsonResponse {
         $user = $this->appUser();
         if (!$user) {
-            return $this->json(['recommendations' => [], 'families' => []]);
+            return $this->json(['recommendations' => [], 'families' => [], 'coldStart' => false, 'declared' => []]);
         }
 
         $result = $service->recommendHomeDiscover($user);
@@ -117,6 +117,8 @@ class GameController extends AbstractController
             'families' => $result['families'],
             'recent'   => $serialize($result['recent']),
             'byDecade' => $byDecade,
+            'coldStart' => $result['coldStart'],
+            'declared'  => $result['declared'],
         ]);
     }
 

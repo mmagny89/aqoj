@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { getForgottenGems, getHomeRecommendations } from '../api'
+import { getForgottenGems, getHomeRecommendations, saveTaste } from '../api'
 import GameCard from '../components/GameCard'
 import { DiceIcon, DownloadIcon, SearchIcon, ShelfIcon } from '../components/icons'
-import { familyLabel, familyColor, isEngine } from '../utils/engelstein'
+import { ENGINES, familyLabel, familyColor, isEngine } from '../utils/engelstein'
 
 const PLAYERS = [1, 2, 3, 4, 5]
 const DURATIONS = [
@@ -94,6 +94,56 @@ function Carousel({ items, label }) {
   )
 }
 
+/* ── Questionnaire de goûts ──────────────────────────────────────────── */
+// Moteurs centraux + les mécaniques de support qu'un joueur reconnaît sans vocabulaire de spécialiste.
+const TASTES = [...Object.keys(ENGINES), 'cooperation', 'card_play', 'spatial_placement', 'resource_management', 'uncertainty']
+const TASTES_MAX = 6
+
+function TasteForm({ initial, onSaved }) {
+  const [selected, setSelected] = useState(initial)
+  const [saving, setSaving]     = useState(false)
+  const [error, setError]       = useState(null)
+
+  const toggle = (key) => setSelected(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key])
+
+  const submit = (event) => {
+    event.preventDefault()
+    setSaving(true)
+    setError(null)
+    saveTaste(selected)
+      .then(onSaved)
+      .catch(() => setError('Impossible d’enregistrer vos goûts, réessayez.'))
+      .finally(() => setSaving(false))
+  }
+
+  return (
+    <form onSubmit={submit} aria-labelledby="titre-gouts" className="panel flex flex-col gap-4 p-5 sm:p-7">
+      <div>
+        <h2 id="titre-gouts" className="text-2xl sm:text-3xl">Ce que vous aimez</h2>
+        <p className="mt-1 text-stone-600">Choisissez jusqu’à {TASTES_MAX} styles : nous affinons les suggestions, sans compte BGG.</p>
+      </div>
+      <ul className="m-0 flex list-none flex-wrap gap-2 p-0">
+        {TASTES.map(key => {
+          const on = selected.includes(key)
+          return (
+            <li key={key}>
+              <button type="button" className="chip" aria-pressed={on} disabled={!on && selected.length >= TASTES_MAX} onClick={() => toggle(key)}>
+                {familyLabel(key)}
+              </button>
+            </li>
+          )
+        })}
+      </ul>
+      {error && <p role="alert" className="font-bold text-brand-red">{error}</p>}
+      <div>
+        <button type="submit" className="btn btn-primary" disabled={saving || selected.length === 0}>
+          {saving ? 'Enregistrement…' : 'Enregistrer mes goûts'}
+        </button>
+      </div>
+    </form>
+  )
+}
+
 /* ── Onglets décennie ────────────────────────────────────────────────── */
 function DecadeTabs({ byDecade }) {
   const labels = Object.keys(byDecade)
@@ -139,6 +189,7 @@ export default function HomePage() {
   const [forgotten, setForgotten]     = useState([])
   const [recoLoading, setRecoLoading] = useState(false)
   const [recoError, setRecoError]     = useState(null)
+  const [reloadKey, setReloadKey]     = useState(0)
 
   useEffect(() => {
     if (authLoading || !user) return
@@ -150,11 +201,13 @@ export default function HomePage() {
       .catch(err  => setRecoError(err.message))
       .finally(() => setRecoLoading(false))
     getForgottenGems().then(setForgotten).catch(() => setForgotten([]))
-  }, [user, authLoading])
+  }, [user, authLoading, reloadKey])
 
   const hasRecent    = reco?.recent?.length > 0
   const hasDecades   = reco?.byDecade && Object.keys(reco.byDecade).length > 0
   const hasForgotten = forgotten.length > 0
+  const coldStart    = reco?.coldStart === true
+  const showTaste    = !recoLoading && reco !== null && (coldStart || reco.declared?.length > 0)
 
   return (
     <div className="mx-auto flex max-w-7xl flex-col gap-10 px-4 py-6 sm:px-6 lg:px-10 lg:py-8">
@@ -198,20 +251,26 @@ export default function HomePage() {
             <section aria-labelledby="titre-nouveautes">
               <SectionTitle id="titre-nouveautes" action={
                 <Link to="/recommander" className="inline-flex min-h-11 items-center font-bold text-brand-blue underline underline-offset-4">Voir plus de recommandations</Link>
-              }>Nouveautés pour vous</SectionTitle>
-              <div className="mb-4 flex flex-wrap items-center gap-2 text-stone-600">
-                <span>D'après vos goûts :</span>
-                {reco.families.map(key => (
-                  <span key={key} className={`rounded-full border px-2.5 py-1 text-xs font-medium ${
-                    isEngine(key) ? familyColor(key) : 'border-stone-200 bg-stone-100 text-stone-600'
-                  }`}>
-                    {familyLabel(key)}
-                  </span>
-                ))}
-              </div>
-              <Carousel items={reco.recent} label="Nouveautés pour vous" />
+              }>{coldStart ? 'Nouveautés à découvrir' : 'Nouveautés pour vous'}</SectionTitle>
+              {coldStart ? (
+                <p className="mb-4 text-stone-600">Nous ne connaissons pas encore vos goûts : voici des jeux récents, bien notés et faciles à aborder.</p>
+              ) : (
+                <div className="mb-4 flex flex-wrap items-center gap-2 text-stone-600">
+                  <span>D'après vos goûts :</span>
+                  {reco.families.map(key => (
+                    <span key={key} className={`rounded-full border px-2.5 py-1 text-xs font-medium ${
+                      isEngine(key) ? familyColor(key) : 'border-stone-200 bg-stone-100 text-stone-600'
+                    }`}>
+                      {familyLabel(key)}
+                    </span>
+                  ))}
+                </div>
+              )}
+              <Carousel items={reco.recent} label={coldStart ? 'Nouveautés à découvrir' : 'Nouveautés pour vous'} />
             </section>
           )}
+
+          {showTaste && <TasteForm initial={reco.declared ?? []} onSaved={() => setReloadKey(k => k + 1)} />}
 
           {hasForgotten && (
             <section aria-labelledby="titre-oublies">
@@ -228,9 +287,9 @@ export default function HomePage() {
             <section className="panel mx-auto max-w-xl p-8 text-center">
               <h2 className="text-2xl">Pas encore de recommandations</h2>
               <p className="mt-2 mb-5 text-stone-600">
-                Importez votre collection BGG et notez quelques jeux pour débloquer des suggestions personnalisées.
+                Ajoutez des jeux à votre ludothèque et notez-les pour débloquer des suggestions personnalisées.
               </p>
-              <Link to="/importer" className="btn btn-primary">Importer ma collection</Link>
+              <Link to="/ludotheque" className="btn btn-primary">Ma ludothèque</Link>
             </section>
           )}
         </>
