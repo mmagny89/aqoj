@@ -98,13 +98,17 @@ function Carousel({ items, label }) {
 
 /* ── Pour la table du soir ───────────────────────────────────────────── */
 function TonightSection({ tonight, players, maxTime }) {
-  const durationLabel = DURATIONS.find(d => d.value === maxTime)?.label
-  const table = `${players} joueur${players > 1 ? 's' : ''}${maxTime < 240 ? `, ${durationLabel}` : ''}`
+  const durationLabel = maxTime < 240 ? DURATIONS.find(d => d.value === maxTime)?.label : 'Durée libre'
 
   return (
     <section aria-labelledby="titre-table" className="flex flex-col gap-6">
-      <SectionTitle id="titre-table">Pour votre table</SectionTitle>
-      <p className="-mt-3 text-stone-600">Pour {table} : changez la table dans le bandeau ci-dessus.</p>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <h2 id="titre-table" className="text-2xl sm:text-3xl">Pour votre table</h2>
+        <ul aria-label="Table choisie" className="m-0 flex list-none flex-wrap gap-2 p-0">
+          <li className="badge bg-brand-yellow">{players} joueur{players > 1 ? 's' : ''}</li>
+          <li className="badge bg-brand-yellow">{durationLabel}</li>
+        </ul>
+      </div>
       {tonight.popular.length > 0 && (
         <div>
           <h3 className="mb-3 text-xl sm:text-2xl">Ce que jouent les autres membres</h3>

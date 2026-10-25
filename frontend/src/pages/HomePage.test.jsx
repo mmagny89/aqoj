@@ -185,7 +185,7 @@ describe('HomePage', () => {
       await userEvent.click(screen.getByRole('button', { name: 'Peu importe' }))
 
       expect(getTonightRecommendations).toHaveBeenLastCalledWith({ players: 2, maxTime: null, scope: 'library' })
-      expect(await screen.findByText(/Pour 2 joueurs/)).toBeInTheDocument()
+      expect(await screen.findByText('2 joueurs')).toBeInTheDocument()
     })
 
     it('n’affiche un jeu qu’une fois, même s’il est à la fois récent et facile', async () => {
