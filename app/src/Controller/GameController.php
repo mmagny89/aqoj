@@ -163,6 +163,8 @@ class GameController extends AbstractController
         $category = $request->query->getString('category') ?: null;
         $engines = $request->query->all('engines');
         $page = max(1, $request->query->getInt('page', 1));
+        // `local=1` : choisir un jeu dans la base (saisie semi-automatique) ne doit jamais appeler BGG.
+        $localOnly = $request->query->getBoolean('local');
 
         // Utilisateur connecté (optionnel) — pour marquer les jeux possédés
         $user = AuthController::extractUser($request, $jwt, $em);
@@ -183,7 +185,7 @@ class GameController extends AbstractController
 
             // Fallback BGG si résultats insuffisants. Une même recherche n'interroge BGG qu'une
             // fois par jour (résultat vide compris) ; en cas d'échec, on retente dans 10 minutes.
-            if (count($localResults) < 3 && mb_strlen($query) >= 3) {
+            if (!$localOnly && count($localResults) < 3 && mb_strlen($query) >= 3) {
                 $imported = $cache->get(
                     'bgg_search_' . md5(mb_strtolower($query)),
                     function (ItemInterface $item) use ($query, $repository, $bggService, $enrichment, $em): int {

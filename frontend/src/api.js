@@ -55,6 +55,7 @@ export const getGames = (params = {}) => {
 export const searchGames = (params = {}) => {
   const qs = new URLSearchParams()
   if (params.q) qs.set('q', params.q)
+  if (params.local) qs.set('local', '1')
   if (params.players) qs.set('players', params.players)
   if (params.maxTime) qs.set('maxTime', params.maxTime)
   if (params.category) qs.set('category', params.category)
