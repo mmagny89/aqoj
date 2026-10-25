@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { getGame, createSession, getSimilarGames } from '../api'
-import GameCard from '../components/GameCard'
+import GameCard, { coverColor, initials } from '../components/GameCard'
 import { familyLabel, familyColor, isEngine, isExtra, SUPPORT_COLOR } from '../utils/engelstein'
 import { groupCategories } from '../utils/categories'
 
@@ -243,20 +243,20 @@ export default function GameDetailPage() {
     <div className="max-w-6xl mx-auto px-4 py-6 space-y-5">
 
       {/* Nav */}
-      <button onClick={() => navigate(-1)} className="text-sm text-stone-400 hover:text-stone-600 flex items-center gap-1">
-        ← Retour
+      <button type="button" onClick={() => navigate(-1)} className="inline-flex min-h-11 items-center gap-2 font-bold hover:underline underline-offset-4">
+        <span aria-hidden="true">←</span> Retour
       </button>
 
       {/* ── Hero : image gauche + infos droite ────────────────────────── */}
-      <div className="bg-white rounded-2xl border border-stone-200 shadow-sm overflow-hidden">
+      <div className="panel overflow-hidden shadow-token-lg">
         <div className="flex flex-col sm:flex-row gap-0">
 
           {/* Image */}
-          <div className="sm:w-64 lg:w-80 flex-shrink-0 bg-stone-100">
+          <div className={`sm:w-64 lg:w-80 flex-shrink-0 border-b-[3px] sm:border-b-0 sm:border-r-[3px] border-ink ${game.imageUrl ? 'bg-cream' : coverColor(game)}`}>
             {game.imageUrl ? (
-              <img src={game.imageUrl} alt={game.name} className="w-full h-64 sm:h-full object-cover" />
+              <img src={game.imageUrl} alt="" className="w-full h-64 sm:h-full object-cover" />
             ) : (
-              <div className="w-full h-64 sm:h-full flex items-center justify-center text-6xl text-stone-300">🎲</div>
+              <div className="grid h-64 w-full place-items-center font-display text-7xl sm:h-full" aria-hidden="true">{initials(game.name)}</div>
             )}
           </div>
 
@@ -267,98 +267,83 @@ export default function GameDetailPage() {
             <div>
               <div className="flex items-start gap-2 flex-wrap mb-1">
                 {hasFrName && (
-                  <span className="text-xs bg-blue-50 text-blue-600 border border-blue-200 px-2 py-0.5 rounded-full font-medium flex-shrink-0">
-                    🇫🇷 Titre FR
-                  </span>
+                  <span className="badge bg-board">Titre français</span>
                 )}
                 {game.isExpansion && (
-                  <span className="text-xs bg-stone-100 text-stone-500 border border-stone-200 px-2 py-0.5 rounded-full font-medium flex-shrink-0">
-                    Extension
-                  </span>
+                  <span className="badge bg-cream">Extension</span>
                 )}
               </div>
-              <h1 className="text-2xl font-black text-stone-900 leading-tight">{displayName}</h1>
+              <h1 className="text-4xl leading-[1.05] sm:text-5xl">{displayName}</h1>
               {hasFrName && (
-                <p className="text-sm text-stone-400 mt-0.5">{game.nameOriginal}</p>
+                <p className="text-sm text-stone-500 mt-0.5">{game.nameOriginal}</p>
               )}
               {game.yearPublished && (
-                <p className="text-stone-400 text-sm mt-0.5">{game.yearPublished}</p>
+                <p className="text-stone-500 text-sm mt-0.5">{game.yearPublished}</p>
               )}
             </div>
 
             {/* Notes */}
             <div className="flex gap-3 flex-wrap">
               {game.bggUserRating != null && (
-                <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-2.5 text-center min-w-[72px]">
-                  <div className="text-2xl font-black text-emerald-600">{game.bggUserRating}</div>
-                  <div className="text-xs text-emerald-500">ma note /10</div>
+                <div className="rounded-xl border-[3px] border-ink bg-brand-green px-4 py-2.5 text-center text-paper min-w-[72px]">
+                  <div className="font-display text-3xl leading-none">{game.bggUserRating}</div>
+                  <div className="text-xs font-bold">ma note /10</div>
                 </div>
               )}
               {game.ratingBgg != null && (
-                <div className="bg-amber-50 rounded-xl px-4 py-2.5 text-center min-w-[72px]">
-                  <div className="text-2xl font-black text-amber-600">{game.ratingBgg.toFixed(1)}</div>
-                  <div className="text-xs text-stone-400">note BGG /10</div>
+                <div className="rounded-xl border-[3px] border-ink bg-brand-yellow px-4 py-2.5 text-center min-w-[72px]">
+                  <div className="font-display text-3xl leading-none">{game.ratingBgg.toFixed(1)}</div>
+                  <div className="text-xs font-bold">note BGG /10</div>
                   {game.usersRated != null && (
-                    <div className="text-xs text-stone-300">{game.usersRated.toLocaleString('fr')} votes</div>
+                    <div className="text-xs text-stone-700">{game.usersRated.toLocaleString('fr')} votes</div>
                   )}
                 </div>
               )}
             </div>
 
-            {/* Stats en 4 colonnes */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              <div className="bg-stone-50 rounded-xl px-3 py-2.5 text-center">
-                <div className="text-lg">👥</div>
-                <div className="text-xs text-stone-400 leading-none mt-0.5">Joueurs</div>
-                <div className="text-sm font-bold text-stone-800 mt-0.5">{playerRange}</div>
+            {/* Faits clés */}
+            <dl className="m-0 flex flex-wrap gap-3">
+              <div className="min-w-28 rounded-xl border-[3px] border-ink bg-cream px-4 py-2.5">
+                <dt className="text-xs font-bold uppercase text-stone-600">Joueurs</dt>
+                <dd className="m-0 font-display text-2xl leading-tight">{playerRange}</dd>
               </div>
               {game.playingTime > 0 && (
-                <div className="bg-stone-50 rounded-xl px-3 py-2.5 text-center">
-                  <div className="text-lg">⏱</div>
-                  <div className="text-xs text-stone-400 leading-none mt-0.5">Durée</div>
-                  <div className="text-sm font-bold text-stone-800 mt-0.5">
+                <div className="min-w-28 rounded-xl border-[3px] border-ink bg-cream px-4 py-2.5">
+                  <dt className="text-xs font-bold uppercase text-stone-600">Durée</dt>
+                  <dd className="m-0 font-display text-2xl leading-tight">
                     {game.playingTime < 60
                       ? `${game.playingTime} min`
-                      : `${Math.floor(game.playingTime / 60)}h${game.playingTime % 60 ? game.playingTime % 60 + 'm' : ''}`
+                      : `${Math.floor(game.playingTime / 60)} h${game.playingTime % 60 ? ' ' + game.playingTime % 60 : ''}`
                     }
-                  </div>
+                  </dd>
                 </div>
               )}
               {game.minAge != null && game.minAge > 0 && (
-                <div className="bg-stone-50 rounded-xl px-3 py-2.5 text-center">
-                  <div className="text-lg">🎂</div>
-                  <div className="text-xs text-stone-400 leading-none mt-0.5">Âge min.</div>
-                  <div className="text-sm font-bold text-stone-800 mt-0.5">{game.minAge}+</div>
+                <div className="min-w-28 rounded-xl border-[3px] border-ink bg-cream px-4 py-2.5">
+                  <dt className="text-xs font-bold uppercase text-stone-600">Âge</dt>
+                  <dd className="m-0 font-display text-2xl leading-tight">{game.minAge} ans +</dd>
                 </div>
               )}
               {game.complexity > 0 && (
-                <div className="bg-stone-50 rounded-xl px-3 py-2.5 col-span-2 sm:col-span-1">
-                  <div className="text-lg text-center">🧠</div>
-                  <div className="text-xs text-stone-400 leading-none text-center mt-0.5">Complexité</div>
-                  <div className="mt-1.5">
-                    <ComplexityBar value={game.complexity} />
-                  </div>
+                <div className="min-w-44 flex-1 rounded-xl border-[3px] border-ink bg-cream px-4 py-2.5">
+                  <dt className="mb-1.5 text-xs font-bold uppercase text-stone-600">Complexité</dt>
+                  <dd className="m-0"><ComplexityBar value={game.complexity} /></dd>
                 </div>
               )}
-            </div>
+            </dl>
 
             {/* Bouton Enregistrer une partie */}
             <div className="mt-auto pt-2 border-t border-stone-100">
               {sessionDone ? (
-                <div className="flex items-center gap-2 text-emerald-600 text-sm font-semibold">
-                  <span>✅</span>
-                  <span>Partie enregistrée !</span>
-                  <button onClick={openSessionForm} className="ml-auto text-xs text-stone-400 hover:text-amber-600 hover:underline">
+                <div role="status" className="flex items-center gap-3 font-bold text-brand-green">
+                  <span>Partie enregistrée</span>
+                  <button type="button" onClick={openSessionForm} className="ml-auto inline-flex min-h-11 items-center text-brand-blue underline underline-offset-4">
                     + Une autre
                   </button>
                 </div>
               ) : (
-                <button
-                  onClick={openSessionForm}
-                  className="w-full flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-600 active:scale-[.98] text-white font-bold py-3 rounded-xl transition-all shadow-sm"
-                >
-                  <span className="text-lg">📊</span>
-                  <span>Enregistrer une partie</span>
+                <button type="button" onClick={openSessionForm} className="btn btn-primary w-full sm:w-auto sm:px-8">
+                  Enregistrer une partie
                 </button>
               )}
             </div>
@@ -368,14 +353,14 @@ export default function GameDetailPage() {
 
       {/* ── Description ──────────────────────────────────────────────────── */}
       {game.description && (
-        <div className="bg-white rounded-2xl border border-stone-200 shadow-sm p-5">
+        <div className="panel p-5">
           <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-3">Description</p>
           <div className="relative">
             <p className={`text-stone-600 text-sm leading-relaxed ${descExpanded ? '' : 'line-clamp-4'}`}>
               {game.description}
             </p>
             {!descExpanded && game.description.length > 300 && (
-              <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-white to-transparent" />
+              <div className="absolute bottom-0 left-0 right-0 h-8 bg-linear-to-t from-paper to-transparent" />
             )}
           </div>
           {game.description.length > 300 && (
@@ -387,7 +372,7 @@ export default function GameDetailPage() {
       )}
 
       {/* ── Boutiques + lien BGG ─────────────────────────────────────────── */}
-      <div className="bg-white rounded-2xl border border-stone-200 shadow-sm p-5 space-y-4">
+      <div className="panel p-5 space-y-4">
         <ShopButtons gameName={game.name} />
         <div className="pt-3 border-t border-stone-100">
           <a
@@ -405,7 +390,7 @@ export default function GameDetailPage() {
 
       {/* ── Mécaniques Engelstein ─────────────────────────────────────────── */}
       {(primaryFamilies.length > 0 || supportKeys.length > 0) && (
-        <div className="bg-white rounded-2xl border border-stone-200 shadow-sm p-5 space-y-4">
+        <div className="panel p-5 space-y-4">
           {primaryFamilies.length > 0 && (
             <div>
               <div className="flex items-center gap-2 mb-3">
@@ -460,7 +445,7 @@ export default function GameDetailPage() {
 
       {/* ── Thèmes, types, catégories BGG ───────────────────────────────── */}
       {(game.categories?.length > 0 || game.mechanics?.length > 0) && (
-        <div className="bg-white rounded-2xl border border-stone-200 shadow-sm p-5 space-y-4">
+        <div className="panel p-5 space-y-4">
           {game.categories?.length > 0 && (() => {
             const { themes, types, other } = groupCategories(game.categories)
             return (
@@ -543,7 +528,7 @@ export default function GameDetailPage() {
         const visibleExps = game.expansions.filter(e => e.owned || (e.usersRated ?? 0) >= 50)
         if (visibleExps.length === 0) return null
         return (
-          <div className="bg-white rounded-2xl border border-stone-200 shadow-sm p-5">
+          <div className="panel p-5">
             <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-3">
               ➕ Extensions ({visibleExps.length}{game.expansions.length > visibleExps.length ? ` sur ${game.expansions.length}` : ''})
             </p>
@@ -559,7 +544,7 @@ export default function GameDetailPage() {
       {/* ── Jeux similaires ──────────────────────────────────────────────── */}
       {/* L'API /similar retourne des objets plats : { ...game, similarity, reason } */}
       {(similarGames?.length > 0 || similarLoading) && (
-        <div className="bg-white rounded-2xl border border-stone-200 shadow-sm p-5">
+        <div className="panel p-5">
           <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-4">🎯 Jeux similaires</p>
 
           {similarLoading && similarGames === null ? (

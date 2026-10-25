@@ -1,1 +1,198 @@
 @import "tailwindcss";
+
+/*
+  Thème « plateau » — charte du site de l'association Envie de Jouer (projet edj,
+  app/assets/styles/site.css). Les couleurs et polices sont les siennes ; elles sont
+  auto-hébergées (@fontsource, servies par Vite) car la CSP n'autorise aucune
+  ressource externe pour les polices.
+
+  Les rampes `stone` et `amber` de Tailwind sont redéfinies : les pages qui les
+  utilisent encore prennent la charte sans être réécrites. `stone` devient les
+  neutres encre/papier, `amber` l'accent (nuances claires jaunes, nuances franches
+  rouges). `white` devient le papier. Un texte blanc sur le rouge vif ne fait que
+  3,2 : 1 : les boutons pleins d'anciennes pages tirent donc sur `amber-500`, un
+  rouge plus profond (5,3 : 1) ; les composants neufs mettent de l'encre sur le
+  rouge vif (5,6 : 1).
+*/
+@theme {
+  --font-sans: "Atkinson Hyperlegible", system-ui, sans-serif;
+  --font-display: "Akaya Kanadaka", cursive;
+
+  --color-ink: #171922;
+  --color-paper: #fffaf1;
+  --color-cream: #efdec6;
+  --color-board: #a8b7df;
+  --color-board-deep: #889bd3;
+  --color-brand-red: #fb5a48;
+  --color-brand-yellow: #e9c33a;
+  --color-brand-blue: #255db0;
+  --color-brand-green: #27713a;
+
+  --color-white: #fffaf1;
+
+  --color-stone-50: #fffaf1;
+  --color-stone-100: #f6ecda;
+  --color-stone-200: #e6d7bd;
+  --color-stone-300: #cdbd9f;
+  --color-stone-400: #6b7080;
+  --color-stone-500: #555c6c;
+  --color-stone-600: #434958;
+  --color-stone-700: #2f3340;
+  --color-stone-800: #20232e;
+  --color-stone-900: #171922;
+  --color-stone-950: #0f1118;
+
+  --color-amber-50: #fff6dc;
+  --color-amber-100: #fbebb0;
+  --color-amber-200: #f4dc78;
+  --color-amber-300: #e9c33a;
+  --color-amber-400: #fb5a48;
+  --color-amber-500: #c4372a;
+  --color-amber-600: #a52d22;
+  --color-amber-700: #8a251c;
+  --color-amber-800: #6e1d16;
+  --color-amber-900: #54160f;
+
+  --shadow-token: 6px 6px 0 rgb(23 25 34 / 0.18);
+  --shadow-token-lg: 8px 8px 0 rgb(23 25 34 / 0.22);
+  --shadow-token-sm: 4px 4px 0 rgb(23 25 34 / 0.16);
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    margin: 0;
+    font-family: var(--font-sans);
+    color: var(--color-ink);
+    line-height: 1.5;
+    background-color: var(--color-board);
+    background-image:
+      linear-gradient(to right, rgb(255 255 255 / 0.32) 2px, transparent 2px),
+      linear-gradient(to bottom, rgb(255 255 255 / 0.32) 2px, transparent 2px);
+    background-size: 72px 72px;
+  }
+
+  /* Akaya Kanadaka n'a qu'une graisse : sans cela, `font-black` la fait synthétiser en gras. */
+  h1,
+  h2,
+  .font-display {
+    font-family: var(--font-display);
+    font-weight: 400;
+    font-synthesis: none;
+  }
+
+  :focus-visible {
+    outline: 4px solid var(--color-brand-blue);
+    outline-offset: 3px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+/* Composants du thème : bord d'encre, ombre dure décalée, angles arrondis. */
+@layer components {
+  .panel {
+    border: 3px solid var(--color-ink);
+    border-radius: 1rem;
+    background: var(--color-paper);
+    box-shadow: var(--shadow-token);
+  }
+
+  .token-card {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border: 3px solid var(--color-ink);
+    border-radius: 0.875rem;
+    background: var(--color-paper);
+    box-shadow: var(--shadow-token);
+    transition: transform 0.12s, box-shadow 0.12s;
+  }
+
+  .token-card:hover {
+    transform: translate(-2px, -2px);
+    box-shadow: var(--shadow-token-lg);
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    min-height: 2.75rem;
+    padding: 0 1.25rem;
+    border: 3px solid var(--color-ink);
+    border-radius: 0.875rem;
+    color: var(--color-ink);
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform 0.12s, box-shadow 0.12s;
+  }
+
+  .btn:hover {
+    transform: translate(-1px, -1px);
+  }
+
+  .btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  .btn-primary {
+    background: var(--color-brand-red);
+    box-shadow: 4px 4px 0 var(--color-ink);
+    font-family: var(--font-display);
+    font-size: 1.25rem;
+    font-weight: 400;
+    min-height: 3.25rem;
+  }
+
+  .btn-secondary {
+    background: var(--color-brand-yellow);
+    box-shadow: var(--shadow-token-sm);
+  }
+
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.75rem;
+    padding: 0 1rem;
+    border: 3px solid var(--color-ink);
+    border-radius: 999px;
+    background: var(--color-paper);
+    color: var(--color-ink);
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .chip[aria-pressed="true"],
+  .chip.is-on {
+    background: var(--color-ink);
+    color: var(--color-paper);
+  }
+
+  .badge {
+    display: inline-block;
+    padding: 0.125rem 0.75rem;
+    border: 2px solid var(--color-ink);
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    line-height: 1.4;
+  }
+}

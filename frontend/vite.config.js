@@ -9,6 +9,8 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   build: {
     outDir: 'dist',
+    // La CSP n'autorise que font-src 'self' : une police ne doit jamais devenir une URL data:.
+    assetsInlineLimit: 0,
   },
   test: {
     environment: 'jsdom',
