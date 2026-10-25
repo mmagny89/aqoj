@@ -56,6 +56,7 @@ Plateforme de découverte et recommandation de jeux de société, connectée à 
 - Suggestions de filtres basées sur les préférences mécaniques de l'utilisateur
 
 ### Accueil sans compte BGG
+- Le questionnaire de goûts se remplit aussi (et s'efface) dans **Mon compte → Mes goûts**. Tant que rien n'est déclaré, l'accueil le rappelle ; les goûts déclarés passent avant ceux déduits de l'historique.
 - Sans historique ni notes, l'accueil propose des **nouveautés accessibles** (5 dernières années, complexité ≤ 3, assez de votes) et un questionnaire « Ce que vous aimez » (six styles au plus), enregistré sur le compte et jamais écrasé par le recalcul des préférences.
 
 ### Accueil : pour votre table

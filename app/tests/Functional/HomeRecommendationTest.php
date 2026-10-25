@@ -151,6 +151,28 @@ final class HomeRecommendationTest extends ApiTestCase
         self::assertSame(['easy' => [], 'popular' => []], $table);
     }
 
+    public function testLesGoutsDeclaresPassentDevantLHistoriqueEtLeCompletent(): void
+    {
+        $client = static::createClient();
+        $token = $this->register($client, 'melange@example.test');
+        $annee = (int) date('Y');
+        $this->creerJeu('Zzmel Possede', $annee - 8, 2.0, 8.0, 3000, familles: ['auction', 'deck_building']);
+        static::getContainer()->get(Connection::class)->executeStatement(
+            'INSERT INTO user_game (user_id, game_id, bgg_user_rating)
+             VALUES ((SELECT id FROM app_user WHERE email = ?), (SELECT id FROM game WHERE bgg_id = ?), 8)',
+            ['melange@example.test', 'zz' . md5('Zzmel Possede')],
+        );
+
+        $sans = $this->call($client, 'GET', '/api/games/home-reco', token: $token);
+        self::assertEqualsCanonicalizing(['auction', 'deck_building'], $sans['families']);
+
+        $this->call($client, 'PUT', '/api/user/taste', ['families' => ['cooperation']], $token);
+        $avec = $this->call($client, 'GET', '/api/games/home-reco', token: $token);
+
+        self::assertSame('cooperation', $avec['families'][0]);
+        self::assertEqualsCanonicalizing(['cooperation', 'auction', 'deck_building'], $avec['families']);
+    }
+
     public function testLaTableChoisieEstEnregistreeEtRenduePourLAccueil(): void
     {
         $client = static::createClient();

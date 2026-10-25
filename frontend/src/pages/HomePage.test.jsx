@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import HomePage from './HomePage'
@@ -174,6 +174,29 @@ describe('HomePage', () => {
       await screen.findByRole('heading', { name: 'Nouveautés pour vous' })
       expect(screen.getAllByText('Jeu Doublon')).toHaveLength(1)
       expect(screen.queryByRole('heading', { name: 'Pour votre table' })).not.toBeInTheDocument()
+    })
+
+    it('invite à renseigner ses goûts quand le profil vient de l’historique, et se tait une semaine après « Plus tard »', async () => {
+      getHomeRecommendations.mockResolvedValue({ ...reco, declared: [], families: ['auction'] })
+      const { unmount } = render(<MemoryRouter><HomePage /></MemoryRouter>)
+
+      expect(await screen.findByRole('link', { name: 'Choisir mes goûts' })).toHaveAttribute('href', '/compte#gouts')
+      expect(screen.queryByRole('heading', { name: 'Ce que vous aimez' })).not.toBeInTheDocument()
+
+      await userEvent.click(screen.getByRole('button', { name: 'Plus tard' }))
+      expect(screen.queryByRole('link', { name: 'Choisir mes goûts' })).not.toBeInTheDocument()
+
+      unmount()
+      render(<MemoryRouter><HomePage /></MemoryRouter>)
+      await waitFor(() => expect(getHomeRecommendations).toHaveBeenCalledTimes(2))
+      expect(screen.queryByRole('link', { name: 'Choisir mes goûts' })).not.toBeInTheDocument()
+    })
+
+    it('n’invite pas quand les goûts sont déjà renseignés', async () => {
+      render(<MemoryRouter><HomePage /></MemoryRouter>)
+
+      await screen.findByRole('heading', { name: 'Ce que vous aimez' })
+      expect(screen.queryByRole('link', { name: 'Choisir mes goûts' })).not.toBeInTheDocument()
     })
 
     it('masque la section quand il n’y a rien à proposer', async () => {
