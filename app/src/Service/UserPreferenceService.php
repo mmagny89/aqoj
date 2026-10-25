@@ -53,69 +53,39 @@ class UserPreferenceService
 
     /**
      * Calcule le score de chaque famille pour l'utilisateur.
-     * Signal fort = jeux bien notés (BGG ≥ 6)
-     * Signal moyen = sessions aimées (rating = 5)
-     * Signal faible = collection entière
+     *
+     * Trois signaux, à des échelles comparables pour qu'une collection MyLudo, souvent sans notes,
+     * pèse autant qu'une collection BGG notée :
+     *   - jeu noté 6 ou plus : `(note - 5) × 2` points (6 → 2, 8 → 6, 10 → 10)
+     *   - partie aimée       : 2 points
+     *   - jeu possédé, non détesté (sans note, ou noté 5 ou plus) : 1 point, que la note vienne de BGG ou de MyLudo
      *
      * @return array<string, float>  famille => score, trié desc
      */
     private function computeFamilyScores(User $user): array
     {
-        $scores = [];
-
-        // ── Signal fort : jeux bien notés sur BGG ──────────────────────
         $rows = $this->conn->fetchAllAssociative(
-            "SELECT family_key, SUM(bgg_user_rating) AS weight
+            "SELECT family_key, SUM(points) AS score
              FROM (
                  SELECT json_array_elements_text(g.mechanic_families) AS family_key,
-                        ug.bgg_user_rating
+                        CASE WHEN ug.bgg_user_rating >= 6 THEN (ug.bgg_user_rating - 5) * 2 ELSE 0 END
+                        + CASE WHEN ug.bgg_user_rating IS NULL OR ug.bgg_user_rating >= 5 THEN 1 ELSE 0 END AS points
                  FROM user_game ug
                  JOIN game g ON g.id = ug.game_id
-                 WHERE ug.user_id = ?
-                   AND ug.bgg_user_rating >= 6
-                   AND g.mechanic_families::text != '[]'
-             ) sub
-             GROUP BY family_key",
-            [$user->getId()]
-        );
-        foreach ($rows as $row) {
-            $scores[$row['family_key']] = ($scores[$row['family_key']] ?? 0) + (float) $row['weight'] * 3.0;
-        }
-
-        // ── Signal moyen : sessions aimées ──────────────────────────────
-        $rows = $this->conn->fetchAllAssociative(
-            "SELECT family_key, COUNT(*) AS cnt
-             FROM (
-                 SELECT json_array_elements_text(g.mechanic_families) AS family_key
+                 WHERE ug.user_id = ? AND g.mechanic_families::text != '[]'
+                 UNION ALL
+                 SELECT json_array_elements_text(g.mechanic_families) AS family_key, 2 AS points
                  FROM game_session gs
                  JOIN game g ON g.id = gs.game_id
-                 WHERE gs.user_id = ?
-                   AND gs.rating = 5
-                   AND g.mechanic_families::text != '[]'
+                 WHERE gs.user_id = ? AND gs.rating = 5 AND g.mechanic_families::text != '[]'
              ) sub
              GROUP BY family_key",
-            [$user->getId()]
+            [$user->getId(), $user->getId()]
         );
-        foreach ($rows as $row) {
-            $scores[$row['family_key']] = ($scores[$row['family_key']] ?? 0) + (int) $row['cnt'] * 2.0;
-        }
 
-        // ── Signal faible : collection hors jeux détestés ──────────────
-        $rows = $this->conn->fetchAllAssociative(
-            "SELECT family_key, COUNT(*) AS cnt
-             FROM (
-                 SELECT json_array_elements_text(g.mechanic_families) AS family_key
-                 FROM user_game ug
-                 JOIN game g ON g.id = ug.game_id
-                 WHERE ug.user_id = ?
-                   AND (ug.bgg_user_rating IS NULL OR ug.bgg_user_rating >= 5)
-                   AND g.mechanic_families::text != '[]'
-             ) sub
-             GROUP BY family_key",
-            [$user->getId()]
-        );
+        $scores = [];
         foreach ($rows as $row) {
-            $scores[$row['family_key']] = ($scores[$row['family_key']] ?? 0) + (int) $row['cnt'] * 1.0;
+            $scores[$row['family_key']] = (float) $row['score'];
         }
 
         arsort($scores);
@@ -123,35 +93,52 @@ class UserPreferenceService
     }
 
     /**
-     * Top catégories BGG d'après les jeux aimés.
+     * Top catégories BGG, avec les mêmes signaux et les mêmes échelles que les familles.
      * @return string[]
      */
     private function computeTopCategories(User $user): array
     {
         $rows = $this->conn->fetchAllAssociative(
-            "SELECT cat, SUM(weight) AS total
+            "SELECT cat, SUM(points) AS total
              FROM (
-                 -- Jeux bien notés BGG
                  SELECT json_array_elements_text(g.categories) AS cat,
-                        ug.bgg_user_rating AS weight
+                        CASE WHEN ug.bgg_user_rating >= 6 THEN (ug.bgg_user_rating - 5) * 2 ELSE 0 END
+                        + CASE WHEN ug.bgg_user_rating IS NULL OR ug.bgg_user_rating >= 5 THEN 1 ELSE 0 END AS points
                  FROM user_game ug
                  JOIN game g ON g.id = ug.game_id
-                 WHERE ug.user_id = ? AND ug.bgg_user_rating >= 6 AND g.categories::text != '[]'
+                 WHERE ug.user_id = ? AND g.categories::text != '[]'
                  UNION ALL
-                 -- Sessions aimées
-                 SELECT json_array_elements_text(g.categories) AS cat,
-                        5 AS weight
+                 SELECT json_array_elements_text(g.categories) AS cat, 2 AS points
                  FROM game_session gs
                  JOIN game g ON g.id = gs.game_id
                  WHERE gs.user_id = ? AND gs.rating = 5 AND g.categories::text != '[]'
              ) sub
              GROUP BY cat
-             ORDER BY total DESC
+             ORDER BY total DESC, cat
              LIMIT 8",
             [$user->getId(), $user->getId()]
         );
 
         return array_column($rows, 'cat');
+    }
+
+    /**
+     * Combien de jeux de la collection ont servi au calcul : un jeu importé de MyLudo n'entre dans les styles
+     * qu'une fois sa fiche enrichie (mécaniques connues), ce que le planificateur fait au fil des nuits.
+     *
+     * @return array{total: int, analysed: int}
+     */
+    public function coverage(User $user): array
+    {
+        $row = $this->conn->fetchAssociative(
+            "SELECT COUNT(*) AS total,
+                    COUNT(*) FILTER (WHERE g.mechanic_families::text != '[]') AS analysed
+             FROM user_game ug JOIN game g ON g.id = ug.game_id
+             WHERE ug.user_id = ? AND g.is_expansion = false",
+            [$user->getId()]
+        );
+
+        return ['total' => (int) $row['total'], 'analysed' => (int) $row['analysed']];
     }
 
     // Familles Engelstein identifiées comme moteurs (pour la séparation engines/support)
