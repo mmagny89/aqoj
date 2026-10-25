@@ -57,7 +57,7 @@ function ResultsGrid({ results, loading, error }) {
 
   return (
     <div aria-busy={loading} className={loading ? 'opacity-60 transition-opacity' : 'transition-opacity'}>
-      <div role="group" aria-label="Type de fiches" className="mb-4 flex flex-wrap gap-2">
+      <div role="group" aria-label="Type de fiches" className="mb-4 flex flex-wrap gap-1.5">
         {[
           { key: 'base', label: 'Jeux de base', count: base.length },
           { key: 'ext',  label: 'Extensions',   count: exps.length },
@@ -68,7 +68,7 @@ function ResultsGrid({ results, loading, error }) {
             aria-pressed={sub === t.key}
             onClick={() => setSub(t.key)}
             disabled={t.count === 0}
-            className="chip disabled:cursor-default disabled:opacity-40"
+            className="chip chip-sm disabled:cursor-default disabled:opacity-40"
           >
             {t.label}
             <span className="ml-2 text-sm opacity-80">{t.count}</span>
@@ -106,7 +106,7 @@ const SCOPE_TABS = [
 function ResultsPanel({ results, activeTab, onTabChange }) {
   return (
     <div>
-      <div role="tablist" aria-label="Où chercher" className="mb-5 flex flex-wrap gap-2">
+      <div role="tablist" aria-label="Où chercher" className="tab-list mb-5">
         {SCOPE_TABS.map(tab => (
           <button
             key={tab.key}
@@ -116,7 +116,7 @@ function ResultsPanel({ results, activeTab, onTabChange }) {
             aria-selected={activeTab === tab.key}
             aria-controls="reco-panneau"
             onClick={() => onTabChange(tab.key)}
-            className={`chip ${activeTab === tab.key ? 'is-on' : ''}`}
+            className="tab"
           >
             {tab.label}
             <span className="ml-2 text-sm opacity-80">{results[tab.key].data?.length ?? '…'}</span>

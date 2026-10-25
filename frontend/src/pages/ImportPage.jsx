@@ -63,7 +63,7 @@ export default function ImportPage() {
         <p className="mt-1 text-lg text-stone-600">Retrouvez votre ludothèque ici, d'où qu'elle vienne.</p>
       </div>
 
-      <div role="tablist" aria-label="Source de l'import" onKeyDown={onKeyDown} className="flex gap-2 overflow-x-auto pb-1">
+      <div role="tablist" aria-label="Source de l'import" onKeyDown={onKeyDown} className="tab-list">
         {TABS.map(({ key, label }) => (
           <button
             key={key}
@@ -75,7 +75,7 @@ export default function ImportPage() {
             aria-controls="import-panneau"
             tabIndex={active === key ? 0 : -1}
             onClick={() => select(key)}
-            className={`chip shrink-0 ${active === key ? 'is-on' : ''}`}
+            className="tab"
           >
             {label}
           </button>

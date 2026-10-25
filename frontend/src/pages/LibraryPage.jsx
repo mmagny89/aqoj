@@ -233,7 +233,7 @@ export default function LibraryPage() {
       )}
 
       {/* Onglets principaux */}
-      <div role="tablist" aria-label="Jeux joués ou non" className="flex flex-wrap gap-2">
+      <div role="tablist" aria-label="Jeux joués ou non" className="tab-list">
         {TABS.map(t => {
           const total = (t.key === 'played' ? playedTab : unplayedTab).total
           return (
@@ -245,7 +245,7 @@ export default function LibraryPage() {
               aria-selected={activeTab === t.key}
               aria-controls="ludo-panneau"
               onClick={() => handleTabChange(t.key)}
-              className={`chip ${activeTab === t.key ? 'is-on' : ''}`}
+              className="tab"
             >
               {t.label}
               {total !== null && <span className="ml-2 text-sm opacity-80">{total}</span>}

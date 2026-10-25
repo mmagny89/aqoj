@@ -91,7 +91,7 @@ function Tabs({ current, onChange }) {
     document.getElementById(`onglet-${next}`)?.focus()
   }
   return (
-    <div role="tablist" aria-label="Sections du tableau de bord" className="flex gap-2 overflow-x-auto pb-1">
+    <div role="tablist" aria-label="Sections du tableau de bord" className="tab-list">
       {TABS.map(([id, label], index) => (
         <button
           key={id}
@@ -103,7 +103,7 @@ function Tabs({ current, onChange }) {
           tabIndex={current === id ? 0 : -1}
           onClick={() => onChange(id)}
           onKeyDown={event => move(event, index)}
-          className={`min-h-11 shrink-0 rounded-xl px-4 text-sm font-semibold transition-colors ${current === id ? 'bg-stone-800 text-white' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'}`}
+          className="tab"
         >
           {label}
         </button>

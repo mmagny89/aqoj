@@ -163,7 +163,7 @@ export default function AdminThemesPage() {
         <button type="button" onClick={() => setModal('new')} className="btn btn-primary">Ajouter un mapping</button>
       </div>
 
-      <div role="tablist" aria-label="Groupes" className="flex flex-wrap gap-2">
+      <div role="tablist" aria-label="Groupes" className="tab-list">
         {TABS.map(tab => (
           <button
             key={tab.key}
@@ -173,7 +173,7 @@ export default function AdminThemesPage() {
             aria-selected={activeTab === tab.key}
             aria-controls="theme-panneau"
             onClick={() => { setActiveTab(tab.key); setSearch('') }}
-            className={`chip ${activeTab === tab.key ? 'is-on' : ''}`}
+            className="tab"
           >
             {tab.emoji && <span aria-hidden="true" className="mr-1.5">{tab.emoji}</span>}
             {tab.label}
