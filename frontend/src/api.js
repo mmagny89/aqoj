@@ -91,9 +91,10 @@ export const getRecommendations = (params = {}) => {
 
 export const getForgottenGems = () => request('/games/forgotten')
 
-export const getHomeRecommendations = () => request('/games/home-reco')
-export const getTonightRecommendations = ({ players, maxTime } = {}) => {
+export const getHomeRecommendations = ({ scope } = {}) => request('/games/home-reco' + (scope === 'library' ? '?scope=library' : ''))
+export const getTonightRecommendations = ({ players, maxTime, scope } = {}) => {
   const qs = new URLSearchParams()
+  if (scope === 'library') qs.set('scope', scope)
   if (players) qs.set('players', players)
   if (maxTime) qs.set('maxTime', maxTime)
   return request('/games/home-tonight?' + qs)

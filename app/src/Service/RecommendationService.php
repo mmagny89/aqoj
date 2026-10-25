@@ -174,7 +174,7 @@ class RecommendationService
      *                   `recent` propose alors des nouveautés accessibles, sans filtre de mécanique
      *   - `declared`  : goûts déclarés par le joueur (pour préremplir le questionnaire)
      */
-    public function recommendHomeDiscover(User $user): array
+    public function recommendHomeDiscover(User $user, bool $library = false): array
     {
         // 1. Profil mécanique — jeux notés en priorité, sinon toute la collection
         $declared    = $this->getDeclaredFamilies($user);
@@ -187,7 +187,7 @@ class RecommendationService
         if (empty($topFamilies)) {
             return [
                 'families'  => [],
-                'recent'    => $this->coldStartRecent($user, $excludeIds, $currentYear),
+                'recent'    => $this->coldStartRecent($user, $excludeIds, $currentYear, $library),
                 'byDecade'  => [],
                 'coldStart' => true,
                 'declared'  => $declared,
@@ -205,6 +205,7 @@ class RecommendationService
             excludeIds: $excludeIds,
             baseGamesOnly: true,
             minVotes:   self::RECENT_MIN_VOTES,
+            library:    $library,
         );
 
         $recent = array_slice(
@@ -238,6 +239,7 @@ class RecommendationService
                 maxYear:    $max,
                 excludeIds: $excludeIds,
                 baseGamesOnly: true,
+                library:    $library,
             );
 
             if (empty($games)) {
@@ -263,7 +265,7 @@ class RecommendationService
      * Nouveautés pour quelqu'un dont on ne sait rien : jeux de base récents, abordables,
      * bien notés par assez de monde. Pas de filtre de mécanique — on ne devine pas les goûts.
      */
-    private function coldStartRecent(User $user, array $excludeIds, int $currentYear): array
+    private function coldStartRecent(User $user, array $excludeIds, int $currentYear, bool $library): array
     {
         $games = $this->gameRepository->findDiscoverForRecommendation(
             $user,
@@ -275,6 +277,7 @@ class RecommendationService
             baseGamesOnly: true,
             maxComplexity: self::COLD_START_MAX_COMPLEXITY,
             minVotes:      self::RECENT_MIN_VOTES,
+            library:       $library,
         );
 
         $scored = array_map(function (Game $game) use ($currentYear): array {
@@ -311,7 +314,7 @@ class RecommendationService
      *
      * @return array{easy: array, popular: array}
      */
-    public function recommendTonight(User $user, ?int $players, ?int $maxTime): array
+    public function recommendTonight(User $user, ?int $players, ?int $maxTime, bool $library = false): array
     {
         $currentYear = (int) date('Y');
         $excludeIds  = $this->getDislikedGameIds($user);
@@ -329,6 +332,7 @@ class RecommendationService
                 baseGamesOnly: true,
                 maxComplexity: self::EASY_MAX_COMPLEXITY,
                 minVotes:      $lot['minVotes'],
+                library:       $library,
             );
             foreach ($games as $game) {
                 $pool[$game->getId()] = $game;
@@ -351,7 +355,7 @@ class RecommendationService
 
         return [
             'easy'    => array_slice($easy, 0, 10),
-            'popular' => $this->popularAmongMembers($user, $players, $maxTime, $excludeIds),
+            'popular' => $this->popularAmongMembers($user, $players, $maxTime, $excludeIds, $library),
         ];
     }
 
@@ -359,7 +363,7 @@ class RecommendationService
      * Jeux de base les plus joués par les autres membres sur douze mois. Seuls des totaux sortent :
      * jamais qui a joué, et rien tant que deux joueurs distincts ne l'ont pas joué.
      */
-    private function popularAmongMembers(User $user, ?int $players, ?int $maxTime, array $excludeIds): array
+    private function popularAmongMembers(User $user, ?int $players, ?int $maxTime, array $excludeIds, bool $library): array
     {
         $conditions = [
             'gs.user_id IS NOT NULL',
@@ -369,6 +373,9 @@ class RecommendationService
         ];
         $params = [$user->getId()];
 
+        if ($library) {
+            $conditions[] = GameRepository::IN_LIBRARY;
+        }
         if ($players !== null) {
             $conditions[] = 'g.min_players <= ? AND g.max_players >= ?';
             array_push($params, $players, $players);

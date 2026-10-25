@@ -175,6 +175,34 @@ function TasteInvite() {
   )
 }
 
+/* ── Périmètre des résultats ─────────────────────────────────────────── */
+const SCOPES = [
+  { value: 'library', label: 'Ludothèque de l’asso et des membres' },
+  { value: 'catalogue', label: 'Tout le catalogue' },
+]
+const SCOPE_KEY = 'aqoj_perimetre'
+
+function storedScope() {
+  try {
+    return localStorage.getItem(SCOPE_KEY) === 'catalogue' ? 'catalogue' : 'library'
+  } catch {
+    return 'library'
+  }
+}
+
+function ScopeSwitch({ scope, onChange }) {
+  return (
+    <fieldset className="m-0 flex flex-wrap items-center gap-2 border-0 p-0">
+      <legend className="mb-1 float-left w-full font-bold sm:float-none sm:mb-0 sm:mr-3 sm:w-auto sm:inline-block">Chercher dans</legend>
+      {SCOPES.map(({ value, label }) => (
+        <button key={value} type="button" className="chip" aria-pressed={scope === value} onClick={() => onChange(value)}>
+          {label}
+        </button>
+      ))}
+    </fieldset>
+  )
+}
+
 /* ── Onglets décennie ────────────────────────────────────────────────── */
 function DecadeTabs({ byDecade }) {
   const labels = Object.keys(byDecade)
@@ -184,8 +212,7 @@ function DecadeTabs({ byDecade }) {
   const games = byDecade[active] ?? []
 
   return (
-    <section aria-labelledby="titre-epoque">
-      <SectionTitle id="titre-epoque">Par époque</SectionTitle>
+    <div>
       <div role="tablist" aria-label="Décennies" className="mb-5 flex gap-2 overflow-x-auto pb-1">
         {labels.map(label => (
           <button key={label} type="button" role="tab" id={`epoque-${label}`} aria-selected={active === label} aria-controls="epoque-panneau"
@@ -201,6 +228,30 @@ function DecadeTabs({ byDecade }) {
           <li key={game.id}><GameCard game={game} reason={reason} /></li>
         ))}
       </ul>
+    </div>
+  )
+}
+
+/* ── Onglets de la page : nouveautés, oubliés, époques ───────────────── */
+function DiscoverTabs({ tabs }) {
+  const [active, setActive] = useState(tabs[0].id)
+  const current = tabs.find(t => t.id === active) ?? tabs[0]
+
+  return (
+    <section aria-labelledby="titre-decouvrir">
+      <h2 id="titre-decouvrir" className="sr-only">À découvrir</h2>
+      <div role="tablist" aria-label="À découvrir" className="mb-5 flex gap-2 overflow-x-auto pb-1">
+        {tabs.map(({ id, label }) => (
+          <button key={id} type="button" role="tab" id={`onglet-${id}`} aria-selected={current.id === id} aria-controls="onglet-panneau"
+            onClick={() => setActive(id)} className="chip shrink-0"
+            style={current.id === id ? { background: 'var(--color-ink)', color: 'var(--color-paper)' } : undefined}>
+            {label}
+          </button>
+        ))}
+      </div>
+      <div id="onglet-panneau" role="tabpanel" aria-labelledby={`onglet-${current.id}`}>
+        {current.content}
+      </div>
     </section>
   )
 }
@@ -221,6 +272,7 @@ export default function HomePage() {
   const [recoLoading, setRecoLoading] = useState(false)
   const [recoError, setRecoError]     = useState(null)
   const [reloadKey, setReloadKey]     = useState(0)
+  const [scope, setScope]             = useState(storedScope)
 
   // La table du bandeau pilote les idées « pour votre table » ; « Peu importe » (4 h) ne filtre pas la durée.
   // Elle est mémorisée sur le compte : les idées ne se chargent qu'une fois la table retrouvée.
@@ -229,6 +281,11 @@ export default function HomePage() {
   const [tableSaved, setTableSaved] = useState(null)
   const [tonight, setTonight]       = useState({ easy: [], popular: [] })
   const { players, maxTime } = table
+
+  const changeScope = (next) => {
+    setScope(next)
+    try { localStorage.setItem(SCOPE_KEY, next) } catch { /* stockage indisponible : le choix ne sera pas retenu */ }
+  }
 
   const changeTable = (next) => {
     setTable(next)
@@ -242,24 +299,29 @@ export default function HomePage() {
 
     setRecoLoading(true)
     setRecoError(null)
-    getHomeRecommendations()
+    getHomeRecommendations({ scope })
       .then(data => {
         setReco(data)
         if (data.table) setTable(data.table)
       })
       .catch(err  => setRecoError(err.message))
       .finally(() => { setRecoLoading(false); setTableReady(true) })
+  }, [user, authLoading, reloadKey, scope])
+
+  // Les « oubliés » viennent de la ludothèque personnelle : le périmètre ne les concerne pas.
+  useEffect(() => {
+    if (authLoading || !user) return
     getForgottenGems().then(setForgotten).catch(() => setForgotten([]))
-  }, [user, authLoading, reloadKey])
+  }, [user, authLoading])
 
   useEffect(() => {
     if (authLoading || !user || !tableReady) return
     let current = true
-    getTonightRecommendations({ players, maxTime: maxTime >= 240 ? null : maxTime })
+    getTonightRecommendations({ players, maxTime: maxTime >= 240 ? null : maxTime, scope })
       .then(data => { if (current) setTonight(data) })
       .catch(() => { if (current) setTonight({ easy: [], popular: [] }) })
     return () => { current = false }
-  }, [user, authLoading, tableReady, players, maxTime])
+  }, [user, authLoading, tableReady, players, maxTime, scope])
 
   // Un même jeu ne s'affiche qu'une fois : ce que jouent les membres d'abord, les nouveautés avant les « faciles ».
   const shown      = new Set(tonight.popular.map(({ game }) => game.id))
@@ -275,9 +337,53 @@ export default function HomePage() {
   const showTaste    = !recoLoading && reco !== null && (coldStart || reco.declared?.length > 0)
   const showInvite   = !recoLoading && reco !== null && !coldStart && !(reco.declared?.length > 0)
 
+  const tabs = [
+    hasRecent && {
+      id: 'nouveautes',
+      label: coldStart ? 'Nouveautés à découvrir' : 'Nouveautés pour vous',
+      content: (
+        <>
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+            {coldStart ? (
+              <p className="m-0 text-stone-600">Nous ne connaissons pas encore vos goûts : voici des jeux récents, bien notés et faciles à aborder.</p>
+            ) : (
+              <div className="flex flex-wrap items-center gap-2 text-stone-600">
+                <span>D'après vos goûts :</span>
+                {reco.families.map(key => (
+                  <span key={key} className={`rounded-full border px-2.5 py-1 text-xs font-medium ${
+                    isEngine(key) ? familyColor(key) : 'border-stone-200 bg-stone-100 text-stone-600'
+                  }`}>
+                    {familyLabel(key)}
+                  </span>
+                ))}
+              </div>
+            )}
+            <Link to="/recommander" className="inline-flex min-h-11 items-center font-bold text-brand-blue underline underline-offset-4">Voir plus de recommandations</Link>
+          </div>
+          <Carousel items={recentList} label={coldStart ? 'Nouveautés à découvrir' : 'Nouveautés pour vous'} />
+        </>
+      ),
+    },
+    hasForgotten && {
+      id: 'oublies',
+      label: 'Oubliés de votre ludothèque',
+      content: (
+        <>
+          <div className="mb-4 flex justify-end">
+            <Link to="/ludotheque" className="inline-flex min-h-11 items-center font-bold text-brand-blue underline underline-offset-4">Ma ludothèque</Link>
+          </div>
+          <Carousel items={forgotten} label="Oubliés de votre ludothèque" />
+        </>
+      ),
+    },
+    hasDecades && { id: 'epoque', label: 'Par époque', content: <DecadeTabs byDecade={reco.byDecade} /> },
+  ].filter(Boolean)
+
   return (
     <div className="mx-auto flex max-w-7xl flex-col gap-10 px-4 py-6 sm:px-6 lg:px-10 lg:py-8">
       <Hero table={table} onTableChange={changeTable} saved={tableSaved} />
+
+      {!authLoading && user && <ScopeSwitch scope={scope} onChange={changeScope} />}
 
       {!authLoading && user && hasTonight && <TonightSection tonight={tonightShown} players={players} maxTime={maxTime} />}
 
@@ -315,44 +421,12 @@ export default function HomePage() {
             <p role="alert" className="py-8 text-center text-stone-600">Impossible de charger les recommandations.</p>
           )}
 
-          {!recoLoading && hasRecent && (
-            <section aria-labelledby="titre-nouveautes">
-              <SectionTitle id="titre-nouveautes" action={
-                <Link to="/recommander" className="inline-flex min-h-11 items-center font-bold text-brand-blue underline underline-offset-4">Voir plus de recommandations</Link>
-              }>{coldStart ? 'Nouveautés à découvrir' : 'Nouveautés pour vous'}</SectionTitle>
-              {coldStart ? (
-                <p className="mb-4 text-stone-600">Nous ne connaissons pas encore vos goûts : voici des jeux récents, bien notés et faciles à aborder.</p>
-              ) : (
-                <div className="mb-4 flex flex-wrap items-center gap-2 text-stone-600">
-                  <span>D'après vos goûts :</span>
-                  {reco.families.map(key => (
-                    <span key={key} className={`rounded-full border px-2.5 py-1 text-xs font-medium ${
-                      isEngine(key) ? familyColor(key) : 'border-stone-200 bg-stone-100 text-stone-600'
-                    }`}>
-                      {familyLabel(key)}
-                    </span>
-                  ))}
-                </div>
-              )}
-              <Carousel items={recentList} label={coldStart ? 'Nouveautés à découvrir' : 'Nouveautés pour vous'} />
-            </section>
-          )}
+          {!recoLoading && tabs.length > 0 && <DiscoverTabs key={scope} tabs={tabs} />}
 
           {showTaste && <TasteSection initial={reco.declared ?? []} onSaved={() => setReloadKey(k => k + 1)} />}
           {showInvite && <TasteInvite />}
 
-          {hasForgotten && (
-            <section aria-labelledby="titre-oublies">
-              <SectionTitle id="titre-oublies" action={
-                <Link to="/ludotheque" className="inline-flex min-h-11 items-center font-bold text-brand-blue underline underline-offset-4">Ma ludothèque</Link>
-              }>Oubliés de votre ludothèque</SectionTitle>
-              <Carousel items={forgotten} label="Oubliés de votre ludothèque" />
-            </section>
-          )}
-
-          {!recoLoading && hasDecades && <DecadeTabs byDecade={reco.byDecade} />}
-
-          {!recoLoading && !recoError && reco !== null && !hasRecent && !hasDecades && (
+          {!recoLoading && !recoError && reco !== null && tabs.length === 0 && (
             <section className="panel mx-auto max-w-xl p-8 text-center">
               <h2 className="text-2xl">Pas encore de recommandations</h2>
               <p className="mt-2 mb-5 text-stone-600">
