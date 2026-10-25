@@ -105,6 +105,34 @@ function ShopButtons({ gameName }) {
   )
 }
 
+/* ── Extensions : les connues d'abord, les confidentielles (< 50 votes, ni à nous ni prêtables) repliées ── */
+function ExpansionsPanel({ expansions }) {
+  const [showAll, setShowAll] = useState(false)
+  const known  = expansions.filter(e => e.owned || e.inAssociation || e.withMember || (e.usersRated ?? 0) >= 50)
+  const hidden = expansions.filter(e => !known.includes(e))
+  const shown  = showAll ? [...known, ...hidden] : known
+
+  return (
+    <section aria-labelledby="titre-extensions" className="panel p-4">
+      <h2 id="titre-extensions" className="mb-1 text-xl">
+        Extensions <span className="text-base font-normal text-stone-600">({shown.length})</span>
+      </h2>
+      <p className="mb-3 mt-0 text-xs text-stone-600">Les vôtres d’abord, puis celles que l’association ou un membre peut prêter, puis les mieux notées.</p>
+      <div className="space-y-2">
+        {shown.map(exp => (
+          <GameRow key={exp.id} g={exp} currentId={null} />
+        ))}
+      </div>
+      {hidden.length > 0 && (
+        <button type="button" onClick={() => setShowAll(v => !v)} aria-expanded={showAll}
+          className="mt-2 inline-flex min-h-11 items-center text-sm font-bold text-brand-blue underline underline-offset-4">
+          {showAll ? 'Masquer les extensions peu notées' : `Voir les ${hidden.length} autre${hidden.length > 1 ? 's' : ''} (peu de votes)`}
+        </button>
+      )}
+    </section>
+  )
+}
+
 /* ── Page principale ─────────────────────────────────────────────────── */
 export default function GameDetailPage() {
   const { id } = useParams()
@@ -455,23 +483,7 @@ export default function GameDetailPage() {
       )}
 
       {/* ── Extensions d'un jeu de base : les vôtres, celles qu'on peut emprunter, puis les mieux notées ── */}
-      {!game.isExpansion && game.expansions?.length > 0 && (() => {
-        const visibleExps = game.expansions.filter(e => e.owned || e.inAssociation || e.withMember || (e.usersRated ?? 0) >= 50)
-        if (visibleExps.length === 0) return null
-        return (
-          <section aria-labelledby="titre-extensions" className="panel p-4">
-            <h2 id="titre-extensions" className="mb-1 text-xl">
-              Extensions <span className="text-base font-normal text-stone-600">({visibleExps.length}{game.expansions.length > visibleExps.length ? ` sur ${game.expansions.length}` : ''})</span>
-            </h2>
-            <p className="mb-3 mt-0 text-xs text-stone-600">Les vôtres d’abord, puis celles que l’association ou un membre peut prêter, puis les mieux notées.</p>
-            <div className="space-y-2">
-              {visibleExps.map(exp => (
-                <GameRow key={exp.id} g={exp} currentId={null} />
-              ))}
-            </div>
-          </section>
-        )
-      })()}
+      {!game.isExpansion && game.expansions?.length > 0 && <ExpansionsPanel expansions={game.expansions} />}
 
       {/* ── Jeux similaires ──────────────────────────────────────────────── */}
       {/* L'API /similar retourne des objets plats : { ...game, similarity, reason } */}
