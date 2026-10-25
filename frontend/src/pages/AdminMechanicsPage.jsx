@@ -9,6 +9,7 @@ import {
 } from '../api'
 import { useAuth } from '../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
+import { ErrorMessage, Field, SelectField } from '../components/forms'
 
 const ENGINE_FAMILIES = [
   'worker_placement',
@@ -21,43 +22,11 @@ const ENGINE_FAMILIES = [
 
 const EXTRA_FAMILIES_LIST = ['solo', 'real_time', 'dexterity', 'legacy']
 
-const EXTRA_COLORS_ADMIN = {
-  solo:       'bg-sky-50 border-sky-300 text-sky-900',
-  real_time:  'bg-orange-50 border-orange-300 text-orange-900',
-  dexterity:  'bg-rose-50 border-rose-300 text-rose-900',
-  legacy:     'bg-indigo-50 border-indigo-300 text-indigo-900',
-}
-
-const EXTRA_HEADER_COLORS = {
-  solo:       'bg-sky-100 text-sky-800',
-  real_time:  'bg-orange-100 text-orange-800',
-  dexterity:  'bg-rose-100 text-rose-800',
-  legacy:     'bg-indigo-100 text-indigo-800',
-}
-
 const EXTRA_LABELS = {
   solo:       'Solo / Solitaire',
   real_time:  'Temps Réel',
   dexterity:  'Adresse / Dextérité',
   legacy:     'Legacy / Campagne',
-}
-
-const ENGINE_COLORS = {
-  worker_placement: 'bg-amber-50 border-amber-300 text-amber-900',
-  deck_building:    'bg-pink-50 border-pink-300 text-pink-900',
-  engine_building:  'bg-purple-50 border-purple-300 text-purple-900',
-  area_control:     'bg-red-50 border-red-300 text-red-900',
-  hand_management:  'bg-blue-50 border-blue-300 text-blue-900',
-  auction:          'bg-green-50 border-green-300 text-green-900',
-}
-
-const ENGINE_HEADER_COLORS = {
-  worker_placement: 'bg-amber-100 text-amber-800',
-  deck_building:    'bg-pink-100 text-pink-800',
-  engine_building:  'bg-purple-100 text-purple-800',
-  area_control:     'bg-red-100 text-red-800',
-  hand_management:  'bg-blue-100 text-blue-800',
-  auction:          'bg-green-100 text-green-800',
 }
 
 const EMPTY_FORM = { bggMechanic: '', engelsteinFamily: '', description: '' }
@@ -157,7 +126,7 @@ export default function AdminMechanicsPage() {
     setRecomputeResult(null)
     try {
       const result = await recomputeMechanicFamilies()
-      setRecomputeResult(`✅ ${result.updated} jeux mis à jour.`)
+      setRecomputeResult(`${result.updated} jeux mis à jour.`)
     } catch (e) {
       setRecomputeResult(`Erreur : ${e.message}`)
     } finally {
@@ -194,346 +163,240 @@ export default function AdminMechanicsPage() {
     : unmapped
 
   const tabs = [
-    { key: 'engines',  label: '⚙️ Moteurs centraux',   count: engineMappings.length,  badge: null },
-    { key: 'support',  label: '🔧 Familles de support', count: supportMappings.length, badge: null },
-    { key: 'extra',    label: '🏷 Modes & extras',       count: extraMappings.length,   badge: null },
-    { key: 'unmapped', label: '⚠️ Non mappées',          count: filteredUnmapped.length, badge: unmapped.length > 0 ? unmapped.length : null },
+    { key: 'engines',  label: 'Moteurs centraux',    count: engineMappings.length },
+    { key: 'support',  label: 'Familles de support', count: supportMappings.length },
+    { key: 'extra',    label: 'Modes et extras',     count: extraMappings.length },
+    { key: 'unmapped', label: 'Non mappées',         count: filteredUnmapped.length },
   ]
 
   if (!user?.isAdmin) return null
 
-  return (
-    <div className="max-w-5xl mx-auto px-4 py-8">
+  const supportKeys = Object.keys(families).filter(k => !ENGINE_FAMILIES.includes(k) && !EXTRA_FAMILIES_LIST.includes(k))
 
-      {/* Header */}
-      <div className="flex items-start justify-between mb-6 gap-4">
+  return (
+    <div className="mx-auto flex max-w-5xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-10 lg:py-8">
+
+      <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-stone-900">Mappings mécaniques Engelstein</h1>
-          <p className="text-stone-500 text-sm mt-1">
+          <h1 className="text-4xl leading-tight sm:text-5xl">Mappings mécaniques</h1>
+          <p className="mt-1 text-lg text-stone-600">
             Association entre les mécaniques BGG et les familles du modèle d'Engelstein.
           </p>
         </div>
-        <div className="flex gap-2 flex-shrink-0">
-          <button
-            onClick={handleRecompute}
-            disabled={recomputing}
-            className="border border-stone-300 hover:bg-stone-100 disabled:opacity-50 px-3 py-2 rounded-lg text-sm font-medium"
-          >
-            {recomputing ? 'Recalcul…' : '↺ Recalculer'}
+        <div className="flex flex-wrap gap-3">
+          <button type="button" onClick={handleRecompute} disabled={recomputing} className="btn bg-paper">
+            {recomputing ? 'Recalcul…' : 'Recalculer les familles'}
           </button>
-          <button
-            onClick={() => startCreate()}
-            className="bg-amber-600 hover:bg-amber-700 text-white px-3 py-2 rounded-lg text-sm font-medium"
-          >
-            + Ajouter
+          <button type="button" onClick={() => startCreate()} className="btn btn-primary">
+            Ajouter un mapping
           </button>
         </div>
       </div>
 
       {recomputeResult && (
-        <div className="mb-4 text-sm px-4 py-2 bg-green-50 border border-green-200 text-green-800 rounded-lg">
-          {recomputeResult}
-        </div>
+        <p role="status" className="rounded-xl border-[3px] border-ink bg-cream px-4 py-3 font-bold">{recomputeResult}</p>
       )}
 
-      {/* Formulaire */}
       {editingId !== null && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-5 mb-6">
-          <h2 className="font-semibold mb-4 text-amber-900">
+        <section aria-labelledby="titre-mapping" className="panel flex flex-col gap-4 bg-amber-100 p-5">
+          <h2 id="titre-mapping" className="text-2xl">
             {editingId === 'new' ? 'Nouveau mapping' : 'Modifier le mapping'}
           </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-medium text-stone-600 mb-1">Mécanique BGG *</label>
-              <input
-                type="text"
-                value={form.bggMechanic}
-                onChange={e => setForm(f => ({ ...f, bggMechanic: e.target.value }))}
-                placeholder="ex: Worker Placement"
-                className="w-full border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-stone-600 mb-1">Famille Engelstein *</label>
-              <select
-                value={form.engelsteinFamily}
-                onChange={e => setForm(f => ({ ...f, engelsteinFamily: e.target.value }))}
-                className="w-full border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
-              >
-                <option value="">-- Choisir --</option>
-                <optgroup label="⚙️ Moteurs centraux">
-                  {Object.entries(families).filter(([k]) => ENGINE_FAMILIES.includes(k)).map(([key, label]) => (
-                    <option key={key} value={key}>{label}</option>
-                  ))}
-                </optgroup>
-                <optgroup label="🔧 Familles de support">
-                  {Object.entries(families).filter(([k]) => !ENGINE_FAMILIES.includes(k)).map(([key, label]) => (
-                    <option key={key} value={key}>{label}</option>
-                  ))}
-                </optgroup>
-              </select>
-            </div>
-            <div className="sm:col-span-2">
-              <label className="block text-xs font-medium text-stone-600 mb-1">Description (optionnel)</label>
-              <input
-                type="text"
-                value={form.description}
-                onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-                placeholder="Courte description de la mécanique"
-                className="w-full border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
-              />
-            </div>
-          </div>
-          {formError && <p className="text-red-600 text-sm mt-3">{formError}</p>}
-          <div className="flex gap-3 mt-4">
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className="bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-medium"
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Field
+              label="Mécanique BGG (obligatoire)"
+              type="text"
+              value={form.bggMechanic}
+              onChange={e => setForm(f => ({ ...f, bggMechanic: e.target.value }))}
+              placeholder="Ex : Worker Placement"
+            />
+            <SelectField
+              label="Famille Engelstein (obligatoire)"
+              value={form.engelsteinFamily}
+              onChange={e => setForm(f => ({ ...f, engelsteinFamily: e.target.value }))}
             >
+              <option value="">Choisir…</option>
+              <optgroup label="Moteurs centraux">
+                {Object.entries(families).filter(([k]) => ENGINE_FAMILIES.includes(k)).map(([key, label]) => (
+                  <option key={key} value={key}>{label}</option>
+                ))}
+              </optgroup>
+              <optgroup label="Familles de support">
+                {Object.entries(families).filter(([k]) => !ENGINE_FAMILIES.includes(k)).map(([key, label]) => (
+                  <option key={key} value={key}>{label}</option>
+                ))}
+              </optgroup>
+            </SelectField>
+            <Field
+              className="sm:col-span-2"
+              label="Description"
+              hint="(facultative)"
+              type="text"
+              value={form.description}
+              onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+              placeholder="Courte description de la mécanique"
+            />
+          </div>
+          <ErrorMessage>{formError}</ErrorMessage>
+          <div className="flex flex-wrap gap-3">
+            <button type="button" onClick={handleSave} disabled={saving} className="btn btn-secondary">
               {saving ? 'Enregistrement…' : 'Enregistrer'}
             </button>
-            <button onClick={cancelEdit} className="border border-stone-300 hover:bg-stone-100 px-4 py-2 rounded-lg text-sm">
-              Annuler
-            </button>
+            <button type="button" onClick={cancelEdit} className="btn bg-paper">Annuler</button>
           </div>
-        </div>
+        </section>
       )}
 
-      {/* Recherche + onglets */}
-      <div className="flex flex-col sm:flex-row gap-3 mb-5">
-        <input
-          type="text"
-          placeholder="Rechercher une mécanique…"
+      <form role="search" onSubmit={e => e.preventDefault()}>
+        <Field
+          label="Rechercher une mécanique"
+          type="search"
           value={search}
           onChange={e => setSearch(e.target.value)}
-          className="flex-1 border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+          placeholder="Nom BGG ou description"
         />
-      </div>
+      </form>
 
-      <div className="flex gap-1 mb-6 border-b border-stone-200">
+      <div role="tablist" aria-label="Familles" className="flex flex-wrap gap-2">
         {tabs.map(tab => (
           <button
             key={tab.key}
+            type="button"
+            role="tab"
+            id={`meca-${tab.key}`}
+            aria-selected={activeTab === tab.key}
+            aria-controls="meca-panneau"
             onClick={() => setActiveTab(tab.key)}
-            className={`px-4 py-2 text-sm font-medium rounded-t-lg border-b-2 transition-all flex items-center gap-2 ${
-              activeTab === tab.key
-                ? 'border-amber-500 text-amber-700 bg-amber-50'
-                : 'border-transparent text-stone-500 hover:text-stone-700 hover:bg-stone-50'
-            }`}
+            className={`chip ${activeTab === tab.key ? 'is-on' : ''}`}
           >
             {tab.label}
-            <span className={`text-xs px-1.5 py-0.5 rounded-full font-bold ${
-              tab.key === 'unmapped'
-                ? 'bg-orange-100 text-orange-700'
-                : 'bg-stone-100 text-stone-500'
-            }`}>
-              {tab.count}
-            </span>
+            <span className="ml-2 text-sm opacity-80">{tab.count}</span>
           </button>
         ))}
       </div>
 
-      {loading && <p className="text-stone-400 text-sm">Chargement…</p>}
-      {error && <p className="text-red-600 text-sm">{error}</p>}
+      <div id="meca-panneau" role="tabpanel" aria-labelledby={`meca-${activeTab}`} className="flex flex-col gap-4">
+        {loading && <p role="status" className="text-stone-600">Chargement…</p>}
+        <ErrorMessage>{error}</ErrorMessage>
 
-      {/* Onglet : Moteurs centraux */}
-      {activeTab === 'engines' && !loading && (
-        <div className="space-y-4">
-          <p className="text-xs text-stone-400 mb-4">
-            Ces 6 familles définissent le moteur principal du jeu — la boucle de gameplay centrale selon le modèle Engelstein.
-            Une mécanique BGG mappée ici peut qualifier le jeu comme appartenant à ce moteur.
-          </p>
-          {ENGINE_FAMILIES.map(key => {
-            const label = families[key] ?? key
-            const items = engineMappings.filter(m => m.engelsteinFamily === key)
-            const color = ENGINE_COLORS[key] ?? 'bg-stone-50 border-stone-200 text-stone-900'
-            const headerColor = ENGINE_HEADER_COLORS[key] ?? 'bg-stone-100 text-stone-700'
-            return (
-              <div key={key} className={`rounded-xl border-2 overflow-hidden ${color}`}>
-                <div className={`px-4 py-3 flex items-center justify-between ${headerColor}`}>
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-sm">{label}</span>
-                    <span className="text-xs opacity-70">({items.length} mécaniques)</span>
-                  </div>
-                  <button
-                    onClick={() => startCreate('', key)}
-                    className="text-xs font-medium opacity-70 hover:opacity-100 transition-opacity"
-                  >
-                    + Ajouter
-                  </button>
-                </div>
-                {items.length === 0 ? (
-                  <p className="px-4 py-3 text-sm opacity-50 italic">Aucune mécanique BGG mappée.</p>
-                ) : (
-                  <div className="divide-y divide-black/5">
-                    {items.map(m => (
-                      <div key={m.id} className="px-4 py-2.5 flex items-center justify-between gap-3">
-                        <div>
-                          <span className="text-sm font-medium">{m.bggMechanic}</span>
-                          {m.description && (
-                            <span className="ml-2 text-xs opacity-60">{m.description}</span>
-                          )}
-                        </div>
-                        <div className="flex gap-3 flex-shrink-0">
-                          <button onClick={() => startEdit(m)} className="text-xs opacity-50 hover:opacity-100">Modifier</button>
-                          <button onClick={() => handleDelete(m.id, m.bggMechanic)} className="text-xs opacity-50 hover:text-red-600 hover:opacity-100">Supprimer</button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )
-          })}
-        </div>
-      )}
+        {activeTab === 'engines' && !loading && (
+          <>
+            <p className="text-stone-700">
+              Ces 6 familles définissent le moteur principal du jeu : la boucle de gameplay centrale selon le modèle Engelstein.
+              Une mécanique BGG mappée ici peut qualifier le jeu comme appartenant à ce moteur.
+            </p>
+            {ENGINE_FAMILIES.map(key => (
+              <MappingGroup
+                key={key}
+                title={families[key] ?? key}
+                items={engineMappings.filter(m => m.engelsteinFamily === key)}
+                onAdd={() => startCreate('', key)}
+                onEdit={startEdit}
+                onDelete={handleDelete}
+              />
+            ))}
+          </>
+        )}
 
-      {/* Onglet : Familles de support */}
-      {activeTab === 'support' && !loading && (
-        <div className="space-y-4">
-          <p className="text-xs text-stone-400 mb-4">
-            Ces 8 familles enrichissent la fiche d'un jeu mais ne définissent pas son moteur principal.
-            Elles apparaissent en secondary tags sur les fiches et dans les filtres.
-          </p>
-          {Object.entries(families)
-            .filter(([k]) => !ENGINE_FAMILIES.includes(k) && !EXTRA_FAMILIES_LIST.includes(k))
-            .map(([key, label]) => {
-              const items = supportMappings.filter(m => m.engelsteinFamily === key)
-              return (
-                <div key={key} className="rounded-xl border border-stone-200 overflow-hidden">
-                  <div className="px-4 py-3 bg-stone-50 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold text-sm text-stone-700">{label}</span>
-                      <span className="text-xs text-stone-400">({items.length})</span>
-                    </div>
-                    <button
-                      onClick={() => startCreate('', key)}
-                      className="text-xs text-stone-400 hover:text-amber-600 font-medium"
-                    >
-                      + Ajouter
-                    </button>
-                  </div>
-                  {items.length === 0 ? (
-                    <p className="px-4 py-3 text-sm text-stone-400 italic">Aucune mécanique BGG mappée.</p>
-                  ) : (
-                    <div className="divide-y divide-stone-100">
-                      {items.map(m => (
-                        <div key={m.id} className="px-4 py-2.5 flex items-center justify-between gap-3">
-                          <div>
-                            <span className="text-sm font-medium text-stone-800">{m.bggMechanic}</span>
-                            {m.description && (
-                              <span className="ml-2 text-xs text-stone-400">{m.description}</span>
-                            )}
-                          </div>
-                          <div className="flex gap-3 flex-shrink-0">
-                            <button onClick={() => startEdit(m)} className="text-xs text-stone-400 hover:text-amber-600">Modifier</button>
-                            <button onClick={() => handleDelete(m.id, m.bggMechanic)} className="text-xs text-stone-400 hover:text-red-600">Supprimer</button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-        </div>
-      )}
+        {activeTab === 'support' && !loading && (
+          <>
+            <p className="text-stone-700">
+              Ces familles enrichissent la fiche d'un jeu mais ne définissent pas son moteur principal. Elles apparaissent
+              en étiquettes secondaires sur les fiches et dans les filtres.
+            </p>
+            {supportKeys.map(key => (
+              <MappingGroup
+                key={key}
+                title={families[key]}
+                items={supportMappings.filter(m => m.engelsteinFamily === key)}
+                onAdd={() => startCreate('', key)}
+                onEdit={startEdit}
+                onDelete={handleDelete}
+              />
+            ))}
+          </>
+        )}
 
-      {/* Onglet : Modes & extras */}
-      {activeTab === 'extra' && !loading && (
-        <div className="space-y-4">
-          <p className="text-xs text-stone-400 mb-4">
-            Ces familles sont hors taxonomie Engelstein : elles décrivent des <strong>modes de jeu</strong> ou des
-            <strong> caractéristiques transversales</strong> (solo, temps réel, dextérité, legacy).
-            Elles ne peuvent jamais être un moteur central.
-          </p>
-          {EXTRA_FAMILIES_LIST.map(key => {
-            const label = EXTRA_LABELS[key] ?? key
-            const items = extraMappings.filter(m => m.engelsteinFamily === key)
-            const color = EXTRA_COLORS_ADMIN[key] ?? 'bg-stone-50 border-stone-200 text-stone-900'
-            const headerColor = EXTRA_HEADER_COLORS[key] ?? 'bg-stone-100 text-stone-700'
-            return (
-              <div key={key} className={`rounded-xl border-2 overflow-hidden ${color}`}>
-                <div className={`px-4 py-3 flex items-center justify-between ${headerColor}`}>
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-sm">{label}</span>
-                    <span className="text-xs opacity-70">({items.length} mécaniques)</span>
-                  </div>
-                  <button
-                    onClick={() => startCreate('', key)}
-                    className="text-xs font-medium opacity-70 hover:opacity-100 transition-opacity"
-                  >
-                    + Ajouter
-                  </button>
-                </div>
-                {items.length === 0 ? (
-                  <p className="px-4 py-3 text-sm opacity-50 italic">Aucune mécanique BGG mappée.</p>
-                ) : (
-                  <div className="divide-y divide-black/5">
-                    {items.map(m => (
-                      <div key={m.id} className="px-4 py-2.5 flex items-center justify-between gap-3">
-                        <div>
-                          <span className="text-sm font-medium">{m.bggMechanic}</span>
-                          {m.description && (
-                            <span className="ml-2 text-xs opacity-60">{m.description}</span>
-                          )}
-                        </div>
-                        <div className="flex gap-3 flex-shrink-0">
-                          <button onClick={() => startEdit(m)} className="text-xs opacity-50 hover:opacity-100">Modifier</button>
-                          <button onClick={() => handleDelete(m.id, m.bggMechanic)} className="text-xs opacity-50 hover:text-red-600 hover:opacity-100">Supprimer</button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )
-          })}
-        </div>
-      )}
+        {activeTab === 'extra' && !loading && (
+          <>
+            <p className="text-stone-700">
+              Ces familles sont hors taxonomie Engelstein : elles décrivent des <strong>modes de jeu</strong> ou des{' '}
+              <strong>caractéristiques transversales</strong> (solo, temps réel, dextérité, legacy). Elles ne peuvent jamais
+              être un moteur central.
+            </p>
+            {EXTRA_FAMILIES_LIST.map(key => (
+              <MappingGroup
+                key={key}
+                title={EXTRA_LABELS[key] ?? key}
+                items={extraMappings.filter(m => m.engelsteinFamily === key)}
+                onAdd={() => startCreate('', key)}
+                onEdit={startEdit}
+                onDelete={handleDelete}
+              />
+            ))}
+          </>
+        )}
 
-      {/* Onglet : Non mappées */}
-      {activeTab === 'unmapped' && !loading && (
-        <div>
-          <p className="text-xs text-stone-400 mb-4">
-            Ces mécaniques BGG existent dans des jeux de la base mais n'ont pas encore de mapping Engelstein.
-            Triées par nombre de jeux concernés — les plus fréquentes en priorité.
-          </p>
-          {filteredUnmapped.length === 0 ? (
-            <div className="text-center py-12 text-stone-400">
-              <div className="text-4xl mb-3">✅</div>
-              <p className="font-medium">Toutes les mécaniques sont mappées !</p>
-            </div>
-          ) : (
-            <div className="border border-orange-200 rounded-xl overflow-hidden">
-              <div className="bg-orange-50 px-4 py-3 text-xs font-semibold text-orange-700 uppercase tracking-wide flex justify-between">
-                <span>Mécanique BGG</span>
-                <span>Jeux</span>
-              </div>
-              <div className="divide-y divide-stone-100">
+        {activeTab === 'unmapped' && !loading && (
+          <>
+            <p className="text-stone-700">
+              Ces mécaniques BGG existent dans des jeux de la base mais n'ont pas encore de mapping. Les plus fréquentes
+              viennent en premier.
+            </p>
+            {filteredUnmapped.length === 0 ? (
+              <p className="panel mx-auto max-w-xl p-6 text-center font-bold">Toutes les mécaniques sont mappées.</p>
+            ) : (
+              <ul className="panel m-0 list-none divide-y-2 divide-ink/15 overflow-hidden p-0">
                 {filteredUnmapped.map(({ mechanic, game_count }) => (
-                  <div key={mechanic} className="px-4 py-2.5 flex items-center justify-between gap-3 bg-white hover:bg-orange-50 transition-colors">
-                    <div className="flex items-center gap-3">
-                      <span className="w-2 h-2 rounded-full bg-orange-300 flex-shrink-0" />
-                      <span className="text-sm font-medium text-stone-800">{mechanic}</span>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <span className="text-xs text-stone-400 font-medium">{game_count} jeu{game_count > 1 ? 'x' : ''}</span>
-                      <button
-                        onClick={() => mapUnmapped(mechanic)}
-                        className="text-xs font-medium text-amber-600 hover:text-amber-800 border border-amber-300 hover:border-amber-500 px-2 py-1 rounded-lg transition-all"
-                      >
-                        Mapper →
+                  <li key={mechanic} className="flex flex-wrap items-center justify-between gap-3 px-4 py-2">
+                    <span className="min-w-0 break-words font-bold">{mechanic}</span>
+                    <span className="flex items-center gap-3">
+                      <span className="text-stone-600">{game_count} jeu{game_count > 1 ? 'x' : ''}</span>
+                      <button type="button" onClick={() => mapUnmapped(mechanic)} className="btn btn-secondary !min-h-11 text-sm">
+                        Mapper
                       </button>
-                    </div>
-                  </div>
+                    </span>
+                  </li>
                 ))}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
+              </ul>
+            )}
+          </>
+        )}
+      </div>
     </div>
+  )
+}
+
+/* ── Un groupe de mappings : titre, ajout, liste ─────────────────────── */
+function MappingGroup({ title, items, onAdd, onEdit, onDelete }) {
+  return (
+    <section className="panel overflow-hidden" aria-label={title}>
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b-[3px] border-ink bg-cream px-4 py-2">
+        <h3 className="font-sans text-lg font-bold">
+          {title} <span className="font-normal text-stone-600">({items.length})</span>
+        </h3>
+        <button type="button" onClick={onAdd} className="inline-flex min-h-11 items-center font-bold text-brand-blue underline underline-offset-4">
+          Ajouter
+        </button>
+      </div>
+      {items.length === 0 ? (
+        <p className="px-4 py-3 italic text-stone-600">Aucune mécanique BGG mappée.</p>
+      ) : (
+        <ul className="m-0 list-none divide-y-2 divide-ink/15 p-0">
+          {items.map(m => (
+            <li key={m.id} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 py-1.5">
+              <span className="min-w-0">
+                <span className="font-bold">{m.bggMechanic}</span>
+                {m.description && <span className="ml-2 text-sm text-stone-600">{m.description}</span>}
+              </span>
+              <span className="flex gap-1">
+                <button type="button" onClick={() => onEdit(m)} className="inline-flex min-h-11 items-center px-2 font-bold text-brand-blue underline underline-offset-4">Modifier</button>
+                <button type="button" onClick={() => onDelete(m.id, m.bggMechanic)} className="inline-flex min-h-11 items-center px-2 font-bold text-amber-600 underline underline-offset-4">Supprimer</button>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   )
 }
