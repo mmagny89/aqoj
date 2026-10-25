@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
+import { MemoryRouter } from 'react-router-dom'
 import HomePage from './HomePage'
 import { getForgottenGems, getHomeRecommendations, getTonightRecommendations, saveTable, saveTaste } from '../api'
 
@@ -9,32 +9,17 @@ const auth = vi.hoisted(() => ({ user: null }))
 vi.mock('../context/AuthContext', () => ({ useAuth: () => ({ user: auth.user, loading: false }) }))
 vi.mock('../api', () => ({ getHomeRecommendations: vi.fn(), getForgottenGems: vi.fn(), getTonightRecommendations: vi.fn(), saveTable: vi.fn(), saveTaste: vi.fn() }))
 
-function Where() {
-  const location = useLocation()
-  return <p>route : {location.pathname}{location.search}</p>
-}
-
 describe('HomePage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     auth.user = null
   })
 
-  it('envoie la table et la durée choisies à la page de recommandation', async () => {
-    render(
-      <MemoryRouter initialEntries={['/']}>
-        <Routes>
-          <Route path="/" element={<HomePage />} />
-          <Route path="/recommander" element={<Where />} />
-        </Routes>
-      </MemoryRouter>,
-    )
+  it('n’a ni bouton d’envoi ni lien de recherche dans le bandeau : le filtrage est immédiat', () => {
+    render(<MemoryRouter><HomePage /></MemoryRouter>)
 
-    await userEvent.click(screen.getByRole('button', { name: '2' }))
-    await userEvent.click(screen.getByRole('button', { name: '≤ 2 h' }))
-    await userEvent.click(screen.getByRole('button', { name: 'Trouver un jeu' }))
-
-    expect(screen.getByText('route : /recommander?joueurs=2&duree=120')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Trouver un jeu' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /Chercher par nom/ })).not.toBeInTheDocument()
     expect(saveTable).not.toHaveBeenCalled()
   })
 
