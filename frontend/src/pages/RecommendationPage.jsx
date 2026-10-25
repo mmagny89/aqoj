@@ -40,11 +40,12 @@ function FilterSection({ title, children, defaultOpen = true }) {
 function ResultsGrid({ results, loading, error }) {
   const [sub, setSub] = useState('base')
 
-  const base = results.filter(r => !r.game.isExpansion)
-  const exps  = results.filter(r =>  r.game.isExpansion)
+  const base = (results ?? []).filter(r => !r.game.isExpansion)
+  const exps  = (results ?? []).filter(r =>  r.game.isExpansion)
   const items = sub === 'ext' ? exps : base
 
-  if (loading) return (
+  // Au premier chargement seulement : ensuite les anciens résultats restent affichés pendant l'actualisation.
+  if (loading && results === null) return (
     <p role="status" className="flex h-32 items-center justify-center gap-3 text-stone-600">
       <span className="h-5 w-5 animate-spin rounded-full border-[3px] border-stone-300 border-t-brand-red" aria-hidden="true" />
       Chargement…
@@ -54,7 +55,7 @@ function ResultsGrid({ results, loading, error }) {
   if (error) return <p role="alert" className="panel border-brand-red bg-amber-100 p-4 font-bold">{error}</p>
 
   return (
-    <div>
+    <div aria-busy={loading} className={loading ? 'opacity-60 transition-opacity' : 'transition-opacity'}>
       <div role="group" aria-label="Type de fiches" className="mb-4 flex flex-wrap gap-2">
         {[
           { key: 'base', label: 'Jeux de base', count: base.length },
@@ -94,39 +95,18 @@ function ResultsGrid({ results, loading, error }) {
   )
 }
 
-/* ── Panneau résultats ───────────────────────────────────────────────── */
-function ResultsPanel({
-  collectionResults, collectionLoading, collectionError,
-  discoverResults,   discoverLoading,   discoverError,
-  searched,
-}) {
-  const [activeTab, setActiveTab] = useState('collection')
+/* ── Panneau résultats : trois périmètres, chacun avec son compte ───── */
+const SCOPE_TABS = [
+  { key: 'collection', label: 'Dans ma ludothèque' },
+  { key: 'library',    label: 'À l’association' },
+  { key: 'discover',   label: 'Tout le catalogue' },
+]
 
-  // Auto-sélectionner l'onglet le plus fourni une fois les deux chargés
-  useEffect(() => {
-    if (!collectionLoading && !discoverLoading && collectionResults && discoverResults) {
-      if (discoverResults.length > collectionResults.length) setActiveTab('discover')
-    }
-  }, [collectionLoading, discoverLoading, collectionResults, discoverResults])
-
-  if (!searched) return (
-    <section className="panel mx-auto flex max-w-xl flex-col items-center gap-3 p-8 text-center">
-      <img src="/edj-mascotte.png" alt="" width="120" height="133" className="h-28 w-auto" />
-      <p className="font-display text-2xl">Dites-nous ce qu'il vous faut</p>
-      <p className="text-stone-600">Renseignez vos critères, puis lancez la recherche.</p>
-    </section>
-  )
-
-  const colCount = collectionResults?.length ?? '…'
-  const disCount = discoverResults?.length ?? '…'
-
+function ResultsPanel({ results, activeTab, onTabChange }) {
   return (
     <div>
       <div role="tablist" aria-label="Où chercher" className="mb-5 flex flex-wrap gap-2">
-        {[
-          { key: 'collection', label: 'Ma collection', count: colCount },
-          { key: 'discover',   label: 'À découvrir',   count: disCount },
-        ].map(tab => (
+        {SCOPE_TABS.map(tab => (
           <button
             key={tab.key}
             type="button"
@@ -134,25 +114,23 @@ function ResultsPanel({
             id={`reco-${tab.key}`}
             aria-selected={activeTab === tab.key}
             aria-controls="reco-panneau"
-            onClick={() => setActiveTab(tab.key)}
+            onClick={() => onTabChange(tab.key)}
             className={`chip ${activeTab === tab.key ? 'is-on' : ''}`}
           >
             {tab.label}
-            <span className="ml-2 text-sm opacity-80">{tab.count}</span>
+            <span className="ml-2 text-sm opacity-80">{results[tab.key].data?.length ?? '…'}</span>
           </button>
         ))}
       </div>
 
       <div id="reco-panneau" role="tabpanel" aria-labelledby={`reco-${activeTab}`}>
-        {activeTab === 'collection' ? (
-          <ResultsGrid results={collectionResults ?? []} loading={collectionLoading} error={collectionError} />
-        ) : (
-          <ResultsGrid results={discoverResults ?? []} loading={discoverLoading} error={discoverError} />
-        )}
+        <ResultsGrid results={results[activeTab].data} loading={results[activeTab].loading} error={results[activeTab].error} />
       </div>
     </div>
   )
 }
+
+const EMPTY_RESULTS = Object.fromEntries(SCOPE_TABS.map(t => [t.key, { data: null, loading: false, error: null }]))
 
 /* ── Page principale ─────────────────────────────────────────────────── */
 export default function RecommendationPage() {
@@ -169,13 +147,9 @@ export default function RecommendationPage() {
   const [maxTime,            setMaxTime]            = useState(() => positive('duree', 60))
   const [selectedFamilies,   setSelectedFamilies]   = useState([])
   const [selectedCategories, setSelectedCategories] = useState([])
-  const [collectionResults,  setCollectionResults]  = useState(null)
-  const [discoverResults,    setDiscoverResults]    = useState(null)
-  const [colLoading,         setColLoading]         = useState(false)
-  const [disLoading,         setDisLoading]         = useState(false)
-  const [colError,           setColError]           = useState(null)
-  const [disError,           setDisError]           = useState(null)
-  const [searched,           setSearched]           = useState(false)
+  const [results,            setResults]            = useState(EMPTY_RESULTS)
+  const [activeTab,          setActiveTab]          = useState('collection')
+  const [ready,              setReady]              = useState(false)
   const [filtersOpen,        setFiltersOpen]        = useState(false)
   const [userPrefs,          setUserPrefs]          = useState(null)
   const [themeGroups,        setThemeGroups]        = useState({ themes: [], types: [] })
@@ -187,12 +161,14 @@ export default function RecommendationPage() {
     if (user) {
       getUserPreferences().then(prefs => {
         setUserPrefs(prefs)
-        // La table enregistrée sur l'accueil sert de point de départ, sauf si l'accueil vient d'en envoyer une.
+        // Point de départ : la table enregistrée (sauf si l'adresse en porte une) et les styles favoris, goûts déclarés d'abord.
         if (prefs?.table && !fromHome) {
           setPlayers(prefs.table.players)
           setMaxTime(prefs.table.maxTime)
         }
-      }).catch(() => {})
+        const favorites = [...new Set([...(prefs?.declaredFamilies ?? []), ...(prefs?.topEngines ?? [])])]
+        setSelectedFamilies(favorites)
+      }).catch(() => {}).finally(() => setReady(true))
     }
     getThemeMappings().then(mappings => {
       // Construire label → [bggCategories] + deux listes triées
@@ -226,39 +202,33 @@ export default function RecommendationPage() {
   const toggleCat = (label) => setSelectedCategories(prev => prev.includes(label) ? prev.filter(l => l !== label) : [...prev, label])
   const clearAll  = () => { setSelectedFamilies([]); setSelectedCategories([]) }
 
-  const handleSubmit = (e) => {
-    e?.preventDefault()
-    // Expandre les labels sélectionnés en bggCategories concrètes
+  // Résultats en direct : tout changement de critère relance les trois recherches (légère attente pour le curseur de durée).
+  const firstLoad = useRef(true)
+  useEffect(() => {
+    if (!user || !ready) return
+    let current = true
     const expandedCats = selectedCategories.flatMap(label => themeLabelToCats[label] ?? [])
     const params = { players, maxTime, families: selectedFamilies, categories: expandedCats }
 
-    // Lancer les deux appels en parallèle, indépendamment
-    setSearched(true)
-    setCollectionResults(null)
-    setDiscoverResults(null)
-    setColError(null)
-    setDisError(null)
+    const timer = setTimeout(() => {
+      const settled = {}
+      SCOPE_TABS.forEach(({ key }) => {
+        setResults(prev => ({ ...prev, [key]: { ...prev[key], loading: true, error: null } }))
+        getRecommendations({ ...params, scope: key })
+          .then(data => { settled[key] = data; if (current) setResults(prev => ({ ...prev, [key]: { data, loading: false, error: null } })) })
+          .catch(err => { settled[key] = []; if (current) setResults(prev => ({ ...prev, [key]: { data: prev[key].data, loading: false, error: err.message || 'Erreur de chargement' } })) })
+          .finally(() => {
+            // À la première arrivée, on ouvre le premier onglet qui a quelque chose à montrer.
+            if (!current || !firstLoad.current || Object.keys(settled).length < SCOPE_TABS.length) return
+            firstLoad.current = false
+            const first = SCOPE_TABS.find(t => settled[t.key]?.length > 0)
+            if (first) setActiveTab(first.key)
+          })
+      })
+    }, 250)
 
-    setColLoading(true)
-    getRecommendations({ ...params, scope: 'collection' })
-      .then(setCollectionResults)
-      .catch(err => setColError(err.message || 'Erreur collection'))
-      .finally(() => setColLoading(false))
-
-    setDisLoading(true)
-    getRecommendations({ ...params, scope: 'discover' })
-      .then(setDiscoverResults)
-      .catch(err => setDisError(err.message || 'Erreur découverte'))
-      .finally(() => setDisLoading(false))
-  }
-
-  const autoSearched = useRef(false)
-  useEffect(() => {
-    if (!user || !fromHome || autoSearched.current) return
-    autoSearched.current = true
-    handleSubmit()
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- une seule recherche automatique, avec les valeurs de l'URL
-  }, [user, fromHome])
+    return () => { current = false; clearTimeout(timer) }
+  }, [user, ready, players, maxTime, selectedFamilies, selectedCategories, themeLabelToCats])
 
   if (!user) return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-10">
@@ -280,11 +250,11 @@ export default function RecommendationPage() {
     <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-10 lg:py-8">
 
       <div className="mb-6">
-        <h1 className="text-4xl leading-tight sm:text-5xl">Ce soir on joue à…</h1>
-        <p className="mt-1 text-lg text-stone-600">Des idées tirées de votre ludothèque et du catalogue, selon la table et le temps.</p>
+        <h1 className="text-4xl leading-tight sm:text-5xl">À quoi on joue…</h1>
+        <p className="mt-1 text-lg text-stone-600">Selon vos styles favoris et votre table : les résultats se mettent à jour à chaque changement.</p>
       </div>
 
-      <form onSubmit={handleSubmit}>
+      <div>
         <div className="flex flex-col lg:flex-row gap-6 lg:items-start">
 
           {/* ── Panneau filtres (sidebar) ─────────────────────────────── */}
@@ -417,15 +387,6 @@ export default function RecommendationPage() {
                 </div>
               </FilterSection>
             )}
-
-            {/* Bouton lancer */}
-            <button
-              type="submit"
-              disabled={colLoading || disLoading}
-              className="btn btn-primary w-full"
-            >
-              {(colLoading || disLoading) ? 'Recherche…' : 'Trouver des jeux'}
-            </button>
           </aside>
 
           {/* ── Bouton mobile toggle filtres ─────────────────────────── */}
@@ -443,19 +404,11 @@ export default function RecommendationPage() {
 
           {/* ── Zone résultats ────────────────────────────────────────── */}
           <div className="flex-1 min-w-0">
-            <ResultsPanel
-              collectionResults={collectionResults}
-              collectionLoading={colLoading}
-              collectionError={colError}
-              discoverResults={discoverResults}
-              discoverLoading={disLoading}
-              discoverError={disError}
-              searched={searched}
-            />
+            <ResultsPanel results={results} activeTab={activeTab} onTabChange={setActiveTab} />
           </div>
 
         </div>
-      </form>
+      </div>
     </div>
   )
 }

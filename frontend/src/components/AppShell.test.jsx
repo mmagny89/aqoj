@@ -30,7 +30,7 @@ describe('AppShell', () => {
 
     const navigations = screen.getAllByRole('navigation', { name: 'Navigation principale' })
     expect(navigations).toHaveLength(2)
-    expect(within(navigations[0]).getByRole('link', { name: 'Ce soir on joue' })).toHaveAttribute('href', '/recommander')
+    expect(within(navigations[0]).getByRole('link', { name: 'À quoi on joue' })).toHaveAttribute('href', '/recommander')
     expect(within(navigations[1]).getByRole('link', { name: 'Connexion' })).toHaveAttribute('href', '/connexion')
   })
 

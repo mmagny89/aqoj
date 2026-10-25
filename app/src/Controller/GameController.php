@@ -83,9 +83,11 @@ class GameController extends AbstractController
         ];
 
         $scope   = $request->query->getString('scope', 'collection');
-        $results = $scope === 'discover'
-            ? $service->recommendDiscover($user, $criteria)
-            : $service->recommend($user, $criteria);
+        $results = match ($scope) {
+            'discover' => $service->recommendDiscover($user, $criteria),
+            'library'  => $service->recommendDiscover($user, $criteria, library: true),
+            default    => $service->recommend($user, $criteria),
+        };
 
         return $this->json(array_map(fn($r) => [
             'game'   => $r['game'],

@@ -241,7 +241,7 @@ function DiscoverTabs({ tabs }) {
 
 const ENTRIES = [
   { to: '/rechercher', label: 'Chercher un jeu', text: 'Par son nom, en français ou en anglais.', Icon: SearchIcon },
-  { to: '/recommander', label: 'Ce soir on joue', text: 'Des idées selon la table et le temps.', Icon: DiceIcon },
+  { to: '/recommander', label: 'À quoi on joue', text: 'Des idées selon la table et le temps.', Icon: DiceIcon },
   { to: '/ludotheque', label: 'Ma ludothèque', text: 'Votre collection, jeu par jeu.', Icon: ShelfIcon },
   { to: '/importer', label: 'Importer ma collection', text: 'Depuis BGG ou MyLudo, en un clic.', Icon: DownloadIcon },
 ]

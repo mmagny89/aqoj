@@ -148,6 +148,11 @@ final class HomeRecommendationTest extends ApiTestCase
         sort($noms);
         self::assertSame(['Zzper Asso', 'Zzper Le Mien', 'Zzper Modeste', 'Zzper Voisin'], $noms);
 
+        $liste = $this->call($client, 'GET', '/api/games/recommendation?scope=library', token: $moi);
+        $noms = array_column(array_column($liste, 'game'), 'name');
+        sort($noms);
+        self::assertSame(['Zzper Asso', 'Zzper Le Mien', 'Zzper Modeste', 'Zzper Voisin'], $noms);
+
         $reco = $this->call($client, 'GET', '/api/games/home-reco?scope=library', token: $moi);
         $noms = array_column(array_column($reco['recent'], 'game'), 'name');
         sort($noms);
