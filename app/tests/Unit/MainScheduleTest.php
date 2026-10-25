@@ -14,7 +14,7 @@ final class MainScheduleTest extends TestCase
 {
     public function testLesTachesBggPuisLeMenageSontPlanifieesDansLOrdre(): void
     {
-        $schedule = new MainSchedule('0 1 * * *', '0 2 * * *', '0 3 * * *', '0 4 * * *', new ArrayAdapter(), new LockFactory(new InMemoryStore()));
+        $schedule = new MainSchedule('0 1 * * *', '0 2 * * *', '0 3 * * *', '0 4 * * *', '*/10 * * * *', new ArrayAdapter(), new LockFactory(new InMemoryStore()));
 
         $commands = [];
         $provided = $schedule->getSchedule();
@@ -33,6 +33,7 @@ final class MainScheduleTest extends TestCase
             'app:bgg:enrich-pending --mode=pending --limit=200',
             'app:bgg:sync-new',
             'app:bgg:import-csv',
+            'app:translate:descriptions --limit=60 --time-budget=180',
             'app:maintenance:purge',
         ], $commands);
     }

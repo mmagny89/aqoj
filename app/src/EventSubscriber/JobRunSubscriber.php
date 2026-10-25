@@ -26,6 +26,7 @@ final class JobRunSubscriber implements EventSubscriberInterface
         'app:bgg:sync-new',
         'app:bgg:relink-expansions',
         'app:maintenance:purge',
+        'app:translate:descriptions',
     ];
 
     private ?string $error = null;

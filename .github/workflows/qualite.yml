@@ -32,6 +32,7 @@ env:
   DATABASE_URL: 'postgresql://app:app@127.0.0.1:5432/app?serverVersion=18&charset=utf8'
   MAILER_DSN: 'null://null'
   MAILER_FROM: 'noreply@aqoj.test'
+  LIBRETRANSLATE_URL: 'http://libretranslate.invalid:5000'
 
 jobs:
   # --- Porte 1 — rien en amont : c'est la moins chere, elle garde les autres.

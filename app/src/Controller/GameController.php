@@ -10,6 +10,7 @@ use App\Service\BggApiService;
 use App\Service\MechanicFamilyResolver;
 use App\Service\GameEnrichmentService;
 use App\Service\RecommendationService;
+use App\Translation\DescriptionTranslator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -256,6 +257,7 @@ class GameController extends AbstractController
         UserGameRepository $userGameRepository,
         MechanicFamilyResolver $familyResolver,
         GameEnrichmentService $enrichmentService,
+        DescriptionTranslator $translator,
     ): JsonResponse {
         $game = $repository->find($id);
 
@@ -267,6 +269,13 @@ class GameController extends AbstractController
         $enrichmentService->enrichIfNeeded($game);
 
         $user = $this->appUser();
+
+        // Un membre qui ouvre la fiche d'un jeu non encore traduit déclenche sa traduction (service local, quelques
+        // secondes au plus) ; un visiteur anonyme ne le peut pas, pour qu'aucune exploration du catalogue ne sollicite
+        // le service. Un échec laisse la description en anglais : le worker reprend le jeu plus tard.
+        if ($user !== null && $translator->needsTranslation($game) && $translator->mayAttempt($game)) {
+            $translator->translate($game, 8.0);
+        }
         $bggUserRating = null;
         if ($user) {
             $ratings = $userGameRepository->getBggUserRatings($user);
@@ -356,6 +365,8 @@ class GameController extends AbstractController
         }
 
         $data = $game->jsonSerialize();
+        $data['descriptionFr']      = $game->hasFreshTranslation() ? $game->getDescriptionFr() : null;
+        $data['descriptionFrPending'] = $translator->needsTranslation($game);
         $data['bggUserRating']    = $bggUserRating;
         $data['mechanicsByFamily'] = $mechanicsByFamily;
         $data['primaryFamilies']  = $primaryFamilies;

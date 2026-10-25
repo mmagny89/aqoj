@@ -101,6 +101,19 @@ class Game implements \JsonSerializable
     #[Groups(['catalogue:read'])]
     private ?string $imageUrl = null;
 
+    // Traduction automatique de la description (LibreTranslate) : propre à ce site, hors du groupe publié à BG-TCG
+    #[ORM\Column(type: 'text', nullable: true)]
+    private ?string $descriptionFr = null;
+
+    #[ORM\Column(length: 32, nullable: true)]
+    private ?string $descriptionFrHash = null;
+
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $descriptionFrAt = null;
+
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $descriptionFrAttemptAt = null;
+
     // Éditeur de l'édition d'origine (l'année d'origine est yearPublished) : propre à ce site, hors du groupe publié à BG-TCG
     #[ORM\Column(length: 255, nullable: true)]
     private ?string $publisherOriginal = null;
@@ -250,6 +263,21 @@ class Game implements \JsonSerializable
     public function setCategories(array $categories): static { $this->categories = $categories; return $this; }
     public function getMechanics(): array { return $this->mechanics; }
     public function setMechanics(array $mechanics): static { $this->mechanics = $mechanics; return $this; }
+    /** La traduction ne vaut que pour la description qu'elle a traduite : si BGG l'a changée, elle est périmée. */
+    public function hasFreshTranslation(): bool
+    {
+        return $this->descriptionFr !== null && $this->description !== null && $this->descriptionFrHash === md5($this->description);
+    }
+    public function getDescriptionFr(): ?string { return $this->descriptionFr; }
+    public function setTranslation(string $text, string $sourceHash, \DateTimeImmutable $at): static
+    {
+        $this->descriptionFr = $text;
+        $this->descriptionFrHash = $sourceHash;
+        $this->descriptionFrAt = $at;
+        return $this;
+    }
+    public function getDescriptionFrAttemptAt(): ?\DateTimeImmutable { return $this->descriptionFrAttemptAt; }
+    public function setDescriptionFrAttemptAt(?\DateTimeImmutable $v): static { $this->descriptionFrAttemptAt = $v; return $this; }
     public function getPublisherOriginal(): ?string { return $this->publisherOriginal; }
     public function setPublisherOriginal(?string $v): static { $this->publisherOriginal = $v; return $this; }
     public function getEditionFrPublisher(): ?string { return $this->editionFrPublisher; }

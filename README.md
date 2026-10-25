@@ -22,6 +22,7 @@ Plateforme de découverte et de recommandation de jeux de société pour les mem
 | Frontend | React 18 + Vite 6 + TailwindCSS v4 |
 | Base de données | PostgreSQL 18 |
 | Serveur web | FrankenPHP (Caddy intégré), Traefik en frontal en staging et production |
+| Traduction | LibreTranslate auto-hébergé (en→fr), service `libretranslate` |
 | Conteneurisation | Docker Compose |
 
 ---
@@ -93,6 +94,7 @@ Le mapping entre mécaniques BGG et familles Engelstein est entièrement configu
 - Moteurs principaux et mécaniques de support avec les équivalents BGG
 - Caractéristiques transversales (solo, temps réel, dextérité, legacy)
 - Description, complexité (1–5), joueurs, durée, note communauté + note personnelle
+- **Description en français** : BGG n'en fournit qu'une, en anglais ; elle est traduite automatiquement sur place (LibreTranslate, aucun texte envoyé à un tiers), signalée « Traduction automatique », avec un accès à l'original. La première ouverture d'une fiche par un membre déclenche la traduction ; le planificateur traduit le reste, jeux de l'association en premier
 - **Édition d'origine** (éditeur et année) et **édition française** quand BGG en connaît une : titre, éditeur, année, et **image de la boîte française** à la place de l'image d'origine (description, elle, reste en anglais : BGG n'en a qu'une)
 - Lien direct vers la fiche BoardGameGeek (URL adaptée : `/boardgame/` ou `/boardgameexpansion/`)
 - **Section Extensions** : liste des extensions connues avec indicateur de possession
@@ -133,7 +135,7 @@ Explications sur le fonctionnement du site, du modèle de recommandation, du mod
 
 ## Tâches planifiées
 
-Le service `worker` (planificateur Symfony, `app/src/Scheduler/MainSchedule.php`) exécute quatre tâches chaque nuit, heure de Paris.
+Le service `worker` (planificateur Symfony, `app/src/Scheduler/MainSchedule.php`) exécute quatre tâches BGG chaque nuit et une tâche de traduction toutes les dix minutes, heure de Paris.
 Les horaires se changent par les variables `BGG_*_CRON` (voir « Variables d'environnement ») : la préproduction décale les siens,
 car elle partage le jeton BGG avec la production.
 Aucun appel BGG n'est fait pendant la requête d'un joueur, hormis trois exceptions bornées : l'import de sa collection, le premier enrichissement d'une fiche encore vide (un essai par jour et par jeu) et le repli de la recherche textuelle (mis en cache 24 h).
@@ -144,6 +146,7 @@ Une tâche qui échoue écrit sur le canal `messenger` ; en préproduction et en
 2h00  app:bgg:enrich-pending --mode=pending →  Premiers enrichissements CSV
 3h00  app:bgg:sync-new                      →  Nouveautés BGG (Hot List + année)
 4h00  app:bgg:import-csv                    →  Import ZIP BGG si disponible
+*/10  app:translate:descriptions            →  Traduction des descriptions (60 jeux au plus, 3 min au plus)
 ```
 
 ### Détail de chaque tâche
@@ -165,6 +168,12 @@ Priorité par rang BGG croissant (jeux populaires d'abord).
 #### 4h00 — Import CSV BGG
 Importe le catalogue complet depuis un fichier ZIP déposé dans `app/var/imports/bgg/`.  
 Ne fait rien si aucun fichier n'est présent.
+
+#### Toutes les 10 minutes — Traduction des descriptions
+Traduit en français, avec le service local `libretranslate`, les descriptions que BGG ne fournit qu'en anglais.
+Ordre : jeux de la ludothèque de l'association, jeux possédés par des membres, puis les mieux classés. Un jeu n'est traduit
+qu'une fois (sauf si BGG change sa description), et un échec n'est retenté qu'au bout d'un jour. Le passage s'interrompt
+après trois échecs sans succès (service arrêté). Aucun appel BGG, donc l'horaire (`TRANSLATE_CRON`) est le même partout.
 
 ### Consulter les tâches
 
@@ -359,6 +368,8 @@ Commité, sans secret. En préproduction et production, il est **remplacé** (pa
 | `PUBLIC_URL` | Adresse publique du site, pour les liens des e-mails (jamais déduite de l'en-tête Host) | `http://localhost:5173` | `https://<domaine>` |
 | `REGISTRATION_REQUIRES_CODE` | `1` : l'inscription exige un code d'invitation ; `0` : elle reste libre. Vide refusé | `0` | `1` |
 | `BGG_*_CRON` | Horaires des quatre tâches BGG (heure de Paris) | 1 h, 2 h, 3 h, 4 h | décalés en préproduction |
+| `TRANSLATE_CRON` | Horaire de la traduction des descriptions | toutes les 10 min | idem |
+| `LIBRETRANSLATE_VERSION` | Version de l'image LibreTranslate | `1.9.6` | idem |
 | `APP_SECRET`, `JWT_SECRET`, `BGG_TOKEN` | Secrets applicatifs | `app/.env.local` | `.env.prod.local` |
 
 ### `app/.env.local` — développement uniquement

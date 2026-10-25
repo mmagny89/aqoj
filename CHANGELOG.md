@@ -12,6 +12,9 @@ version devient le texte de sa release GitHub.
 
 ### Ajouté
 
+- **Description en français** : BoardGameGeek n'en fournit qu'une, en anglais. Elle est traduite automatiquement, sur nos
+  serveurs (aucun texte envoyé à un tiers), signalée « Traduction automatique », avec un accès à l'original anglais. Ouvrir la
+  fiche d'un jeu la traduit ; le reste du catalogue est traduit au fil de l'eau, la ludothèque de l'association en premier.
 - **Édition française et d'origine** : la fiche d'un jeu indique l'éditeur et l'année de son édition d'origine et de son édition française, et montre la boîte française
   quand BoardGameGeek en a l'image. Le titre français est celui de l'édition au titre le plus répandu, plus la plus récente.
 - **Icône du site** : la mascotte de l'association sert de favicon (onglet du navigateur, écran d'accueil d'un téléphone).

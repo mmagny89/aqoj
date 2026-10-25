@@ -59,6 +59,12 @@ services:
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET est requis en prod (secret des jetons de session) — fournir via --env-file .env.prod.local}
       BGG_TOKEN: ${BGG_TOKEN:?BGG_TOKEN est requis en prod (jeton de l'API BGG) — fournir via --env-file .env.prod.local}
 
+  libretranslate:
+    # Aucune capability n'est nécessaire : le service écoute le port 5000 sous un utilisateur sans privilège.
+    # Vérifié : démarrage et contrôle de santé sous cap_drop: ALL (CapEff nul).
+    cap_drop:
+      - ALL
+
   database:
     # Le moteur demarre en root, cree son repertoire de donnees et bascule sur
     # son utilisateur : CHOWN, SETUID, SETGID, DAC_OVERRIDE et FOWNER suffisent.
