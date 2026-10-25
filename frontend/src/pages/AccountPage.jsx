@@ -1,7 +1,8 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { changePassword, deleteAccount, exportAccount, updateMemberNumber } from '../api'
+import { changePassword, deleteAccount, exportAccount, getUserPreferences, updateMemberNumber } from '../api'
+import TasteForm, { TASTES_MAX } from '../components/TasteForm'
 import { ErrorMessage, Field, PasswordField } from '../components/forms'
 
 export default function AccountPage() {
@@ -20,6 +21,21 @@ export default function AccountPage() {
   const [passwordMessage, setPasswordMessage] = useState(null)
   const [passwordError, setPasswordError] = useState(null)
   const [changing, setChanging] = useState(false)
+
+  // Goûts déclarés : le formulaire n'apparaît qu'une fois ceux du compte connus, pour ne pas partir de zéro.
+  const [declared, setDeclared] = useState(null)
+  const { hash } = useLocation()
+
+  useEffect(() => {
+    getUserPreferences()
+      .then(prefs => setDeclared(prefs?.declaredFamilies ?? []))
+      .catch(() => setDeclared([]))
+  }, [])
+
+  // `/compte#gouts` (lien de l'accueil) : react-router ne défile pas tout seul vers l'ancre.
+  useEffect(() => {
+    if (hash === '#gouts' && declared !== null) document.getElementById('gouts')?.scrollIntoView()
+  }, [hash, declared])
 
   const token = () => localStorage.getItem('aqoj_token')
 
@@ -96,6 +112,17 @@ export default function AccountPage() {
       </div>
 
       <ErrorMessage>{error}</ErrorMessage>
+
+      <section id="gouts" className="panel flex flex-col gap-3 p-5 sm:p-6" aria-labelledby="titre-gouts-compte">
+        <h2 id="titre-gouts-compte" className="text-2xl">Mes goûts</h2>
+        <p className="text-stone-600">
+          Les styles de jeu que vous aimez, jusqu'à {TASTES_MAX}. Ils orientent les suggestions de l'accueil, même sans compte BGG ni
+          historique de parties ; décochez tout pour les effacer.
+        </p>
+        {declared === null
+          ? <p role="status" className="text-stone-600">Chargement…</p>
+          : <TasteForm initial={declared} allowEmpty labelledBy="titre-gouts-compte" />}
+      </section>
 
       <section className="panel flex flex-col gap-3 p-5 sm:p-6" aria-labelledby="titre-adherent">
         <h2 id="titre-adherent" className="text-2xl">Mon numéro d'adhérent</h2>

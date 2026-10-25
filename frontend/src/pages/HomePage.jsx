@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { getForgottenGems, getHomeRecommendations, getTonightRecommendations, saveTable, saveTaste } from '../api'
+import { getForgottenGems, getHomeRecommendations, getTonightRecommendations, saveTable } from '../api'
 import GameCard from '../components/GameCard'
 import { DiceIcon, DownloadIcon, SearchIcon, ShelfIcon } from '../components/icons'
-import { ENGINES, familyLabel, familyColor, isEngine } from '../utils/engelstein'
+import { familyLabel, familyColor, isEngine } from '../utils/engelstein'
+import TasteForm, { TASTES_MAX } from '../components/TasteForm'
 
 const PLAYERS = [1, 2, 3, 4, 5, 6, 7, 8]
 const DURATIONS = [
@@ -127,52 +128,50 @@ function TonightSection({ tonight, players, maxTime }) {
 }
 
 /* ── Questionnaire de goûts ──────────────────────────────────────────── */
-// Moteurs centraux + les mécaniques de support qu'un joueur reconnaît sans vocabulaire de spécialiste.
-const TASTES = [...Object.keys(ENGINES), 'cooperation', 'card_play', 'spatial_placement', 'resource_management', 'uncertainty']
-const TASTES_MAX = 6
-
-function TasteForm({ initial, onSaved }) {
-  const [selected, setSelected] = useState(initial)
-  const [saving, setSaving]     = useState(false)
-  const [error, setError]       = useState(null)
-
-  const toggle = (key) => setSelected(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key])
-
-  const submit = (event) => {
-    event.preventDefault()
-    setSaving(true)
-    setError(null)
-    saveTaste(selected)
-      .then(onSaved)
-      .catch(() => setError('Impossible d’enregistrer vos goûts, réessayez.'))
-      .finally(() => setSaving(false))
-  }
-
+function TasteSection({ initial, onSaved }) {
   return (
-    <form onSubmit={submit} aria-labelledby="titre-gouts" className="panel flex flex-col gap-4 p-5 sm:p-7">
+    <section className="panel flex flex-col gap-4 p-5 sm:p-7" aria-labelledby="titre-gouts">
       <div>
         <h2 id="titre-gouts" className="text-2xl sm:text-3xl">Ce que vous aimez</h2>
         <p className="mt-1 text-stone-600">Choisissez jusqu’à {TASTES_MAX} styles : nous affinons les suggestions, sans compte BGG.</p>
       </div>
-      <ul className="m-0 flex list-none flex-wrap gap-2 p-0">
-        {TASTES.map(key => {
-          const on = selected.includes(key)
-          return (
-            <li key={key}>
-              <button type="button" className="chip" aria-pressed={on} disabled={!on && selected.length >= TASTES_MAX} onClick={() => toggle(key)}>
-                {familyLabel(key)}
-              </button>
-            </li>
-          )
-        })}
-      </ul>
-      {error && <p role="alert" className="font-bold text-brand-red">{error}</p>}
+      <TasteForm initial={initial} onSaved={onSaved} />
+    </section>
+  )
+}
+
+// Rappel discret pour qui a déjà un profil déduit mais n'a rien déclaré : « Plus tard » le masque une semaine.
+const INVITE_KEY = 'aqoj_gouts_plus_tard'
+const INVITE_DELAY = 7 * 24 * 3600 * 1000
+
+function inviteSnoozed() {
+  try {
+    return Date.now() - Number(localStorage.getItem(INVITE_KEY) ?? 0) < INVITE_DELAY
+  } catch {
+    return false
+  }
+}
+
+function TasteInvite() {
+  const [hidden, setHidden] = useState(inviteSnoozed)
+  if (hidden) return null
+
+  const later = () => {
+    try { localStorage.setItem(INVITE_KEY, String(Date.now())) } catch { /* stockage indisponible : le rappel reviendra */ }
+    setHidden(true)
+  }
+
+  return (
+    <section aria-labelledby="titre-invitation" className="panel flex flex-col gap-3 bg-amber-100 p-5 sm:flex-row sm:items-center sm:justify-between">
       <div>
-        <button type="submit" className="btn btn-primary" disabled={saving || selected.length === 0}>
-          {saving ? 'Enregistrement…' : 'Enregistrer mes goûts'}
-        </button>
+        <h2 id="titre-invitation" className="text-xl sm:text-2xl">Dites-nous ce que vous aimez</h2>
+        <p className="mt-1 text-stone-700">Quelques styles de jeu suffisent pour des suggestions plus justes.</p>
       </div>
-    </form>
+      <div className="flex flex-wrap items-center gap-3">
+        <Link to="/compte#gouts" className="btn btn-primary">Choisir mes goûts</Link>
+        <button type="button" onClick={later} className="inline-flex min-h-11 items-center font-bold text-brand-blue underline underline-offset-4">Plus tard</button>
+      </div>
+    </section>
   )
 }
 
@@ -274,6 +273,7 @@ export default function HomePage() {
   const hasForgotten = forgotten.length > 0
   const coldStart    = reco?.coldStart === true
   const showTaste    = !recoLoading && reco !== null && (coldStart || reco.declared?.length > 0)
+  const showInvite   = !recoLoading && reco !== null && !coldStart && !(reco.declared?.length > 0)
 
   return (
     <div className="mx-auto flex max-w-7xl flex-col gap-10 px-4 py-6 sm:px-6 lg:px-10 lg:py-8">
@@ -338,7 +338,8 @@ export default function HomePage() {
             </section>
           )}
 
-          {showTaste && <TasteForm initial={reco.declared ?? []} onSaved={() => setReloadKey(k => k + 1)} />}
+          {showTaste && <TasteSection initial={reco.declared ?? []} onSaved={() => setReloadKey(k => k + 1)} />}
+          {showInvite && <TasteInvite />}
 
           {hasForgotten && (
             <section aria-labelledby="titre-oublies">

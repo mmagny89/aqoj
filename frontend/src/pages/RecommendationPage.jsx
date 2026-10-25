@@ -271,6 +271,9 @@ export default function RecommendationPage() {
     </div>
   )
 
+  // Goûts déclarés d'abord, puis ceux déduits de l'historique
+  const favoriteStyles = [...new Set([...(userPrefs?.declaredFamilies ?? []), ...(userPrefs?.topEngines ?? [])])]
+
   const activeFiltersCount = selectedFamilies.length + selectedCategories.length
 
   return (
@@ -299,11 +302,11 @@ export default function RecommendationPage() {
             </div>
 
             {/* Suggestions issues des préférences */}
-            {userPrefs?.topEngines?.length > 0 && (
+            {favoriteStyles.length > 0 && (
               <div className="rounded-xl border-[3px] border-ink bg-amber-100 p-3">
                 <p className="mb-2 font-bold">Vos styles favoris</p>
                 <div className="flex flex-wrap gap-2">
-                  {userPrefs.topEngines.map(key => (
+                  {favoriteStyles.map(key => (
                     <Chip key={key} active={selectedFamilies.includes(key)} onClick={() => toggle(key)} label={familyLabel(key)} />
                   ))}
                 </div>

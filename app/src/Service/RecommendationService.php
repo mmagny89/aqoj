@@ -414,7 +414,7 @@ class RecommendationService
         return $popular;
     }
 
-    /** Récupère les 4 familles Engelstein les plus représentées dans les jeux aimés. */
+    /** Les 4 familles Engelstein du profil : goûts déclarés d'abord, puis celles des jeux aimés. */
     private function getUserTopFamilies(User $user, array $declared = []): array
     {
         // Priorité 1 : jeux bien notés sur BGG (>= 6) — signal fort "j'aime"
@@ -456,12 +456,11 @@ class RecommendationService
             $families = array_column($rows, 'family_key');
         }
 
-        // Priorité 3 : goûts déclarés — un choix explicite vaut mieux qu'une collection sans notes
-        if (empty($families)) {
-            $families = array_slice($declared, 0, 4);
-        }
+        // Les goûts déclarés passent devant : un choix explicite vaut mieux qu'une déduction, et l'historique
+        // complète ce que le joueur n'a pas dit (jusqu'à quatre familles).
+        $families = array_slice(array_values(array_unique([...$declared, ...$families])), 0, 4);
 
-        // Fallback 4 : collection entière (hors jeux explicitement détestés)
+        // Fallback : collection entière (hors jeux explicitement détestés)
         if (empty($families)) {
             $rows = $this->conn->fetchAllAssociative(
                 "SELECT family_key, COUNT(*) AS cnt
