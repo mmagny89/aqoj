@@ -18,6 +18,7 @@ class SessionController extends AbstractController
 
     #[Route('/api/sessions', name: 'api_sessions_list', methods: ['GET'])]
     public function list(
+        Request $request,
         GameSessionRepository $repository,
     ): JsonResponse {
         $user = $this->appUser();
@@ -25,7 +26,22 @@ class SessionController extends AbstractController
             return $this->json(['error' => 'Authentification requise.'], 401);
         }
 
-        return $this->json($repository->findByUser($user, 50));
+        $limit  = max(1, min(200, $request->query->getInt('limit', 50)));
+        $offset = max(0, $request->query->getInt('offset'));
+
+        return $this->json($repository->findByUser($user, $limit, $offset));
+    }
+
+    /** Le bilan de toutes les parties (nombre, jeux différents, aimées), indépendant de la page affichée. */
+    #[Route('/api/sessions/summary', name: 'api_sessions_summary', methods: ['GET'])]
+    public function summary(GameSessionRepository $repository): JsonResponse
+    {
+        $user = $this->appUser();
+        if (!$user) {
+            return $this->json(['error' => 'Authentification requise.'], 401);
+        }
+
+        return $this->json($repository->summaryForUser($user));
     }
 
     #[Route('/api/sessions', name: 'api_sessions_create', methods: ['POST'])]

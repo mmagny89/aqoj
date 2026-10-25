@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { getSessions, createSession } from '../api'
+import { getSessions, getSessionsSummary, createSession } from '../api'
 import GamePicker from '../components/GamePicker'
 import { coverColor, initials } from '../components/GameCard'
 import { gameImage } from '../utils/game'
@@ -13,7 +13,11 @@ const RATINGS = [
 const field = 'min-h-12 w-full rounded-xl border-[3px] border-ink bg-paper px-3 text-base'
 
 export default function SessionsPage() {
+  const PAGE = 50
   const [sessions, setSessions] = useState([])
+  const [summary, setSummary] = useState(null)
+  const [hasMore, setHasMore] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [loading, setLoading] = useState(true)
   const [form, setForm] = useState({
@@ -27,11 +31,25 @@ export default function SessionsPage() {
   const [error, setError] = useState(null)
 
   useEffect(() => {
-    getSessions()
-      .then(setSessions)
+    getSessions({ limit: PAGE })
+      .then(list => { setSessions(list); setHasMore(list.length === PAGE) })
       .catch(() => {})
       .finally(() => setLoading(false))
+    getSessionsSummary().then(setSummary).catch(() => {})
   }, [])
+
+  const loadMore = async () => {
+    setLoadingMore(true)
+    try {
+      const list = await getSessions({ offset: sessions.length, limit: PAGE })
+      setSessions(prev => [...prev, ...list])
+      setHasMore(list.length === PAGE)
+    } catch {
+      /* la liste déjà affichée reste valable ; le bouton permet de réessayer */
+    } finally {
+      setLoadingMore(false)
+    }
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -47,6 +65,7 @@ export default function SessionsPage() {
         context: form.context || null,
       })
       setSessions((prev) => [session, ...prev])
+      getSessionsSummary().then(setSummary).catch(() => {})
       setShowForm(false)
       setForm({ game: null, playersCount: 4, rating: null, note: '', context: '' })
     } catch (err) {
@@ -67,8 +86,10 @@ export default function SessionsPage() {
     if (last?.label === label) last.items.push(s)
     else months.push({ label, items: [s] })
   }
-  const distinctGames = new Set(sessions.map(s => s.game?.id ?? s.game?.name)).size
-  const liked = sessions.filter(s => s.rating === 5).length
+  // Le bilan porte sur toutes les parties, pas seulement la page affichée ; à défaut, sur ce qu'on a chargé.
+  const totalPlays    = summary?.plays ?? sessions.length
+  const distinctGames = summary?.games ?? new Set(sessions.map(s => s.game?.id ?? s.game?.name)).size
+  const liked         = summary?.liked ?? sessions.filter(s => s.rating === 5).length
 
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-10 lg:py-8">
@@ -173,7 +194,7 @@ export default function SessionsPage() {
       {sessions.length > 0 && (
         <>
           <p className="m-0 flex flex-wrap items-center gap-2" aria-label="Bilan">
-            <span className="badge bg-cream">{sessions.length} partie{sessions.length > 1 ? 's' : ''}</span>
+            <span className="badge bg-cream">{totalPlays} partie{totalPlays > 1 ? 's' : ''}</span>
             <span className="badge bg-cream">{distinctGames} jeu{distinctGames > 1 ? 'x' : ''} différent{distinctGames > 1 ? 's' : ''}</span>
             {liked > 0 && <span className="badge bg-brand-green text-paper">{liked} aimée{liked > 1 ? 's' : ''}</span>}
           </p>
@@ -215,6 +236,12 @@ export default function SessionsPage() {
               </ul>
             </section>
           ))}
+
+          {hasMore && (
+            <button type="button" onClick={loadMore} disabled={loadingMore} className="btn bg-paper self-center">
+              {loadingMore ? 'Chargement…' : 'Voir les parties plus anciennes'}
+            </button>
+          )}
         </>
       )}
     </div>

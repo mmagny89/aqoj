@@ -14,12 +14,14 @@ class GameSessionRepository extends ServiceEntityRepository
         parent::__construct($registry, GameSession::class);
     }
 
-    public function findByUser(User $user, int $limit = 50): array
+    public function findByUser(User $user, int $limit = 50, int $offset = 0): array
     {
         return $this->createQueryBuilder('s')
             ->where('s.user = :user')
             ->setParameter('user', $user)
             ->orderBy('s.playedAt', 'DESC')
+            ->addOrderBy('s.id', 'DESC')
+            ->setFirstResult($offset)
             ->setMaxResults($limit)
             ->getQuery()
             ->getResult();
@@ -61,5 +63,21 @@ class GameSessionRepository extends ServiceEntityRepository
         }
 
         return $stats;
+    }
+
+    /**
+     * Le bilan de toutes les parties d'un joueur, quelle que soit la page affichée.
+     *
+     * @return array{plays: int, games: int, liked: int}
+     */
+    public function summaryForUser(User $user): array
+    {
+        $row = $this->getEntityManager()->getConnection()->fetchAssociative(
+            'SELECT COUNT(*) AS plays, COUNT(DISTINCT game_id) AS games, COUNT(*) FILTER (WHERE rating = 5) AS liked
+             FROM game_session WHERE user_id = ?',
+            [$user->getId()]
+        );
+
+        return ['plays' => (int) $row['plays'], 'games' => (int) $row['games'], 'liked' => (int) $row['liked']];
     }
 }

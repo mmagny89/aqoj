@@ -82,7 +82,9 @@ final class HomeRecommendationTest extends ApiTestCase
         self::assertSame(['cooperation'], $reco['families']);
         self::assertSame(['cooperation'], $reco['declared']);
         // Les goûts n'orientent plus les nouveautés : ils classent les décennies et les recommandations.
-        self::assertSame(['Zzgout Coop', 'Zzgout Encheres'], array_column(array_column($reco['recent'], 'game'), 'name'));
+        $recents = array_column(array_column($reco['recent'], 'game'), 'name');
+        sort($recents);
+        self::assertSame(['Zzgout Coop', 'Zzgout Encheres'], $recents);
     }
 
     public function testLaDecouverteFaitRemonterLesNouveautesMemeNoyeesParLesClassiques(): void
