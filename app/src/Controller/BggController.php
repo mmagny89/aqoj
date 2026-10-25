@@ -7,7 +7,6 @@ use App\Repository\GameRepository;
 use App\Repository\UserGameRepository;
 use App\Service\BggApiService;
 use App\Service\GameEnrichmentService;
-use App\Service\JwtService;
 use App\Service\UserPreferenceService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -17,6 +16,8 @@ use Symfony\Component\Routing\Attribute\Route;
 
 class BggController extends AbstractController
 {
+    use CurrentUser;
+
     private const MAX_SYNC_ENRICH = 100;
 
     #[Route('/api/bgg/import', name: 'api_bgg_import', methods: ['POST'])]
@@ -24,13 +25,12 @@ class BggController extends AbstractController
         Request $request,
         BggApiService $bggService,
         GameEnrichmentService $enrichment,
-        JwtService $jwt,
         EntityManagerInterface $em,
         GameRepository $gameRepository,
         UserGameRepository $userGameRepository,
         UserPreferenceService $prefService,
     ): JsonResponse {
-        $user = AuthController::extractUser($request, $jwt, $em);
+        $user = $this->appUser();
         if (!$user) {
             return $this->json(['error' => 'Authentification requise.'], 401);
         }
