@@ -4,10 +4,10 @@
 #   sh outils/renseigner-secrets.sh prod      # ou staging
 #
 # Les variables obligatoires sont declarees ${VAR:?} dans les overrides
-# (conventions, section 5) : tant que l'une d'elles est vide, "docker compose
+# (conventions, section manifeste/versions) : tant que l'une d'elles est vide, "docker compose
 # build" lui-meme refuse de demarrer. Elles doivent donc etre produites AVANT le
 # premier build — et par des outils qui ne doivent rien au projet, sans quoi
-# l'instruction serait circulaire (section 22b).
+# l'instruction serait circulaire (section ci/deploiement).
 #
 # Ce script ne connait pas les variables d'un stack donne : il lit celles que le
 # modele laisse vides et deduit de leur nom comment les produire.
@@ -22,6 +22,20 @@ case "$ENVIRONNEMENT" in
 		exit 1
 		;;
 esac
+
+# Le conteneur jetable qui hache les mots de passe doit tourner sur le MEME
+# correctif PHP que le stack, pas sur une version ecrite en dur ici : trois
+# mentions a `php:8.4-cli` avaient survecu au passage a la branche 8.5, et une
+# image CLI figee reste exposee aux CVE corrigees entre-temps
+# (CERTFR-2026-ALE-014). Source de verite : PHP_VERSION du `.env` racine.
+php_cli_tag() {
+	tag=$(sed -n 's/^PHP_VERSION=\([0-9][0-9.]*\).*/\1/p' .env 2>/dev/null | head -n1)
+	if [ -z "$tag" ]; then
+		echo "renseigner-secrets : PHP_VERSION absent du .env racine." >&2
+		exit 1
+	fi
+	printf '%s' "$tag"
+}
 
 FICHIER=".env.${ENVIRONNEMENT}.local"
 MODELE=".env.${ENVIRONNEMENT}.local.dist"
@@ -51,7 +65,7 @@ produire() {
 			stty echo 2>/dev/null || true
 			echo >&2
 			[ -n "$motdepasse" ] || { echo "  Vide, abandon." >&2; exit 1; }
-			MDP="$motdepasse" docker run --rm -e MDP php:8.5-cli \
+			MDP="$motdepasse" docker run --rm -e MDP "php:$(php_cli_tag)-cli" \
 				php -r 'echo password_hash(getenv("MDP"), PASSWORD_BCRYPT, ["cost" => 13]);'
 			motdepasse=
 			;;
@@ -128,7 +142,7 @@ if docker compose -f compose.yml -f "compose.${ENVIRONNEMENT}.yml" --env-file "$
 	echo "  OK — plus aucune variable manquante."
 	echo
 	echo "Etape suivante :"
-	echo "  docker compose -f compose.yml -f compose.${ENVIRONNEMENT}.yml --env-file $FICHIER up -d --build --wait"
+	echo "  docker compose -f compose.yml -f compose.${ENVIRONNEMENT}.yml --env-file $FICHIER up -d --build --pull always --wait"
 else
 	echo "  Il reste un probleme :"
 	docker compose -f compose.yml -f "compose.${ENVIRONNEMENT}.yml" --env-file "$FICHIER" config 2>&1 >/dev/null | sed 's/^/    /'
