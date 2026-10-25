@@ -209,7 +209,7 @@ const ENTRIES = [
   { to: '/rechercher', label: 'Chercher un jeu', text: 'Par son nom, en français ou en anglais.', Icon: SearchIcon },
   { to: '/recommander', label: 'Ce soir on joue', text: 'Des idées selon la table et le temps.', Icon: DiceIcon },
   { to: '/ludotheque', label: 'Ma ludothèque', text: 'Votre collection, jeu par jeu.', Icon: ShelfIcon },
-  { to: '/importer', label: 'Importer depuis BGG', text: 'Reprenez votre collection en un clic.', Icon: DownloadIcon },
+  { to: '/importer', label: 'Importer ma collection', text: 'Depuis BGG ou MyLudo, en un clic.', Icon: DownloadIcon },
 ]
 
 /* ── Page ────────────────────────────────────────────────────────────── */

@@ -284,7 +284,7 @@ export default function LibraryPage() {
             </h2>
             {subTab === 'base' && tabDef.emptyHint && <p className="text-stone-600">{tabDef.emptyHint}</p>}
             {activeTab === 'played' && subTab === 'base' && (
-              <Link to="/importer" className="btn btn-primary">Importer depuis BGG</Link>
+              <Link to="/importer" className="btn btn-primary">Importer ma collection</Link>
             )}
           </section>
         )}

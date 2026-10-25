@@ -4,7 +4,7 @@ import AppShell from './components/AppShell'
 import ProtectedRoute from './components/ProtectedRoute'
 import HomePage from './pages/HomePage'
 import RecommendationPage from './pages/RecommendationPage'
-import ImportBggPage from './pages/ImportBggPage'
+import ImportPage from './pages/ImportPage'
 import LibraryPage from './pages/LibraryPage'
 import SessionsPage from './pages/SessionsPage'
 import SearchPage from './pages/SearchPage'
@@ -44,7 +44,7 @@ export default function App() {
           <Route path="/verifier-adresse" element={<VerifyEmailPage />} />
           <Route path="/reinitialiser-mot-de-passe" element={<ResetPasswordPage />} />
           <Route path="/importer" element={
-            <ProtectedRoute><ImportBggPage /></ProtectedRoute>
+            <ProtectedRoute><ImportPage /></ProtectedRoute>
           } />
           <Route path="/parties" element={
             <ProtectedRoute><SessionsPage /></ProtectedRoute>
