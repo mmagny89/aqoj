@@ -3,9 +3,11 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import HomePage from './HomePage'
+import { getForgottenGems, getHomeRecommendations, saveTaste } from '../api'
 
-vi.mock('../context/AuthContext', () => ({ useAuth: () => ({ user: null, loading: false }) }))
-vi.mock('../api', () => ({ getHomeRecommendations: vi.fn(), getForgottenGems: vi.fn() }))
+const auth = vi.hoisted(() => ({ user: null }))
+vi.mock('../context/AuthContext', () => ({ useAuth: () => ({ user: auth.user, loading: false }) }))
+vi.mock('../api', () => ({ getHomeRecommendations: vi.fn(), getForgottenGems: vi.fn(), saveTaste: vi.fn() }))
 
 function Where() {
   const location = useLocation()
@@ -13,7 +15,10 @@ function Where() {
 }
 
 describe('HomePage', () => {
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(() => {
+    vi.clearAllMocks()
+    auth.user = null
+  })
 
   it('envoie la table et la durée choisies à la page de recommandation', async () => {
     render(
@@ -37,5 +42,53 @@ describe('HomePage', () => {
 
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent("Qu'est-ce qu'on joue ce soir")
     expect(screen.getByRole('link', { name: /Ma ludothèque/ })).toHaveAttribute('href', '/ludotheque')
+  })
+
+  describe('connecté, sans profil', () => {
+    const jeu = { id: 1, name: 'Nouveauté Test', yearPublished: 2025, ratingBgg: 7.9, minPlayers: 2, maxPlayers: 4, playingTime: 30, complexity: 2 }
+    const froid = { families: [], recent: [{ game: jeu, reason: 'Nouveauté 2025 · 7.9/10 sur BGG · facile à aborder' }], byDecade: {}, coldStart: true, declared: [] }
+
+    beforeEach(() => {
+      auth.user = { id: 1, email: 'a@example.test' }
+      getForgottenGems.mockResolvedValue([])
+    })
+
+    it('propose des nouveautés accessibles et le questionnaire, sans parler de BGG', async () => {
+      getHomeRecommendations.mockResolvedValue(froid)
+      render(<MemoryRouter><HomePage /></MemoryRouter>)
+
+      expect(await screen.findByRole('heading', { name: 'Nouveautés à découvrir' })).toBeInTheDocument()
+      expect(screen.getByText(/Nous ne connaissons pas encore vos goûts/)).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: 'Ce que vous aimez' })).toBeInTheDocument()
+      expect(screen.queryByText(/Importez votre collection/)).not.toBeInTheDocument()
+    })
+
+    it('enregistre les goûts choisis puis recharge les suggestions', async () => {
+      getHomeRecommendations.mockResolvedValueOnce(froid).mockResolvedValue({ ...froid, coldStart: false, families: ['cooperation'], declared: ['cooperation'] })
+      saveTaste.mockResolvedValue({ declaredFamilies: ['cooperation'] })
+      render(<MemoryRouter><HomePage /></MemoryRouter>)
+
+      const enregistrer = await screen.findByRole('button', { name: 'Enregistrer mes goûts' })
+      expect(enregistrer).toBeDisabled()
+      await userEvent.click(screen.getByRole('button', { name: 'Coopération' }))
+      await userEvent.click(enregistrer)
+
+      expect(saveTaste).toHaveBeenCalledWith(['cooperation'])
+      expect(await screen.findByRole('heading', { name: 'Nouveautés pour vous' })).toBeInTheDocument()
+      expect(getHomeRecommendations).toHaveBeenCalledTimes(2)
+    })
+
+    it('limite le questionnaire à six goûts', async () => {
+      getHomeRecommendations.mockResolvedValue(froid)
+      render(<MemoryRouter><HomePage /></MemoryRouter>)
+
+      await screen.findByRole('heading', { name: 'Ce que vous aimez' })
+      for (const nom of ['Placement d\'Ouvriers', 'Construction de Deck', 'Construction de Moteur', 'Contrôle de Zone', 'Gestion de Main', 'Enchères']) {
+        await userEvent.click(screen.getByRole('button', { name: nom }))
+      }
+
+      expect(screen.getByRole('button', { name: 'Coopération' })).toBeDisabled()
+      expect(screen.getByRole('button', { name: 'Enchères' })).toBeEnabled()
+    })
   })
 })

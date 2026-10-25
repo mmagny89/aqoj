@@ -256,7 +256,7 @@ export default function RecommendationPage() {
       <section className="panel mx-auto flex max-w-xl flex-col items-center gap-3 p-8 text-center">
         <img src="/edj-mascotte.png" alt="" width="120" height="133" className="h-28 w-auto" />
         <h1 className="text-4xl">Connexion requise</h1>
-        <p className="text-stone-600">Les recommandations sont personnalisées depuis votre collection BGG.</p>
+        <p className="text-stone-600">Les recommandations tiennent compte de votre ludothèque et de vos goûts.</p>
         <Link to="/connexion" className="btn btn-primary">Se connecter</Link>
       </section>
     </div>
@@ -269,7 +269,7 @@ export default function RecommendationPage() {
 
       <div className="mb-6">
         <h1 className="text-4xl leading-tight sm:text-5xl">Ce soir on joue à…</h1>
-        <p className="mt-1 text-lg text-stone-600">Des idées tirées de votre collection BGG, selon la table et le temps.</p>
+        <p className="mt-1 text-lg text-stone-600">Des idées tirées de votre ludothèque et du catalogue, selon la table et le temps.</p>
       </div>
 
       <form onSubmit={handleSubmit}>
