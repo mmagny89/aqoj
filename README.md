@@ -61,13 +61,14 @@ Plateforme de découverte et de recommandation de jeux de société pour les mem
 ### Import (menu « Import »)
 - Trois onglets : **Compte BGG**, **Ma collection MyLudo**, **Mes parties MyLudo** (à venir).
 - **MyLudo** : on dépose l'export CSV de sa ludothèque. MyLudo ne donne pas d'identifiant BGG : le fichier est rapproché du catalogue par le titre (avec ou sans sous-titre, sans accents ni ponctuation) et l'année d'édition. Une interface permet ensuite de **départager les homonymes**, de **chercher les jeux introuvables** ou de les laisser de côté. Rien n'est ajouté avant la confirmation ; le fichier n'est pas conservé ; la note personnelle est reprise sans effacer une note existante.
-- **Ludothèque de l'association** : un administrateur choisit « La ludothèque de l'association » comme destination, puis importe un export MyLudo ou le compte BGG de l'association (pseudo obligatoire, jamais celui de l'administrateur). La liste est consultable et un jeu mal importé se retire. Elle n'alimente pas encore les recommandations.
+- **Ludothèque de l'association** : un administrateur choisit « La ludothèque de l'association » comme destination, puis importe un export MyLudo ou le compte BGG de l'association (pseudo obligatoire, jamais celui de l'administrateur). La liste est consultable et un jeu mal importé se retire. Elle alimente l'accueil et l'onglet « À l'association » de « À quoi on joue ».
 
-### Recommandations personnalisées (page « Ce soir on joue »)
-- **Ma collection** — recommande parmi les jeux possédés, scorés par note personnelle + fraîcheur + qualité BGG
-- **À découvrir** — suggère des jeux hors collection (qualité BGG ≥ 6.5), avec un lot de nouveautés ajouté à la sélection et une qualité notée de façon continue, pour que les jeux récents ne soient pas noyés par les classiques
+### Recommandations personnalisées (page « À quoi on joue »)
+- **Dans ma ludothèque** — recommande parmi les jeux possédés, scorés par note personnelle + fraîcheur + qualité BGG
+- **À l'association** — les jeux de la ludothèque de l'association et de tous les membres (le vôtre compris), sans seuil de note
+- **Tout le catalogue** — suggère des jeux hors collection (qualité BGG ≥ 6.5), avec un lot de nouveautés ajouté à la sélection et une qualité notée de façon continue, pour que les jeux récents ne soient pas noyés par les classiques
+- Les résultats arrivent à l'ouverture, selon les styles favoris (goûts déclarés d'abord) et la table enregistrée, puis **se mettent à jour à chaque changement** de critère (pas de bouton)
 - Jusqu'à **30 résultats** par onglet, séparés en sous-onglets Jeux de base / Extensions
-- Elle part de la table enregistrée sur l'accueil quand l'adresse n'en porte pas
 - Filtres disponibles dans la barre latérale :
   - Nombre de joueurs
   - Durée maximale (15 min → 4h)

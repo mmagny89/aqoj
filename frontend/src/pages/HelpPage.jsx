@@ -74,7 +74,7 @@ export default function HelpPage() {
         <ol className="m-0 flex list-none flex-col gap-4 p-0">
           <Step n={1} title="Créez un compte" desc="Inscrivez-vous avec votre adresse e-mail. Aucune donnée n'est partagée publiquement." />
           <Step n={2} title="Importez votre collection" desc="Dans « Import », renseignez votre pseudo BoardGameGeek (l'application récupère vos jeux possédés, vos notes et vos extensions) ou déposez l'export CSV de MyLudo." />
-          <Step n={3} title="Explorez les recommandations" desc="Sur « Ce soir on joue », choisissez le nombre de joueurs, la durée et vos mécaniques préférées. Vous voyez des jeux de votre collection et des jeux à découvrir." />
+          <Step n={3} title="Explorez les recommandations" desc="Sur « À quoi on joue », les résultats arrivent d’eux-mêmes selon vos styles favoris et votre table ; changez le nombre de joueurs, la durée ou les styles, la liste se met à jour. Trois onglets : votre ludothèque, l’association (toutes les ludothèques) et tout le catalogue." />
           <Step n={4} title="Enregistrez vos parties" desc="Après chaque partie, dites si vous avez aimé ou non. Cela améliore vos recommandations futures." />
         </ol>
       </Section>

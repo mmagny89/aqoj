@@ -95,10 +95,11 @@ class RecommendationService
 
     /**
      * Recommande des jeux hors collection — découverte.
+     * Avec `$library`, ne propose que les jeux de la ludothèque de l'association et des membres (collection du joueur comprise).
      * Scoring simplifié : qualité BGG + adéquation durée.
      * Pas d'historique personnel (jamais joué par définition).
      */
-    public function recommendDiscover(User $user, array $criteria): array
+    public function recommendDiscover(User $user, array $criteria, bool $library = false): array
     {
         $players    = isset($criteria['players']) && $criteria['players'] > 0 ? (int) $criteria['players'] : null;
         $maxTime    = isset($criteria['maxTime']) && $criteria['maxTime'] > 0 ? (int) $criteria['maxTime'] : null;
@@ -113,6 +114,7 @@ class RecommendationService
             $user, $players, $maxTime, $families,
             limit: 100,
             categoryKeys: $categories,
+            library: $library,
         );
         $recentPool = $this->gameRepository->findDiscoverForRecommendation(
             $user, $players, $maxTime, $families,
@@ -120,6 +122,7 @@ class RecommendationService
             minYear: $this->recentFromYear($currentYear),
             categoryKeys: $categories,
             minVotes: self::RECENT_MIN_VOTES,
+            library: $library,
         );
 
         $games = [];
@@ -199,7 +202,7 @@ class RecommendationService
             $user,
             players:    null,
             maxTime:    null,
-            familyKeys: $topFamilies,
+            familyKeys: $library ? [] : $topFamilies,
             limit:      30,
             minYear:    $this->recentFromYear($currentYear),
             excludeIds: $excludeIds,
@@ -233,7 +236,7 @@ class RecommendationService
                 $user,
                 players:    null,
                 maxTime:    null,
-                familyKeys: $topFamilies,
+                familyKeys: $library ? [] : $topFamilies,
                 limit:      20,
                 minYear:    $min,
                 maxYear:    $max,

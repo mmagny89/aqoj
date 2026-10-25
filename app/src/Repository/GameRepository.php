@@ -150,9 +150,8 @@ class GameRepository extends ServiceEntityRepository
             // Seule l'appartenance sort, jamais le propriétaire.
             $conditions[] = self::IN_LIBRARY;
             // Une ludothèque est petite : aucun seuil de note, de votes ni de mécaniques n'écarte un jeu qu'on peut sortir.
-            // Les goûts classent (scoreGames) mais ne filtrent pas.
-            $familyKeys = [];
-            $minVotes   = null;
+            // Un filtre de familles n'y est posé que si l'appelant en passe un (choix explicite du joueur).
+            $minVotes = null;
         } else {
             $conditions[] = 'g.mechanics::text != \'[]\'';          // jeux enrichis uniquement
             $conditions[] = 'g.rating_bgg IS NOT NULL';

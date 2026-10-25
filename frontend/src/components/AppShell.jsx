@@ -6,10 +6,10 @@ import {
   DiceIcon, DownloadIcon, HelpIcon, HomeIcon, LogoutIcon, SearchIcon, ShelfIcon, SparkIcon, ToolIcon, UserIcon,
 } from './icons'
 
-/* Liens du rail (bureau). Le « Ce soir on joue » est la page de recommandation. */
+/* Liens du rail (bureau). Le « À quoi on joue » est la page de recommandation. */
 const MAIN_LINKS = [
   { to: '/', label: 'Accueil', Icon: HomeIcon, end: true },
-  { to: '/recommander', label: 'Ce soir on joue', Icon: SparkIcon },
+  { to: '/recommander', label: 'À quoi on joue', Icon: SparkIcon },
   { to: '/rechercher', label: 'Explorer', Icon: SearchIcon },
   { to: '/ludotheque', label: 'Ma ludothèque', Icon: ShelfIcon },
   { to: '/parties', label: 'Mes parties', Icon: DiceIcon },
@@ -123,7 +123,7 @@ function TopBar() {
 function TabBar({ user }) {
   const tabs = [
     { to: '/', label: 'Accueil', Icon: HomeIcon, end: true },
-    { to: '/recommander', label: 'Ce soir', Icon: SparkIcon },
+    { to: '/recommander', label: 'À quoi', Icon: SparkIcon },
     { to: '/ludotheque', label: 'Ludothèque', Icon: ShelfIcon },
     { to: '/parties', label: 'Parties', Icon: DiceIcon },
     user
