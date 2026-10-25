@@ -3,6 +3,7 @@
 namespace App\Controller;
 
 use App\Entity\Game;
+use App\Repository\AssociationGameRepository;
 use App\Repository\GameRepository;
 use App\Repository\UserGameRepository;
 use App\Service\BggApiService;
@@ -29,6 +30,7 @@ class BggController extends AbstractController
         GameRepository $gameRepository,
         UserGameRepository $userGameRepository,
         UserPreferenceService $prefService,
+        AssociationGameRepository $associationGames,
     ): JsonResponse {
         $user = $this->appUser();
         if (!$user) {
@@ -36,14 +38,24 @@ class BggController extends AbstractController
         }
 
         $data = json_decode($request->getContent(), true);
-        $username = trim($data['username'] ?? $user->getBggUsername() ?? '');
+        $target = $data['target'] ?? 'me';
+        if (!in_array($target, ['me', 'association'], true)) {
+            return $this->json(['error' => 'Destination inconnue.'], 400);
+        }
+        // La ludothèque de l'association ne se renseigne que par un administrateur, avec le pseudo BGG
+        // de l'association : jamais celui de l'administrateur, qui reste attaché à son propre profil.
+        $forAssociation = $target === 'association';
+        if ($forAssociation && !$this->isGranted('ROLE_ADMIN')) {
+            return $this->json(['error' => 'Réservé aux administrateurs.'], 403);
+        }
+        $username = trim($data['username'] ?? ($forAssociation ? '' : $user->getBggUsername()) ?? '');
 
         if ($username === '') {
             return $this->json(['error' => 'Le username BGG est requis'], 400);
         }
 
         // Sauvegarder le username BGG sur le profil utilisateur
-        if ($user->getBggUsername() !== $username) {
+        if (!$forAssociation && $user->getBggUsername() !== $username) {
             $user->setBggUsername($username);
         }
 
@@ -100,20 +112,29 @@ class BggController extends AbstractController
             $em->flush();
         }
 
-        // Lier tous les jeux de la collection BGG à l'utilisateur
+        // Lier tous les jeux de la collection BGG à l'utilisateur (ou à la ludothèque de l'association)
         $linked = 0;
+        $associationIds = [];
         foreach ($bggIds as $bggId) {
             $game = $existingByBggId[$bggId] ?? null;
             if ($game) {
-                $user->addGame($game);
+                if ($forAssociation) {
+                    $associationIds[] = $game->getId();
+                } else {
+                    $user->addGame($game);
+                }
                 $linked++;
             }
         }
 
         $em->flush();
 
-        // Sauvegarder les notes personnelles BGG
-        $userGameRepository->saveRatingsForUser($user, $userRatingsByBggId);
+        if ($forAssociation) {
+            $associationGames->addMany($associationIds, $user);
+        } else {
+            // Sauvegarder les notes personnelles BGG
+            $userGameRepository->saveRatingsForUser($user, $userRatingsByBggId);
+        }
 
         // Enrichir les jeux de la collection qui ont encore mechanics = [] : les 100 premiers seulement
         // (5 appels), pour que les préférences calculées ci-dessous reposent sur des données ;
@@ -144,10 +165,12 @@ class BggController extends AbstractController
             }
         }
 
-        // Recalculer les préférences après import
-        try {
-            $prefService->recompute($user);
-        } catch (\Throwable) { /* non bloquant */ }
+        // Recalculer les préférences après import (celles de l'administrateur ne dépendent pas de la ludothèque commune)
+        if (!$forAssociation) {
+            try {
+                $prefService->recompute($user);
+            } catch (\Throwable) { /* non bloquant */ }
+        }
 
         $skipped = count($bggIds) - $imported;
 
@@ -157,7 +180,8 @@ class BggController extends AbstractController
             'total'     => count($bggIds),
             'skipped'   => $skipped,
             'bggUsername' => $username,
-            'message'   => "{$imported} nouveaux jeux ajoutés, {$enriched} jeux enrichis depuis BGG, {$linked} jeux liés à votre collection.",
+            'target'    => $target,
+            'message'   => "{$imported} nouveaux jeux ajoutés, {$enriched} jeux enrichis depuis BGG, {$linked} jeux liés à " . ($forAssociation ? 'la ludothèque de l\'association.' : 'votre collection.'),
         ]);
     }
 }

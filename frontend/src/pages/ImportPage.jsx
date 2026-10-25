@@ -1,5 +1,7 @@
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
+import AssociationLibraryPanel from '../components/AssociationLibraryPanel'
 import ImportBggTab from '../components/ImportBggTab'
 import ImportMyLudoTab from '../components/ImportMyLudoTab'
 
@@ -13,7 +15,31 @@ function ComingSoon({ children }) {
   return <p className="panel p-6 text-stone-700">{children}</p>
 }
 
+/* Un administrateur choisit où va l'import : sa ludothèque, ou celle de l'association. */
+function TargetPicker({ target, onChange }) {
+  return (
+    <fieldset className="panel m-0 flex flex-col gap-1 p-4">
+      <legend className="float-left mb-1 w-full font-bold">Importer dans</legend>
+      {[
+        ['me', 'Ma ludothèque'],
+        ['association', 'La ludothèque de l’association'],
+      ].map(([value, label]) => (
+        <label key={value} className="flex min-h-11 cursor-pointer items-center gap-3">
+          <input type="radio" name="import-cible" checked={target === value} onChange={() => onChange(value)} className="h-5 w-5 accent-brand-red" />
+          <span>{label}</span>
+        </label>
+      ))}
+    </fieldset>
+  )
+}
+
 export default function ImportPage() {
+  const { user } = useAuth()
+  const [target, setTarget] = useState('me')
+  const [refreshKey, setRefreshKey] = useState(0)
+  const isAdmin = user?.isAdmin === true
+  // Un compte qui perd le rôle d'administrateur ne garde pas la ludothèque commune comme cible.
+  const effectiveTarget = isAdmin ? target : 'me'
   const [params, setParams] = useSearchParams()
   const active = TABS.some(t => t.key === params.get('onglet')) ? params.get('onglet') : 'bgg'
   const tabRefs = useRef({})
@@ -56,11 +82,15 @@ export default function ImportPage() {
         ))}
       </div>
 
+      {isAdmin && active !== 'parties' && <TargetPicker target={effectiveTarget} onChange={setTarget} />}
+
       <div id="import-panneau" role="tabpanel" aria-labelledby={`import-${active}`}>
-        {active === 'bgg' && <ImportBggTab />}
-        {active === 'myludo' && <ImportMyLudoTab />}
+        {active === 'bgg' && <ImportBggTab key={effectiveTarget} target={effectiveTarget} onImported={() => setRefreshKey(k => k + 1)} />}
+        {active === 'myludo' && <ImportMyLudoTab key={effectiveTarget} target={effectiveTarget} onImported={() => setRefreshKey(k => k + 1)} />}
         {active === 'parties' && <ComingSoon>L'import de vos parties MyLudo viendra plus tard.</ComingSoon>}
       </div>
+
+      {isAdmin && effectiveTarget === 'association' && active !== 'parties' && <AssociationLibraryPanel refreshKey={refreshKey} />}
     </div>
   )
 }

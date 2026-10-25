@@ -20,8 +20,8 @@ const analysis = {
   ],
 }
 
-async function upload() {
-  render(<MemoryRouter><ImportMyLudoTab /></MemoryRouter>)
+async function upload(props = {}) {
+  render(<MemoryRouter><ImportMyLudoTab {...props} /></MemoryRouter>)
   await userEvent.upload(screen.getByLabelText('Fichier CSV de MyLudo'), new File(['ID;Titre\n1;Lama'], 'collection.csv', { type: 'text/csv' }))
   await userEvent.click(screen.getByRole('button', { name: 'Analyser le fichier' }))
 }
@@ -92,7 +92,7 @@ describe('ImportMyLudoTab', () => {
       { gameId: 10, rating: 8 },
       { gameId: 11, rating: null },
       { gameId: 20, rating: null },
-    ])
+    ], 'me')
     expect(await screen.findByRole('heading', { name: 'Import terminé' })).toBeInTheDocument()
     expect(screen.getByText(/2 jeux ajoutés, 1 déjà dans votre ludothèque, 1 note reprise\. 1 ligne laissée de côté\./)).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Voir ma ludothèque' })).toHaveAttribute('href', '/ludotheque')
@@ -104,5 +104,19 @@ describe('ImportMyLudoTab', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('ne ressemble pas à un export MyLudo')
     expect(screen.queryByRole('button', { name: /^Importer/ })).not.toBeInTheDocument()
+  })
+
+  it('importe dans la ludothèque de l’association quand un administrateur la vise', async () => {
+    importMyLudo.mockResolvedValue({ total: 2, added: 2, existing: 0, rated: 0, target: 'association' })
+    const onImported = vi.fn()
+    await upload({ target: 'association', onImported })
+    await screen.findByRole('heading', { name: 'À vérifier (2)' })
+
+    await userEvent.click(screen.getByRole('button', { name: 'Importer 2 jeux' }))
+
+    expect(importMyLudo).toHaveBeenCalledWith(expect.any(Array), 'association')
+    expect(await screen.findByText(/2 jeux ajoutés, 0 déjà dans la ludothèque de l’association/)).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Voir ma ludothèque' })).not.toBeInTheDocument()
+    expect(onImported).toHaveBeenCalled()
   })
 })

@@ -79,7 +79,7 @@ final class MyLudoImportTest extends ApiTestCase
         ]], $token);
 
         self::assertResponseIsSuccessful();
-        self::assertSame(['total' => 3, 'added' => 2, 'existing' => 1, 'rated' => 1], $bilan);
+        self::assertSame(['total' => 3, 'added' => 2, 'existing' => 1, 'rated' => 1, 'target' => 'me'], $bilan);
         self::assertSame(3, $this->possedes('importe@example.test'));
         self::assertSame(7.5, $this->note('importe@example.test', $a));
         self::assertSame(9.0, $this->note('importe@example.test', $b));
@@ -133,9 +133,7 @@ final class MyLudoImportTest extends ApiTestCase
 
         $trouves = $this->call($client, 'GET', '/api/games/search?q=Zzrech Lama&local=1');
 
-        self::assertSame('Zzrech Lama', $trouves[0]['name']);
-        self::assertSame('Zzrech Lama Trek', $trouves[1]['name']);
-        self::assertSame('Un Zzrech Lama Autre', $trouves[2]['name']);
+        self::assertSame(['Zzrech Lama', 'Zzrech Lama Trek', 'Un Zzrech Lama Autre'], array_column(array_values($trouves), 'name'));
     }
 
     private function jeu(string $nom, ?string $original, int $annee, int $votes = 500, bool $extension = false): int

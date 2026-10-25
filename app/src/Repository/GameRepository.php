@@ -412,7 +412,8 @@ class GameRepository extends ServiceEntityRepository
         $sql = "SELECT g.bgg_id FROM game g
                 WHERE g.source = 'bgg_csv' AND g.bgg_id IS NOT NULL
                   AND (g.last_fetch_attempt_at IS NULL OR g.last_fetch_attempt_at < NOW() - INTERVAL '7 days')
-                ORDER BY EXISTS (SELECT 1 FROM user_game ug WHERE ug.game_id = g.id) DESC,
+                ORDER BY (EXISTS (SELECT 1 FROM user_game ug WHERE ug.game_id = g.id)
+                          OR EXISTS (SELECT 1 FROM association_game ag WHERE ag.game_id = g.id)) DESC,
                          g.bgg_rank ASC NULLS LAST, g.rating_bgg DESC NULLS LAST";
         $params = [];
 

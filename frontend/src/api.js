@@ -103,7 +103,7 @@ export const getSimilarGames = (id, limit = 5) => request(`/games/${id}/similar?
 // Préférences utilisateur
 export const getUserPreferences = () => request('/user/preferences')
 export const analyzeMyLudo = (csv) => request('/myludo/analyze', { method: 'POST', body: JSON.stringify({ csv }) })
-export const importMyLudo = (items) => request('/myludo/import', { method: 'POST', body: JSON.stringify({ items }) })
+export const importMyLudo = (items, target = 'me') => request('/myludo/import', { method: 'POST', body: JSON.stringify({ items, target }) })
 export const saveTable = ({ players, maxTime }) => request('/user/table', { method: 'PUT', body: JSON.stringify({ players, maxTime }) })
 export const saveTaste = (families) => request('/user/taste', { method: 'PUT', body: JSON.stringify({ families }) })
 export const recomputeUserPreferences = () => request('/user/preferences/recompute', { method: 'POST' })
@@ -126,8 +126,12 @@ export const deleteAccount = (password) =>
   request('/user/account', { method: 'DELETE', body: JSON.stringify({ password }) })
 
 // BGG import
-export const importBgg = (username) =>
-  request('/bgg/import', { method: 'POST', body: JSON.stringify({ username }) })
+export const importBgg = (username, target = 'me') =>
+  request('/bgg/import', { method: 'POST', body: JSON.stringify({ username, target }) })
+
+// Ludothèque de l'association (administrateurs)
+export const getAssociationGames = () => request('/admin/association/games')
+export const removeAssociationGame = (id) => request(`/admin/association/games/${id}`, { method: 'DELETE' })
 
 // Admin — Mechanic Mappings
 export const getMechanicMappings = () =>
