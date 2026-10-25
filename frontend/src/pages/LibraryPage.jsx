@@ -85,72 +85,63 @@ function InfiniteScrollSentinel({ onVisible }) {
 
 /* ── Composant principal ──────────────────────────────────────────────── */
 const TABS = [
-  { key: 'played',   label: '⭐ Déjà joués',        played: true,  emptyIcon: '🎮', emptyMsg: 'Vous n\'avez noté aucun jeu sur BGG.', emptyHint: 'Notez vos jeux sur BoardGameGeek et importez votre collection.' },
-  { key: 'unplayed', label: '🎁 Pas encore joués',   played: false, emptyIcon: '🏆', emptyMsg: 'Tous vos jeux ont été joués !',          emptyHint: null },
+  { key: 'played',   label: 'Déjà joués',        played: true,  emptyMsg: "Vous n'avez noté aucun jeu sur BGG.", emptyHint: 'Notez vos jeux sur BoardGameGeek et importez votre collection.' },
+  { key: 'unplayed', label: 'Pas encore joués',   played: false, emptyMsg: 'Tous vos jeux ont été joués !',        emptyHint: null },
 ]
 
 /* ── Bloc préférences mécaniques ─────────────────────────────────────── */
+function PrefGroup({ title, children }) {
+  return (
+    <div>
+      <h3 className="mb-2 text-sm font-bold uppercase text-stone-600">{title}</h3>
+      <div className="flex flex-wrap gap-2">{children}</div>
+    </div>
+  )
+}
+
 function MechanicPrefsBlock({ prefs }) {
   if (!prefs) return null
   const engines   = prefs.topEngines   ?? []
   const support   = prefs.topSupport   ?? []
   const cats      = prefs.topCategories ?? []
-  const allFams   = [...engines, ...support]
-  if (allFams.length === 0 && cats.length === 0) return null
+  if (engines.length + support.length + cats.length === 0) return null
 
   return (
-    <div className="bg-white rounded-2xl border border-stone-200 shadow-sm p-5 mb-6 space-y-4">
-      <div className="flex items-center justify-between">
-        <h3 className="font-bold text-stone-800 text-sm">Vos styles de jeu</h3>
-        <span className="text-xs text-stone-400">calculé depuis votre collection et vos parties</span>
+    <section aria-labelledby="titre-styles" className="panel flex flex-col gap-4 p-5">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 id="titre-styles" className="text-2xl">Vos styles de jeu</h2>
+        <span className="text-sm text-stone-600">Calculés depuis votre collection et vos parties</span>
       </div>
 
       {engines.length > 0 && (
-        <div>
-          <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-2">⚙️ Moteurs favoris</p>
-          <div className="flex flex-wrap gap-2">
-            {engines.map((key, i) => (
-              <div key={key} className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-semibold ${familyColor(key)}`}>
-                {i === 0 && <span className="text-xs">⭐</span>}
-                {familyLabel(key)}
-              </div>
-            ))}
-          </div>
-        </div>
+        <PrefGroup title="Moteurs favoris">
+          {engines.map((key, i) => (
+            <span key={key} className={`rounded-full border px-3 py-1.5 text-sm font-bold ${familyColor(key)}`}>
+              {i === 0 && <span aria-hidden="true">★ </span>}
+              {familyLabel(key)}
+            </span>
+          ))}
+        </PrefGroup>
       )}
 
       {support.length > 0 && (
-        <div>
-          <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-2">🔧 Mécaniques de support</p>
-          <div className="flex flex-wrap gap-2">
-            {support.map(key => (
-              <span key={key} className={`px-3 py-1.5 rounded-full border text-xs font-semibold ${SUPPORT_COLOR}`}>
-                {familyLabel(key)}
-              </span>
-            ))}
-          </div>
-        </div>
+        <PrefGroup title="Mécaniques de support">
+          {support.map(key => (
+            <span key={key} className={`rounded-full border px-3 py-1.5 text-sm font-bold ${SUPPORT_COLOR}`}>{familyLabel(key)}</span>
+          ))}
+        </PrefGroup>
       )}
 
       {cats.length > 0 && (
-        <div>
-          <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-2">🎭 Thèmes / Catégories favoris</p>
-          <div className="flex flex-wrap gap-2">
-            {cats.map(cat => (
-              <span key={cat} className="px-3 py-1.5 rounded-full border border-amber-200 bg-amber-50 text-amber-800 text-xs font-semibold">
-                {cat}
-              </span>
-            ))}
-          </div>
-        </div>
+        <PrefGroup title="Thèmes favoris">
+          {cats.map(cat => <span key={cat} className="badge bg-amber-100 !text-sm">{cat}</span>)}
+        </PrefGroup>
       )}
 
       {prefs.updatedAt && (
-        <p className="text-xs text-stone-300">
-          Mis à jour le {new Date(prefs.updatedAt).toLocaleDateString('fr-FR')}
-        </p>
+        <p className="text-sm text-stone-600">Mis à jour le {new Date(prefs.updatedAt).toLocaleDateString('fr-FR')}</p>
       )}
-    </div>
+    </section>
   )
 }
 
@@ -191,162 +182,138 @@ export default function LibraryPage() {
 
   const tab    = activeTab === 'played' ? playedTab : unplayedTab
   const tabDef = TABS.find(t => t.key === activeTab)
+  const unit   = subTab === 'ext' ? 'extension' : 'jeu'
 
   if (!user) {
     return (
-      <div className="max-w-6xl mx-auto px-4 py-8 text-center">
-        <div className="text-5xl mb-4">📚</div>
-        <h2 className="text-2xl font-black text-stone-900 mb-2">Ma ludothèque</h2>
-        <p className="text-stone-500 mb-6">Connecte-toi pour accéder à ta collection personnelle.</p>
-        <Link to="/connexion" className="px-6 py-3 bg-amber-500 text-white font-bold rounded-xl hover:bg-amber-600">
-          Se connecter
-        </Link>
+      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-10">
+        <section className="panel mx-auto flex max-w-xl flex-col items-center gap-3 p-8 text-center">
+          <img src="/edj-mascotte.png" alt="" width="120" height="133" className="h-28 w-auto" />
+          <h1 className="text-4xl">Ma ludothèque</h1>
+          <p className="text-stone-600">Connectez-vous pour retrouver votre collection.</p>
+          <Link to="/connexion" className="btn btn-primary">Se connecter</Link>
+        </section>
       </div>
     )
   }
 
   if (tab.initialLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="w-6 h-6 border-2 border-stone-300 border-t-amber-500 rounded-full animate-spin" />
-      </div>
+      <p role="status" className="flex min-h-[60vh] items-center justify-center gap-3 text-stone-600">
+        <span className="h-6 w-6 animate-spin rounded-full border-[3px] border-stone-300 border-t-brand-red" aria-hidden="true" />
+        Chargement de votre ludothèque…
+      </p>
     )
   }
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-8">
+    <div className="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-10 lg:py-8">
 
-      {/* Header */}
-      <div className="flex items-center justify-between mb-5">
+      <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
-          <h2 className="text-3xl font-black text-stone-900">Ma ludothèque</h2>
+          <h1 className="text-4xl leading-tight sm:text-5xl">Ma ludothèque</h1>
           {tab.bggUsername && (
-            <p className="text-sm text-stone-400 mt-0.5">
-              Collection BGG de <span className="font-medium text-stone-600">{tab.bggUsername}</span>
-            </p>
+            <p className="mt-1 text-lg text-stone-600">Collection BGG de <strong className="text-ink">{tab.bggUsername}</strong></p>
           )}
         </div>
         {tab.total !== null && (
-          <span className="text-sm text-stone-400 tabular-nums">
-            {tab.total} {subTab === 'ext' ? 'extension' : 'jeu'}{tab.total > 1 ? 'x' : ''}
-          </span>
+          <p className="badge bg-cream !text-base tabular-nums" aria-live="polite">
+            {tab.total} {unit}{tab.total > 1 ? 's' : ''}
+          </p>
         )}
       </div>
 
-      {/* Préférences mécaniques */}
       {prefsLoading ? (
-        <div className="bg-white rounded-2xl border border-stone-200 p-4 mb-6 flex items-center gap-2 text-stone-400 text-sm">
-          <div className="w-4 h-4 border-2 border-stone-200 border-t-amber-400 rounded-full animate-spin flex-shrink-0" />
+        <p role="status" className="panel flex items-center gap-3 p-4 text-stone-600">
+          <span className="h-4 w-4 animate-spin rounded-full border-[3px] border-stone-300 border-t-brand-red" aria-hidden="true" />
           Calcul de vos préférences mécaniques…
-        </div>
+        </p>
       ) : (
         <MechanicPrefsBlock prefs={userPrefs} />
       )}
 
       {/* Onglets principaux */}
-      <div className="flex gap-1 border-b border-stone-200 mb-0">
-        {TABS.map(t => (
-          <button
-            key={t.key}
-            onClick={() => handleTabChange(t.key)}
-            className={
-              'px-4 py-2.5 text-sm font-semibold border-b-2 transition-all ' +
-              (activeTab === t.key
-                ? 'border-amber-500 text-amber-700'
-                : 'border-transparent text-stone-500 hover:text-stone-700')
-            }
-          >
-            {t.label}
-            {(t.key === 'played' ? playedTab : unplayedTab).total !== null && (
-              <span className={
-                'ml-2 text-xs px-1.5 py-0.5 rounded-full font-bold ' +
-                (activeTab === t.key ? 'bg-amber-100 text-amber-700' : 'bg-stone-100 text-stone-400')
-              }>
-                {(t.key === 'played' ? playedTab : unplayedTab).total}
-              </span>
-            )}
-          </button>
-        ))}
+      <div role="tablist" aria-label="Jeux joués ou non" className="flex flex-wrap gap-2">
+        {TABS.map(t => {
+          const total = (t.key === 'played' ? playedTab : unplayedTab).total
+          return (
+            <button
+              key={t.key}
+              type="button"
+              role="tab"
+              id={`ludo-${t.key}`}
+              aria-selected={activeTab === t.key}
+              aria-controls="ludo-panneau"
+              onClick={() => handleTabChange(t.key)}
+              className={`chip ${activeTab === t.key ? 'is-on' : ''}`}
+            >
+              {t.label}
+              {total !== null && <span className="ml-2 text-sm opacity-80">{total}</span>}
+            </button>
+          )
+        })}
       </div>
 
-      {/* Sous-onglets base / extensions */}
-      <div className="flex gap-2 py-3 mb-4 border-b border-stone-100">
-        {[
-          { key: 'base', label: '🎲 Jeux de base' },
-          { key: 'ext',  label: '➕ Extensions' },
-        ].map(s => (
-          <button
-            key={s.key}
-            onClick={() => setSubTab(s.key)}
-            className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
-              subTab === s.key
-                ? 'bg-amber-500 text-white border-amber-500'
-                : 'bg-white text-stone-600 border-stone-200 hover:bg-stone-50'
-            }`}
-          >
-            {s.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Erreur */}
-      {tab.error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl p-4 text-sm mb-5">
-          {tab.error}
-        </div>
-      )}
-
-      {/* Liste vide */}
-      {!tab.error && tab.games.length === 0 && !tab.loading && (
-        <div className="text-center py-14 text-stone-500">
-          <div className="text-5xl mb-4">
-            {subTab === 'ext' ? '🧩' : tabDef.emptyIcon}
-          </div>
-          <p className="font-semibold text-stone-700 mb-1">
-            {subTab === 'ext'
-              ? 'Aucune extension dans cette catégorie.'
-              : tabDef.emptyMsg}
-          </p>
-          {subTab === 'base' && tabDef.emptyHint && (
-            <p className="text-sm text-stone-400 mb-6">{tabDef.emptyHint}</p>
-          )}
-          {activeTab === 'played' && subTab === 'base' && (
-            <Link to="/importer" className="inline-block px-5 py-2.5 bg-amber-500 text-white font-bold rounded-xl hover:bg-amber-600 text-sm">
-              Importer depuis BGG →
-            </Link>
-          )}
-        </div>
-      )}
-
-      {/* Cartes */}
-      {tab.games.length > 0 && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-          {tab.games.map(game => (
-            <GameCard
-              key={game.id}
-              game={game}
-              userRating={tab.userRatings[game.id] ?? null}
-            />
+      <div id="ludo-panneau" role="tabpanel" aria-labelledby={`ludo-${activeTab}`} className="flex flex-col gap-5">
+        {/* Jeux de base / extensions */}
+        <div role="group" aria-label="Type de fiches" className="flex gap-2">
+          {[
+            { key: 'base', label: 'Jeux de base' },
+            { key: 'ext',  label: 'Extensions' },
+          ].map(s => (
+            <button
+              key={s.key}
+              type="button"
+              aria-pressed={subTab === s.key}
+              onClick={() => setSubTab(s.key)}
+              className="chip"
+            >
+              {s.label}
+            </button>
           ))}
         </div>
-      )}
 
-      {/* Infinite scroll */}
-      <InfiniteScrollSentinel onVisible={tab.loadMore} />
+        {tab.error && (
+          <p role="alert" className="panel border-brand-red bg-amber-100 p-4 font-bold">{tab.error}</p>
+        )}
 
-      {/* Spinner de chargement des pages suivantes */}
-      {tab.loading && tab.games.length > 0 && (
-        <div className="text-center py-6">
-          <div className="inline-block w-5 h-5 border-2 border-stone-300 border-t-amber-500 rounded-full animate-spin" />
-        </div>
-      )}
+        {!tab.error && tab.games.length === 0 && !tab.loading && (
+          <section className="panel mx-auto flex max-w-xl flex-col items-center gap-3 p-8 text-center">
+            <h2 className="text-2xl">
+              {subTab === 'ext' ? 'Aucune extension dans cette catégorie.' : tabDef.emptyMsg}
+            </h2>
+            {subTab === 'base' && tabDef.emptyHint && <p className="text-stone-600">{tabDef.emptyHint}</p>}
+            {activeTab === 'played' && subTab === 'base' && (
+              <Link to="/importer" className="btn btn-primary">Importer depuis BGG</Link>
+            )}
+          </section>
+        )}
 
-      {/* Fin de liste */}
-      {!tab.hasMore && tab.games.length > 0 && (
-        <p className="text-center text-xs text-stone-400 py-4">
-          {tab.total ?? tab.games.length} {subTab === 'ext' ? 'extension' : 'jeu'}{(tab.total ?? tab.games.length) > 1 ? 's' : ''}
-        </p>
-      )}
+        {tab.games.length > 0 && (
+          <ul className="m-0 grid list-none grid-cols-2 gap-4 p-0 sm:grid-cols-3 sm:gap-5 lg:grid-cols-4 2xl:grid-cols-5">
+            {tab.games.map(game => (
+              <li key={game.id}>
+                <GameCard game={game} userRating={tab.userRatings[game.id] ?? null} />
+              </li>
+            ))}
+          </ul>
+        )}
+
+        <InfiniteScrollSentinel onVisible={tab.loadMore} />
+
+        {tab.loading && tab.games.length > 0 && (
+          <p role="status" className="py-4 text-center">
+            <span className="inline-block h-5 w-5 animate-spin rounded-full border-[3px] border-stone-300 border-t-brand-red" aria-hidden="true" />
+            <span className="sr-only">Chargement de la suite</span>
+          </p>
+        )}
+
+        {!tab.hasMore && tab.games.length > 0 && (
+          <p className="py-2 text-center text-sm text-stone-600">
+            {tab.total ?? tab.games.length} {unit}{(tab.total ?? tab.games.length) > 1 ? 's' : ''}
+          </p>
+        )}
+      </div>
     </div>
   )
 }
