@@ -12,6 +12,17 @@ version devient le texte de sa release GitHub.
 
 ### Ajouté
 
+- **Import MyLudo** : le menu « Import » a trois onglets (compte BGG, collection MyLudo, parties MyLudo à venir). On dépose
+  l'export CSV de sa ludothèque MyLudo ; les jeux sont rapprochés du catalogue, puis on départage les homonymes, on
+  cherche les jeux introuvables ou on les laisse de côté. Rien n'est ajouté avant confirmation, et la note personnelle est reprise.
+- **Ludothèque de l'association** : les administrateurs la renseignent par un export MyLudo ou par le compte BGG de
+  l'association, la consultent et retirent un jeu mal importé.
+- **Table de l'accueil** : de 1 à 8 joueurs et de 15 min à « peu importe », enregistrée sur le compte et reprise par la page
+  de recommandation. Deux nouvelles rangées la suivent : « Ce que jouent les autres membres » (au moins deux joueurs
+  distincts, sans jamais dire qui) et « Faciles à expliquer ».
+- **Mes goûts** : un questionnaire de six styles au plus, sur l'accueil et dans Mon compte, rappelé tant qu'il n'est pas
+  rempli. Il sert de profil à qui n'a ni compte BGG ni historique, et passe avant les goûts déduits de l'historique.
+- **Démarrage à froid** : sans profil, l'accueil propose des nouveautés abordables au lieu de « pas de recommandations ».
 - **Titres français** : les jeux portent le titre de leur édition française
   quand BoardGameGeek en connaît une ; la recherche trouve aussi bien le titre
   français que l'original, sans tenir compte des accents ni de la casse.
@@ -22,6 +33,11 @@ version devient le texte de sa release GitHub.
 
 ### Modifié
 
+- Les nouveautés couvrent les **cinq dernières années** (trois auparavant) avec un bonus de récence continu, et la page
+  « À découvrir » ajoute des jeux récents à sa sélection au lieu d'être dominée par les classiques.
+- La recherche classe le titre exact en premier, puis les titres qui commencent par la saisie.
+- Les suggestions de l'accueil excluent les extensions, et un même jeu n'y figure qu'une fois.
+- L'export des données du compte inclut les goûts et la table enregistrés ; la politique de confidentialité les mentionne.
 - Les données BoardGameGeek sont rafraîchies chaque nuit, à la cadence qu'il
   demande, au lieu de l'être pendant la consultation d'une fiche : les pages
   s'ouvrent plus vite et ne dépendent plus de sa disponibilité.

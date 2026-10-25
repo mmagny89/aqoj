@@ -18,10 +18,13 @@ export default function PrivacyPage() {
           <li>Votre ludothèque : les jeux que vous possédez et vos notes personnelles.</li>
           <li>Vos parties jouées : jeu, nombre de joueurs, note, commentaire, date.</li>
           <li>Vos préférences, calculées à partir de votre ludothèque pour les recommandations.</li>
+          <li>Vos goûts, si vous les indiquez, et la table (nombre de joueurs, durée) que vous choisissez sur l'accueil.</li>
         </ul>
         <p>
           Elles servent à faire fonctionner votre compte et à vous recommander des jeux, rien d'autre. Elles ne sont ni
-          vendues, ni utilisées pour de la publicité.
+          vendues, ni utilisées pour de la publicité. Le fichier CSV de MyLudo que vous déposez n'est pas conservé : seuls
+          les jeux que vous confirmez entrent dans votre ludothèque. Vos parties comptent, sans votre nom, dans les totaux
+          « joué par les autres membres » de l'accueil, qui n'apparaissent qu'à partir de deux joueurs distincts.
         </p>
       </LegalSection>
 

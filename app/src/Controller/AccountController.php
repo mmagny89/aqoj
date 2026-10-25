@@ -41,7 +41,8 @@ class AccountController extends AbstractController
                 [$id],
             ),
             'preferences' => $connection->fetchAssociative(
-                'SELECT top_engines AS "topEngines", top_support AS "topSupport", ranked_families AS "rankedFamilies", top_categories AS "topCategories"
+                'SELECT top_engines AS "topEngines", top_support AS "topSupport", ranked_families AS "rankedFamilies", top_categories AS "topCategories",
+                        declared_families AS "declaredFamilies", table_players AS "tablePlayers", table_max_time AS "tableMaxTime"
                  FROM user_preference WHERE user_id = ?',
                 [$id],
             ) ?: null,

@@ -202,6 +202,20 @@ final class HomeRecommendationTest extends ApiTestCase
         self::assertSame(['auction'], $prefs['declaredFamilies']);
     }
 
+    public function testLExportDesDonneesInclutLesGoutsEtLaTable(): void
+    {
+        $client = static::createClient();
+        $token = $this->register($client, 'exportgouts@example.test');
+        $this->call($client, 'PUT', '/api/user/taste', ['families' => ['cooperation']], $token);
+        $this->call($client, 'PUT', '/api/user/table', ['players' => 5, 'maxTime' => 45], $token);
+
+        $export = $this->call($client, 'GET', '/api/user/export', token: $token);
+
+        self::assertSame('["cooperation"]', $export['preferences']['declaredFamilies']);
+        self::assertSame(5, $export['preferences']['tablePlayers']);
+        self::assertSame(45, $export['preferences']['tableMaxTime']);
+    }
+
     public function testLaTableRefuseLesValeursInvalides(): void
     {
         $client = static::createClient();
