@@ -12,7 +12,7 @@ version devient le texte de sa release GitHub.
 
 ### Ajouté
 
-- **Édition française** : la fiche d'un jeu indique l'éditeur et l'année de son édition française, et montre la boîte française
+- **Édition française et d'origine** : la fiche d'un jeu indique l'éditeur et l'année de son édition d'origine et de son édition française, et montre la boîte française
   quand BoardGameGeek en a l'image. Le titre français est celui de l'édition au titre le plus répandu, plus la plus récente.
 - **Icône du site** : la mascotte de l'association sert de favicon (onglet du navigateur, écran d'accueil d'un téléphone).
 - **Import MyLudo** : le menu « Import » a trois onglets (compte BGG, collection MyLudo, parties MyLudo à venir). On dépose

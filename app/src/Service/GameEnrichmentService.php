@@ -71,6 +71,7 @@ class GameEnrichmentService
             ->setCategories(!empty($data['categories']) ? $data['categories'] : $game->getCategories())
             ->setMechanics(!empty($data['mechanics'])   ? $data['mechanics']   : $game->getMechanics())
             ->setImageUrl($data['imageUrl'] ?? $game->getImageUrl())
+            ->setPublisherOriginal($data['publisherOriginal'] ?? $game->getPublisherOriginal())
             ->setEditionFrPublisher($data['editionFr']['publisher'] ?? $game->getEditionFrPublisher())
             ->setEditionFrYear($data['editionFr']['year'] ?? $game->getEditionFrYear())
             ->setEditionFrImageUrl($data['editionFr']['imageUrl'] ?? $game->getEditionFrImageUrl())

@@ -8,3 +8,9 @@ export function frenchEditionLabel(game) {
   const parts = [game.editionFrPublisher, game.editionFrYear].filter(Boolean)
   return parts.length > 0 ? parts.join(' · ') : null
 }
+
+/** « Kosmos · 1995 » : éditeur et année de l'édition d'origine, ou ce qu'on en sait ; null sans rien. */
+export function originalEditionLabel(game) {
+  const parts = [game.publisherOriginal, game.yearPublished].filter(Boolean)
+  return parts.length > 0 ? parts.join(' · ') : null
+}

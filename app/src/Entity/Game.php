@@ -101,6 +101,10 @@ class Game implements \JsonSerializable
     #[Groups(['catalogue:read'])]
     private ?string $imageUrl = null;
 
+    // Éditeur de l'édition d'origine (l'année d'origine est yearPublished) : propre à ce site, hors du groupe publié à BG-TCG
+    #[ORM\Column(length: 255, nullable: true)]
+    private ?string $publisherOriginal = null;
+
     // Édition française (BGG, `versions=1`) : propre à ce site, hors du groupe publié à BG-TCG
     #[ORM\Column(length: 255, nullable: true)]
     private ?string $editionFrPublisher = null;
@@ -204,6 +208,7 @@ class Game implements \JsonSerializable
             'categories' => $this->categories,
             'mechanics' => $this->mechanics,
             'imageUrl' => $this->imageUrl,
+            'publisherOriginal' => $this->publisherOriginal,
             'editionFrPublisher' => $this->editionFrPublisher,
             'editionFrYear' => $this->editionFrYear,
             'editionFrImageUrl' => $this->editionFrImageUrl,
@@ -245,6 +250,8 @@ class Game implements \JsonSerializable
     public function setCategories(array $categories): static { $this->categories = $categories; return $this; }
     public function getMechanics(): array { return $this->mechanics; }
     public function setMechanics(array $mechanics): static { $this->mechanics = $mechanics; return $this; }
+    public function getPublisherOriginal(): ?string { return $this->publisherOriginal; }
+    public function setPublisherOriginal(?string $v): static { $this->publisherOriginal = $v; return $this; }
     public function getEditionFrPublisher(): ?string { return $this->editionFrPublisher; }
     public function setEditionFrPublisher(?string $v): static { $this->editionFrPublisher = $v; return $this; }
     public function getEditionFrYear(): ?int { return $this->editionFrYear; }

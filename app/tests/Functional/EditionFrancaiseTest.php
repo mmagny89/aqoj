@@ -14,7 +14,7 @@ final class EditionFrancaiseTest extends ApiTestCase
         return [
             'bggId' => 'zzed1', 'name' => 'Zzed Original', 'nameFr' => $editionFr['title'] ?? null, 'editionFr' => $editionFr,
             'bggType' => 'boardgame', 'minPlayers' => 2, 'maxPlayers' => 4, 'playingTime' => 30, 'complexity' => 2.0,
-            'imageUrl' => 'https://cf.geekdo-images.com/original.jpg', 'yearPublished' => 2019,
+            'imageUrl' => 'https://cf.geekdo-images.com/original.jpg', 'yearPublished' => 2019, 'publisherOriginal' => 'Éditeur Origine',
         ];
     }
 
@@ -30,6 +30,8 @@ final class EditionFrancaiseTest extends ApiTestCase
         self::assertSame('Zzed Français', $game->getName());
         self::assertSame('Éditions Test', $game->getEditionFrPublisher());
         self::assertSame(2021, $game->getEditionFrYear());
+        // L'édition d'origine reste à côté de la française : éditeur et année (yearPublished).
+        self::assertSame(['Éditeur Origine', 2019], [$game->getPublisherOriginal(), $game->getYearPublished()]);
         self::assertSame('https://cf.geekdo-images.com/fr.jpg', $game->getEditionFrImageUrl());
         // L'image d'origine reste celle de la fiche : la boîte française s'y ajoute, elle ne la remplace pas en base.
         self::assertSame('https://cf.geekdo-images.com/original.jpg', $game->getImageUrl());
@@ -43,8 +45,11 @@ final class EditionFrancaiseTest extends ApiTestCase
         $service = static::getContainer()->get(GameEnrichmentService::class);
         $game = $service->hydrate(new Game(), $this->data(['title' => 'Zzed Français', 'year' => 2021, 'publisher' => 'Éditions Test', 'imageUrl' => null]));
 
-        $service->hydrate($game, $this->data(null));
+        $sans = $this->data(null);
+        unset($sans['publisherOriginal']);
+        $service->hydrate($game, $sans);
 
+        self::assertSame('Éditeur Origine', $game->getPublisherOriginal());
         self::assertSame('Éditions Test', $game->getEditionFrPublisher());
         self::assertSame(2021, $game->getEditionFrYear());
     }
@@ -63,7 +68,7 @@ final class EditionFrancaiseTest extends ApiTestCase
 
         self::assertResponseIsSuccessful();
         self::assertSame('Zzed Français', $fiche['name']);
-        foreach (['editionFrPublisher', 'editionFrYear', 'editionFrImageUrl'] as $champ) {
+        foreach (['publisherOriginal', 'editionFrPublisher', 'editionFrYear', 'editionFrImageUrl'] as $champ) {
             self::assertArrayNotHasKey($champ, $fiche);
         }
     }
