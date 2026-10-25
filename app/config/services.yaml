@@ -1,4 +1,7 @@
 parameters:
+    # Sans adresse, la traduction est désactivée (les descriptions restent en anglais) : un environnement
+    # qui n'a pas encore le service `libretranslate` ne casse aucune page.
+    env(LIBRETRANSLATE_URL): ''
 
 services:
     _defaults:
@@ -25,7 +28,22 @@ services:
             $jwtSecret: '%env(JWT_SECRET)%'
 
 when@test:
+    parameters:
+        # Une adresse non vide pour que la traduction soit active ; le client HTTP des tests est un faux.
+        env(LIBRETRANSLATE_URL): 'http://libretranslate.test:5000'
+
     services:
+        # Aucun appel réel à LibreTranslate pendant les tests : les tests y posent leurs réponses.
+        test.translate_http_client:
+            class: Symfony\Component\HttpClient\MockHttpClient
+            public: true
+
+        App\Translation\LibreTranslateClient:
+            autowire: true
+            public: true
+            arguments:
+                $httpClient: '@test.translate_http_client'
+
         # Aucun appel réel à BGG pendant les tests : toute requête échoue comme une panne réseau.
         test.bgg_http_client:
             class: Symfony\Component\HttpClient\MockHttpClient

@@ -34,6 +34,8 @@ final readonly class MainSchedule implements ScheduleProviderInterface
         private string $syncNewCron,
         #[Autowire(env: 'BGG_IMPORT_CSV_CRON')]
         private string $importCsvCron,
+        #[Autowire(env: 'TRANSLATE_CRON')]
+        private string $translateCron,
         private CacheInterface $cache,
         private LockFactory $lockFactory,
     ) {}
@@ -50,6 +52,9 @@ final readonly class MainSchedule implements ScheduleProviderInterface
                 RecurringMessage::cron($this->syncNewCron, $this->command('app:bgg:sync-new'), self::TIMEZONE),
                 // Import du CSV BGG, si un nouveau ZIP a été déposé dans var/imports/bgg/.
                 RecurringMessage::cron($this->importCsvCron, $this->command('app:bgg:import-csv'), self::TIMEZONE),
+                // Traduction automatique des descriptions (LibreTranslate local) : un petit lot, dans une limite de temps.
+                // Pas d'appel à BGG : l'horaire ne partage rien avec les tâches ci-dessus.
+                RecurringMessage::cron($this->translateCron, $this->command('app:translate:descriptions --limit=60 --time-budget=180'), self::TIMEZONE),
                 // Ménage du dimanche : journal des tâches ancien, jetons périmés. Pas d'appel à BGG : l'horaire est fixe.
                 RecurringMessage::cron('0 5 * * 0', $this->command('app:maintenance:purge'), self::TIMEZONE),
             )

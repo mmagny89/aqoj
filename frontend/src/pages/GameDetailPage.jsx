@@ -150,6 +150,7 @@ export default function GameDetailPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [descExpanded,  setDescExpanded]  = useState(false)
+  const [showOriginal,  setShowOriginal]  = useState(false)
   const [similarGames,  setSimilarGames]  = useState(null)
   const [similarLimit,  setSimilarLimit]  = useState(5)
   const [similarLoading, setSimilarLoading] = useState(false)
@@ -241,6 +242,9 @@ export default function GameDetailPage() {
   const image       = gameImage(game)
   const editionFr   = frenchEditionLabel(game)
   const origine     = originalEditionLabel(game)
+  // La traduction automatique de la description, quand elle existe, passe devant l'original anglais.
+  const translated      = Boolean(game.descriptionFr) && !showOriginal
+  const descriptionText = (translated ? game.descriptionFr : game.description) ?? ''
   const hasFrName   = game.nameOriginal && game.nameOriginal !== game.name
 
   return (
@@ -361,19 +365,32 @@ export default function GameDetailPage() {
       {/* ── Description ──────────────────────────────────────────────────── */}
       {game.description && (
         <div className="panel p-5">
-          <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-3">Description</p>
+          <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1">
+            <p className="m-0 text-xs font-semibold text-stone-400 uppercase tracking-wide">Description</p>
+            {translated && <span className="badge bg-cream">Traduction automatique</span>}
+          </div>
           <div className="relative">
-            <p className={`text-stone-600 text-sm leading-relaxed ${descExpanded ? '' : 'line-clamp-4'}`}>
-              {game.description}
+            <p lang={translated ? 'fr' : 'en'} className={`text-stone-600 text-sm leading-relaxed whitespace-pre-line ${descExpanded ? '' : 'line-clamp-4'}`}>
+              {descriptionText}
             </p>
-            {!descExpanded && game.description.length > 300 && (
+            {!descExpanded && descriptionText.length > 300 && (
               <div className="absolute bottom-0 left-0 right-0 h-8 bg-linear-to-t from-paper to-transparent" />
             )}
           </div>
-          {game.description.length > 300 && (
-            <button onClick={() => setDescExpanded(v => !v)} className="mt-2 text-xs text-amber-600 hover:underline font-medium">
-              {descExpanded ? 'Voir moins ↑' : 'Lire la suite ↓'}
-            </button>
+          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1">
+            {descriptionText.length > 300 && (
+              <button type="button" onClick={() => setDescExpanded(v => !v)} className="inline-flex min-h-11 items-center text-xs text-amber-600 hover:underline font-medium">
+                {descExpanded ? 'Voir moins ↑' : 'Lire la suite ↓'}
+              </button>
+            )}
+            {game.descriptionFr && game.descriptionFr !== game.description && (
+              <button type="button" onClick={() => setShowOriginal(v => !v)} className="inline-flex min-h-11 items-center text-xs text-brand-blue underline underline-offset-4 font-medium">
+                {showOriginal ? 'Lire la traduction française' : 'Lire l’original (anglais)'}
+              </button>
+            )}
+          </div>
+          {!game.descriptionFr && game.descriptionFrPending && (
+            <p role="status" className="m-0 mt-1 text-xs text-stone-500">Description en anglais : sa traduction française est en préparation.</p>
           )}
         </div>
       )}

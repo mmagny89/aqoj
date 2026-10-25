@@ -40,6 +40,8 @@ services:
       # Adresse publique du site, pour les liens des e-mails (réinitialisation du mot de passe). Jamais déduite
       # de l'en-tête Host d'une requête : un lien empoisonné mènerait ailleurs.
       PUBLIC_URL: ${PUBLIC_URL:?PUBLIC_URL manquante — adresse publique du site, par exemple https://aqoj.exemple.fr}
+      # Traduction automatique des descriptions : service interne du réseau du projet, jamais exposé.
+      LIBRETRANSLATE_URL: http://libretranslate:5000
     volumes:
       - aqoj-caddy-data:/data
       - aqoj-caddy-config:/config
@@ -88,6 +90,8 @@ services:
       BGG_PENDING_CRON: ${BGG_PENDING_CRON}
       BGG_SYNC_NEW_CRON: ${BGG_SYNC_NEW_CRON}
       BGG_IMPORT_CSV_CRON: ${BGG_IMPORT_CSV_CRON}
+      TRANSLATE_CRON: ${TRANSLATE_CRON}
+      LIBRETRANSLATE_URL: http://libretranslate:5000
     # Le Dockerfile déclare un HEALTHCHECK qui sonde /health via Caddy : un worker n'en sert
     # aucun, et « up -d --wait » resterait bloqué.
     healthcheck:
@@ -120,6 +124,34 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+
+  # Traduction automatique en→fr des descriptions de jeux (BGG n'en a qu'une, en anglais), auto-hébergée :
+  # aucun texte ne quitte l'hôte. Moteur : LibreTranslate (Argos Translate), CPU seulement. Les modèles
+  # (quelques centaines de Mo) se téléchargent au premier démarrage dans le volume, d'où le start_period long.
+  # Ni « php » ni « worker » n'en dépendent : une panne laisse les descriptions en anglais, rien d'autre.
+  libretranslate:
+    container_name: aqoj-${ENV:?ENV est requis — suffixe des conteneurs, reseau et volumes. Le declarer dans le fichier de secrets (ENV=prod) ou le .env racine (ENV=dev)}-libretranslate
+    image: libretranslate/libretranslate:v${LIBRETRANSLATE_VERSION}
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      # Seulement la paire utile : moins de mémoire et moins de modèles à télécharger.
+      LT_LOAD_ONLY: en,fr
+      LT_UPDATE_MODELS: "true"
+      LT_DISABLE_WEB_UI: "true"
+      # Une description fait au plus 2 000 caractères (BggApiService) ; le client la découpe par paragraphes.
+      LT_CHAR_LIMIT: 3000
+    volumes:
+      - aqoj-libretranslate-models:/home/libretranslate/.local
+    networks:
+      - aqoj
+    healthcheck:
+      test: ["CMD-SHELL", "./venv/bin/python scripts/healthcheck.py"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 300s
 
   # Developpement uniquement : compose.staging.yml et compose.prod.yml
   # n'ajoutent jamais ce service (headless-react.md, section 5).
@@ -154,3 +186,5 @@ volumes:
     name: aqoj-${ENV:?ENV est requis — suffixe des noms de conteneurs, reseau et volumes. Le declarer dans le fichier de secrets (ENV=prod) ou le .env racine (ENV=dev)}-database-data
   aqoj-node-modules:
     name: aqoj-${ENV:?ENV est requis — suffixe des noms de conteneurs, reseau et volumes. Le declarer dans le fichier de secrets (ENV=prod) ou le .env racine (ENV=dev)}-node-modules
+  aqoj-libretranslate-models:
+    name: aqoj-${ENV:?ENV est requis — suffixe des conteneurs, reseau et volumes. Le declarer dans le fichier de secrets (ENV=prod) ou le .env racine (ENV=dev)}-libretranslate-models
