@@ -122,6 +122,25 @@ class GameController extends AbstractController
         ]);
     }
 
+    #[Route('/api/games/home-tonight', name: 'api_games_home_tonight', methods: ['GET'])]
+    public function homeTonight(
+        Request $request,
+        RecommendationService $service,
+    ): JsonResponse {
+        $user = $this->appUser();
+        if (!$user) {
+            return $this->json(['easy' => [], 'popular' => []]);
+        }
+
+        $players = $request->query->getInt('players') ?: null;
+        $maxTime = $request->query->getInt('maxTime') ?: null;
+        $result  = $service->recommendTonight($user, $players, $maxTime);
+
+        $serialize = fn(array $list) => array_map(fn($r) => ['game' => $r['game'], 'reason' => $r['reason']], $list);
+
+        return $this->json(['easy' => $serialize($result['easy']), 'popular' => $serialize($result['popular'])]);
+    }
+
     #[Route('/api/games/forgotten', name: 'api_games_forgotten', methods: ['GET'])]
     public function forgotten(
         RecommendationService $service,

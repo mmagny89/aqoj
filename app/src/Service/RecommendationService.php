@@ -23,6 +23,12 @@ class RecommendationService
     /** Complexité BGG (1-5) au-delà de laquelle un jeu n'est plus proposé à quelqu'un dont on ignore les goûts. */
     private const COLD_START_MAX_COMPLEXITY = 3.0;
 
+    /** Complexité BGG (1-5) au plus : un jeu qu'on explique en cinq minutes autour d'une table. */
+    private const EASY_MAX_COMPLEXITY = 2.5;
+
+    /** Un jeu n'est « joué par les autres membres » qu'à partir de ce nombre de joueurs distincts : jamais le choix d'une seule personne. */
+    private const POPULAR_MIN_PLAYERS = 2;
+
     public function __construct(
         private readonly GameRepository $gameRepository,
         private readonly GameSessionRepository $sessionRepository,
@@ -295,6 +301,117 @@ class RecommendationService
         $families = $raw === false ? [] : json_decode((string) $raw, true);
 
         return is_array($families) ? array_values(array_filter($families, 'is_string')) : [];
+    }
+
+    /**
+     * Idées pour la table du soir (nombre de joueurs et durée choisis sur l'accueil).
+     *
+     *   - `easy`    : jeux de base abordables du catalogue, nouveautés favorisées
+     *   - `popular` : ce que les autres membres ont joué dans l'année (au moins deux joueurs distincts)
+     *
+     * @return array{easy: array, popular: array}
+     */
+    public function recommendTonight(User $user, ?int $players, ?int $maxTime): array
+    {
+        $currentYear = (int) date('Y');
+        $excludeIds  = $this->getDislikedGameIds($user);
+
+        $pool = [];
+        foreach ([
+            ['limit' => 60, 'minYear' => null, 'minVotes' => 300],
+            ['limit' => 40, 'minYear' => $this->recentFromYear($currentYear), 'minVotes' => self::RECENT_MIN_VOTES],
+        ] as $lot) {
+            $games = $this->gameRepository->findDiscoverForRecommendation(
+                $user, $players, $maxTime,
+                limit:         $lot['limit'],
+                minYear:       $lot['minYear'],
+                excludeIds:    $excludeIds,
+                baseGamesOnly: true,
+                maxComplexity: self::EASY_MAX_COMPLEXITY,
+                minVotes:      $lot['minVotes'],
+            );
+            foreach ($games as $game) {
+                $pool[$game->getId()] = $game;
+            }
+        }
+
+        $easy = array_map(function (Game $game) use ($currentYear): array {
+            $reason = 'Facile à aborder · ' . number_format((float) $game->getRatingBgg(), 1) . '/10 sur BGG';
+            if ($this->isRecent($game, $currentYear)) {
+                $reason = 'Nouveauté ' . $game->getYearPublished() . ' · ' . $reason;
+            }
+
+            return [
+                'game'   => $game,
+                'score'  => $this->qualityRating($game, $currentYear) * 5 + $this->recencyBonus($game, $currentYear),
+                'reason' => $reason,
+            ];
+        }, array_values($pool));
+        usort($easy, fn($a, $b) => $b['score'] <=> $a['score']);
+
+        return [
+            'easy'    => array_slice($easy, 0, 10),
+            'popular' => $this->popularAmongMembers($user, $players, $maxTime, $excludeIds),
+        ];
+    }
+
+    /**
+     * Jeux de base les plus joués par les autres membres sur douze mois. Seuls des totaux sortent :
+     * jamais qui a joué, et rien tant que deux joueurs distincts ne l'ont pas joué.
+     */
+    private function popularAmongMembers(User $user, ?int $players, ?int $maxTime, array $excludeIds): array
+    {
+        $conditions = [
+            'gs.user_id IS NOT NULL',
+            'gs.user_id <> ?',
+            "gs.played_at >= NOW() - INTERVAL '365 days'",
+            'g.is_expansion = false',
+        ];
+        $params = [$user->getId()];
+
+        if ($players !== null) {
+            $conditions[] = 'g.min_players <= ? AND g.max_players >= ?';
+            array_push($params, $players, $players);
+        }
+        if ($maxTime !== null) {
+            $conditions[] = '(g.playing_time <= ? OR g.playing_time = 0)';
+            $params[] = $maxTime;
+        }
+        if ($excludeIds !== []) {
+            $conditions[] = 'g.id NOT IN (' . implode(',', array_fill(0, count($excludeIds), '?')) . ')';
+            array_push($params, ...$excludeIds);
+        }
+        array_push($params, self::POPULAR_MIN_PLAYERS);
+
+        $rows = $this->conn->fetchAllAssociative(
+            'SELECT gs.game_id, COUNT(DISTINCT gs.user_id) AS players, COUNT(*) AS sessions
+             FROM game_session gs
+             JOIN game g ON g.id = gs.game_id
+             WHERE ' . implode(' AND ', $conditions) . '
+             GROUP BY gs.game_id
+             HAVING COUNT(DISTINCT gs.user_id) >= ?
+             ORDER BY players DESC, sessions DESC, gs.game_id
+             LIMIT 10',
+            $params
+        );
+        if ($rows === []) {
+            return [];
+        }
+
+        $games = [];
+        foreach ($this->gameRepository->findBy(['id' => array_column($rows, 'game_id')]) as $game) {
+            $games[$game->getId()] = $game;
+        }
+
+        $popular = [];
+        foreach ($rows as $row) {
+            $game = $games[(int) $row['game_id']] ?? null;
+            if ($game !== null) {
+                $popular[] = ['game' => $game, 'reason' => 'Joué par ' . $row['players'] . ' membres cette année'];
+            }
+        }
+
+        return $popular;
     }
 
     /** Récupère les 4 familles Engelstein les plus représentées dans les jeux aimés. */

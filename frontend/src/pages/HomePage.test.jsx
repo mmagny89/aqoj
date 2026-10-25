@@ -3,11 +3,11 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import HomePage from './HomePage'
-import { getForgottenGems, getHomeRecommendations, saveTaste } from '../api'
+import { getForgottenGems, getHomeRecommendations, getTonightRecommendations, saveTaste } from '../api'
 
 const auth = vi.hoisted(() => ({ user: null }))
 vi.mock('../context/AuthContext', () => ({ useAuth: () => ({ user: auth.user, loading: false }) }))
-vi.mock('../api', () => ({ getHomeRecommendations: vi.fn(), getForgottenGems: vi.fn(), saveTaste: vi.fn() }))
+vi.mock('../api', () => ({ getHomeRecommendations: vi.fn(), getForgottenGems: vi.fn(), getTonightRecommendations: vi.fn(), saveTaste: vi.fn() }))
 
 function Where() {
   const location = useLocation()
@@ -51,6 +51,7 @@ describe('HomePage', () => {
     beforeEach(() => {
       auth.user = { id: 1, email: 'a@example.test' }
       getForgottenGems.mockResolvedValue([])
+      getTonightRecommendations.mockResolvedValue({ easy: [], popular: [] })
     })
 
     it('propose des nouveautés accessibles et le questionnaire, sans parler de BGG', async () => {
@@ -89,6 +90,62 @@ describe('HomePage', () => {
 
       expect(screen.getByRole('button', { name: 'Coopération' })).toBeDisabled()
       expect(screen.getByRole('button', { name: 'Enchères' })).toBeEnabled()
+    })
+  })
+
+  describe('connecté : pour votre table', () => {
+    const jeu = (id, name) => ({ id, name, yearPublished: 2024, ratingBgg: 7.5, minPlayers: 2, maxPlayers: 4, playingTime: 30, complexity: 2 })
+    const reco = { families: ['cooperation'], recent: [], byDecade: {}, coldStart: false, declared: ['cooperation'] }
+
+    beforeEach(() => {
+      auth.user = { id: 1, email: 'a@example.test' }
+      getForgottenGems.mockResolvedValue([])
+      getHomeRecommendations.mockResolvedValue(reco)
+      getTonightRecommendations.mockResolvedValue({ easy: [], popular: [] })
+    })
+
+    it('affiche ce que jouent les autres membres et les jeux faciles pour la table choisie', async () => {
+      getTonightRecommendations.mockResolvedValue({
+        popular: [{ game: jeu(1, 'Jeu Partagé'), reason: 'Joué par 3 membres cette année' }],
+        easy: [{ game: jeu(2, 'Jeu Facile'), reason: 'Facile à aborder · 7.5/10 sur BGG' }],
+      })
+      render(<MemoryRouter><HomePage /></MemoryRouter>)
+
+      expect(await screen.findByRole('heading', { name: 'Pour votre table' })).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: 'Ce que jouent les autres membres' })).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: 'Faciles à expliquer' })).toBeInTheDocument()
+      expect(screen.getByText('Joué par 3 membres cette année')).toBeInTheDocument()
+      expect(getTonightRecommendations).toHaveBeenCalledWith({ players: 4, maxTime: 60 })
+    })
+
+    it('redemande les idées quand on change la table, et ne filtre plus la durée avec « Peu importe »', async () => {
+      getTonightRecommendations.mockResolvedValue({ popular: [], easy: [{ game: jeu(2, 'Jeu Facile'), reason: 'Facile à aborder' }] })
+      render(<MemoryRouter><HomePage /></MemoryRouter>)
+      await screen.findByRole('heading', { name: 'Pour votre table' })
+
+      await userEvent.click(screen.getByRole('button', { name: '2' }))
+      await userEvent.click(screen.getByRole('button', { name: 'Peu importe' }))
+
+      expect(getTonightRecommendations).toHaveBeenLastCalledWith({ players: 2, maxTime: null })
+      expect(await screen.findByText(/Pour 2 joueurs/)).toBeInTheDocument()
+    })
+
+    it('n’affiche un jeu qu’une fois, même s’il est à la fois récent et facile', async () => {
+      const partage = jeu(1, 'Jeu Doublon')
+      getHomeRecommendations.mockResolvedValue({ ...reco, recent: [{ game: partage, reason: 'Nouveauté' }] })
+      getTonightRecommendations.mockResolvedValue({ popular: [], easy: [{ game: partage, reason: 'Facile à aborder' }] })
+      render(<MemoryRouter><HomePage /></MemoryRouter>)
+
+      await screen.findByRole('heading', { name: 'Nouveautés pour vous' })
+      expect(screen.getAllByText('Jeu Doublon')).toHaveLength(1)
+      expect(screen.queryByRole('heading', { name: 'Pour votre table' })).not.toBeInTheDocument()
+    })
+
+    it('masque la section quand il n’y a rien à proposer', async () => {
+      render(<MemoryRouter><HomePage /></MemoryRouter>)
+
+      await screen.findByRole('heading', { name: 'Ce que vous aimez' })
+      expect(screen.queryByRole('heading', { name: 'Pour votre table' })).not.toBeInTheDocument()
     })
   })
 })

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { getForgottenGems, getHomeRecommendations, saveTaste } from '../api'
+import { getForgottenGems, getHomeRecommendations, getTonightRecommendations, saveTaste } from '../api'
 import GameCard from '../components/GameCard'
 import { DiceIcon, DownloadIcon, SearchIcon, ShelfIcon } from '../components/icons'
 import { ENGINES, familyLabel, familyColor, isEngine } from '../utils/engelstein'
@@ -15,10 +15,8 @@ const DURATIONS = [
 ]
 
 /* ── Bandeau « Qu'est-ce qu'on joue ce soir ? » ──────────────────────── */
-function Hero() {
+function Hero({ players, setPlayers, maxTime, setMaxTime }) {
   const navigate = useNavigate()
-  const [players, setPlayers] = useState(4)
-  const [maxTime, setMaxTime] = useState(60)
 
   const submit = (event) => {
     event.preventDefault()
@@ -91,6 +89,31 @@ function Carousel({ items, label }) {
       <button type="button" onClick={() => scroll(1)} aria-label={`${label} : suivants`}
         className="btn absolute -right-3 top-1/3 z-10 hidden !min-h-11 w-11 !px-0 bg-paper shadow-token-sm lg:flex">›</button>
     </div>
+  )
+}
+
+/* ── Pour la table du soir ───────────────────────────────────────────── */
+function TonightSection({ tonight, players, maxTime }) {
+  const durationLabel = DURATIONS.find(d => d.value === maxTime)?.label
+  const table = `${players === 5 ? '5 joueurs et plus' : `${players} joueur${players > 1 ? 's' : ''}`}${maxTime < 240 ? `, ${durationLabel}` : ''}`
+
+  return (
+    <section aria-labelledby="titre-table" className="flex flex-col gap-6">
+      <SectionTitle id="titre-table">Pour votre table</SectionTitle>
+      <p className="-mt-3 text-stone-600">Pour {table} : changez la table dans le bandeau ci-dessus.</p>
+      {tonight.popular.length > 0 && (
+        <div>
+          <h3 className="mb-3 text-xl sm:text-2xl">Ce que jouent les autres membres</h3>
+          <Carousel items={tonight.popular} label="Ce que jouent les autres membres" />
+        </div>
+      )}
+      {tonight.easy.length > 0 && (
+        <div>
+          <h3 className="mb-3 text-xl sm:text-2xl">Faciles à expliquer</h3>
+          <Carousel items={tonight.easy} label="Faciles à expliquer" />
+        </div>
+      )}
+    </section>
   )
 }
 
@@ -191,6 +214,11 @@ export default function HomePage() {
   const [recoError, setRecoError]     = useState(null)
   const [reloadKey, setReloadKey]     = useState(0)
 
+  // La table choisie dans le bandeau pilote les idées « pour votre table » ; « Peu importe » (4 h) ne filtre pas la durée.
+  const [players, setPlayers] = useState(4)
+  const [maxTime, setMaxTime] = useState(60)
+  const [tonight, setTonight] = useState({ easy: [], popular: [] })
+
   useEffect(() => {
     if (authLoading || !user) return
 
@@ -203,7 +231,23 @@ export default function HomePage() {
     getForgottenGems().then(setForgotten).catch(() => setForgotten([]))
   }, [user, authLoading, reloadKey])
 
-  const hasRecent    = reco?.recent?.length > 0
+  useEffect(() => {
+    if (authLoading || !user) return
+    let current = true
+    getTonightRecommendations({ players, maxTime: maxTime >= 240 ? null : maxTime })
+      .then(data => { if (current) setTonight(data) })
+      .catch(() => { if (current) setTonight({ easy: [], popular: [] }) })
+    return () => { current = false }
+  }, [user, authLoading, players, maxTime])
+
+  // Un même jeu ne s'affiche qu'une fois : ce que jouent les membres d'abord, les nouveautés avant les « faciles ».
+  const shown      = new Set(tonight.popular.map(({ game }) => game.id))
+  const recentList = (reco?.recent ?? []).filter(({ game }) => !shown.has(game.id))
+  recentList.forEach(({ game }) => shown.add(game.id))
+  const tonightShown = { popular: tonight.popular, easy: tonight.easy.filter(({ game }) => !shown.has(game.id)) }
+
+  const hasTonight   = tonightShown.easy.length > 0 || tonightShown.popular.length > 0
+  const hasRecent    = recentList.length > 0
   const hasDecades   = reco?.byDecade && Object.keys(reco.byDecade).length > 0
   const hasForgotten = forgotten.length > 0
   const coldStart    = reco?.coldStart === true
@@ -211,7 +255,9 @@ export default function HomePage() {
 
   return (
     <div className="mx-auto flex max-w-7xl flex-col gap-10 px-4 py-6 sm:px-6 lg:px-10 lg:py-8">
-      <Hero />
+      <Hero players={players} setPlayers={setPlayers} maxTime={maxTime} setMaxTime={setMaxTime} />
+
+      {!authLoading && user && hasTonight && <TonightSection tonight={tonightShown} players={players} maxTime={maxTime} />}
 
       {/* ── Non connecté ───────────────────────────────────────────── */}
       {!authLoading && !user && (
@@ -266,7 +312,7 @@ export default function HomePage() {
                   ))}
                 </div>
               )}
-              <Carousel items={reco.recent} label={coldStart ? 'Nouveautés à découvrir' : 'Nouveautés pour vous'} />
+              <Carousel items={recentList} label={coldStart ? 'Nouveautés à découvrir' : 'Nouveautés pour vous'} />
             </section>
           )}
 

@@ -98,6 +98,59 @@ final class HomeRecommendationTest extends ApiTestCase
         self::assertStringStartsWith('Nouveauté ' . ($annee - 1), $nouveau['reason']);
     }
 
+    public function testLaTableDuSoirProposeJeuxFacilesQuiLuiConviennent(): void
+    {
+        $client = static::createClient();
+        $token = $this->register($client, 'table@example.test');
+        $annee = (int) date('Y');
+        $this->creerJeu('Zztab Facile', $annee - 2, 1.8, 7.6, 5000);
+        $this->creerJeu('Zztab Expert', $annee - 2, 3.8, 8.6, 5000);
+        $this->creerJeu('Zztab Extension', $annee - 2, 1.8, 8.6, 5000, extension: true);
+        $this->creerJeu('Zztab Duo', $annee - 2, 1.8, 8.0, 5000, joueursMax: 2);
+
+        $table = $this->call($client, 'GET', '/api/games/home-tonight?players=4&maxTime=60', token: $token);
+
+        self::assertResponseIsSuccessful();
+        self::assertSame(['Zztab Facile'], array_column(array_column($table['easy'], 'game'), 'name'));
+        self::assertStringContainsString('Facile à aborder', $table['easy'][0]['reason']);
+    }
+
+    public function testLesJeuxDesAutresMembresNeSortentQuAPartirDeDeuxJoueurs(): void
+    {
+        $client = static::createClient();
+        $moi = $this->register($client, 'moi@example.test');
+        $this->register($client, 'autre1@example.test');
+        $this->register($client, 'autre2@example.test');
+        $annee = (int) date('Y');
+        $this->creerJeu('Zzpop Partage', $annee - 3, 2.0, 7.0, 500);
+        $this->creerJeu('Zzpop Solitaire', $annee - 3, 2.0, 7.0, 500);
+        $this->creerJeu('Zzpop Le Mien', $annee - 3, 2.0, 7.0, 500);
+
+        // Deux autres membres ont joué « Partage » ; un seul a joué « Solitaire » ; seul moi ai joué « Le Mien ».
+        $this->partie('Zzpop Partage', 'autre1@example.test');
+        $this->partie('Zzpop Partage', 'autre2@example.test');
+        $this->partie('Zzpop Solitaire', 'autre1@example.test');
+        $this->partie('Zzpop Solitaire', 'autre1@example.test');
+        $this->partie('Zzpop Le Mien', 'moi@example.test');
+        $this->partie('Zzpop Le Mien', 'autre1@example.test');
+
+        $table = $this->call($client, 'GET', '/api/games/home-tonight', token: $moi);
+
+        self::assertSame(['Zzpop Partage'], array_column(array_column($table['popular'], 'game'), 'name'));
+        self::assertSame('Joué par 2 membres cette année', $table['popular'][0]['reason']);
+        self::assertArrayNotHasKey('players', $table['popular'][0]);
+    }
+
+    public function testLaTableDuSoirExigeUneSessionSansRienReveler(): void
+    {
+        $client = static::createClient();
+
+        $table = $this->call($client, 'GET', '/api/games/home-tonight');
+
+        self::assertResponseIsSuccessful();
+        self::assertSame(['easy' => [], 'popular' => []], $table);
+    }
+
     public function testLeRecalculDesPreferencesGardeLesGoutsDeclares(): void
     {
         $client = static::createClient();
@@ -136,16 +189,26 @@ final class HomeRecommendationTest extends ApiTestCase
     }
 
     /** @param string[] $familles */
-    private function creerJeu(string $nom, int $annee, float $complexite, float $note, int $votes, array $familles = [], bool $extension = false): void
+    private function creerJeu(string $nom, int $annee, float $complexite, float $note, int $votes, array $familles = [], bool $extension = false, int $joueursMax = 4): void
     {
         static::getContainer()->get(Connection::class)->executeStatement(
             "INSERT INTO game (bgg_id, name, min_players, max_players, playing_time, complexity, categories, mechanics,
                                year_published, rating_bgg, users_rated, is_expansion, mechanic_families, created_at)
-             VALUES (?, ?, 2, 4, 45, ?, '[]', '[\"Dice Rolling\"]', ?, ?, ?, ?, ?, NOW())",
+             VALUES (?, ?, 2, ?, 45, ?, '[]', '[\"Dice Rolling\"]', ?, ?, ?, ?, ?, NOW())",
             [
-                'zz' . md5($nom), $nom, $complexite, $annee, $note, $votes,
+                'zz' . md5($nom), $nom, $joueursMax, $complexite, $annee, $note, $votes,
                 $extension ? 't' : 'f', json_encode($familles),
             ],
+        );
+    }
+
+    private function partie(string $jeu, string $email): void
+    {
+        $conn = static::getContainer()->get(Connection::class);
+        $conn->executeStatement(
+            'INSERT INTO game_session (game_id, players_count, played_at, user_id)
+             VALUES ((SELECT id FROM game WHERE bgg_id = ?), 3, NOW() - INTERVAL \'10 days\', (SELECT id FROM app_user WHERE email = ?))',
+            ['zz' . md5($jeu), $email],
         );
     }
 }
