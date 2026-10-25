@@ -612,9 +612,15 @@ class GameRepository extends ServiceEntityRepository
             'g.is_expansion = false',
             'g.rating_bgg IS NOT NULL',
             'g.rating_bgg >= 5.5',
+            // Une fiche à dix votes affiche volontiers 10/10 : on ne propose pas un jeu qu'à peine quelqu'un a noté.
+            'g.users_rated >= 100',
             'g.mechanics::text != \'[]\'',
         ];
         $params = [];
+        $orderParams = [];
+        // Les jeux qui partagent le plus de familles passent d'abord (puis la note) : classés par la seule note,
+        // le lot se remplissait de grands classiques à peine apparentés.
+        $shared = '0';
 
         if (!empty($families)) {
             $jsonClauses = array_map(fn($k) => 'g.mechanic_families::jsonb @> ?::jsonb', $families);
@@ -622,14 +628,16 @@ class GameRepository extends ServiceEntityRepository
             foreach ($families as $key) {
                 $params[] = json_encode([$key]);
             }
+            $placeholders = implode(',', array_fill(0, count($families), '?'));
+            $shared       = "(SELECT COUNT(*) FROM jsonb_array_elements_text(g.mechanic_families::jsonb) fam WHERE fam IN ({$placeholders}))";
+            $orderParams  = array_values($families);
         }
 
-        $params[] = $limit;
         $where = implode(' AND ', $conditions);
 
         $ids = $conn->fetchFirstColumn(
-            "SELECT g.id FROM game g WHERE {$where} ORDER BY g.rating_bgg DESC NULLS LAST LIMIT ?",
-            $params
+            "SELECT g.id FROM game g WHERE {$where} ORDER BY {$shared} DESC, g.rating_bgg DESC NULLS LAST LIMIT ?",
+            [...$params, ...$orderParams, $limit]
         );
 
         if (empty($ids)) {

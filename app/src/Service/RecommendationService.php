@@ -556,64 +556,70 @@ class RecommendationService
     }
 
     /**
-     * Calcule un score de similarité entre deux jeux (0-100).
+     * Ressemblance de deux jeux, de 0 à 100.
      *
-     * Pondération :
-     *   mécaniques Engelstein  40 %
-     *   catégories BGG          20 %
-     *   plage de joueurs        15 %
-     *   complexité              15 %
-     *   âge minimum             10 %
+     * Pondération (une mesure sans donnée des deux côtés est écartée et les autres sont rééchelonnées,
+     * au lieu de valoir un « neutre » qui gonflait le score des fiches pauvres) :
+     *   familles de mécaniques   30 %  Jaccard pondéré : un moteur Engelstein compte triple
+     *   mécaniques BGG brutes    15 %  Jaccard
+     *   catégories BGG           20 %  Jaccard
+     *   complexité               15 %  écart de 2,5 points = rien en commun
+     *   joueurs                  10 %  recouvrement des plages
+     *   durée                    10 %  rapport entre les deux durées
      */
     public function computeSimilarity(Game $ref, Game $candidate): int
     {
-        // ── 1. Mécaniques Engelstein (40 %) ──────────────────────────────
-        $refFamilies = $ref->getMechanicFamilies();
-        $canFamilies = $candidate->getMechanicFamilies();
-        $union        = array_unique(array_merge($refFamilies, $canFamilies));
-        $mechScore    = count($union) > 0
-            ? count(array_intersect($refFamilies, $canFamilies)) / count($union)
-            : 0.0;
+        $parts = [];
 
-        // ── 2. Catégories BGG (thèmes + types) (20 %) ───────────────────
-        $refCats = $ref->getCategories();
-        $canCats = $candidate->getCategories();
-        $catUnion = array_unique(array_merge($refCats, $canCats));
-        $catScore = count($catUnion) > 0
-            ? count(array_intersect($refCats, $canCats)) / count($catUnion)
-            : 0.0;
+        $engines = array_unique([...$ref->getDetectedEngines(), ...$candidate->getDetectedEngines()]);
+        $weight  = fn(string $family): int => in_array($family, $engines, true) ? 3 : 1;
+        $parts[] = [30, $this->weightedJaccard($ref->getMechanicFamilies(), $candidate->getMechanicFamilies(), $weight)];
+        $parts[] = [15, $this->weightedJaccard($ref->getMechanics(), $candidate->getMechanics(), fn() => 1)];
+        $parts[] = [20, $this->weightedJaccard($ref->getCategories(), $candidate->getCategories(), fn() => 1)];
 
-        // ── 3. Plage de joueurs (15 %) ────────────────────────────────────
-        // Recouvrement des intervalles [min, max]
-        $overlapMin = max($ref->getMinPlayers(),  $candidate->getMinPlayers());
-        $overlapMax = min($ref->getMaxPlayers(),  $candidate->getMaxPlayers());
-        $unionMin   = min($ref->getMinPlayers(),  $candidate->getMinPlayers());
-        $unionMax   = max($ref->getMaxPlayers(),  $candidate->getMaxPlayers());
-        $playerScore = ($unionMax - $unionMin) > 0 && $overlapMax >= $overlapMin
-            ? ($overlapMax - $overlapMin + 1) / ($unionMax - $unionMin + 1)
-            : ($overlapMax >= $overlapMin ? 1.0 : 0.0);
+        $refComp = $ref->getComplexity();
+        $canComp = $candidate->getComplexity();
+        $parts[] = [15, ($refComp > 0 && $canComp > 0) ? max(0.0, 1.0 - abs($refComp - $canComp) / 2.5) : null];
 
-        // ── 4. Complexité (15 %) ─────────────────────────────────────────
-        $refComp  = $ref->getComplexity();
-        $canComp  = $candidate->getComplexity();
-        $complexScore = ($refComp > 0 && $canComp > 0)
-            ? max(0.0, 1.0 - abs($refComp - $canComp) / 4.0)   // échelle 1-5
-            : 0.5; // inconnue → neutre
+        $overlapMin = max($ref->getMinPlayers(), $candidate->getMinPlayers());
+        $overlapMax = min($ref->getMaxPlayers(), $candidate->getMaxPlayers());
+        $unionMin   = min($ref->getMinPlayers(), $candidate->getMinPlayers());
+        $unionMax   = max($ref->getMaxPlayers(), $candidate->getMaxPlayers());
+        $parts[] = [10, $overlapMax >= $overlapMin ? ($overlapMax - $overlapMin + 1) / ($unionMax - $unionMin + 1) : 0.0];
 
-        // ── 5. Âge minimum (10 %) ────────────────────────────────────────
-        $refAge  = $ref->getMinAge();
-        $canAge  = $candidate->getMinAge();
-        $ageScore = ($refAge !== null && $canAge !== null)
-            ? max(0.0, 1.0 - abs($refAge - $canAge) / 10.0)
-            : 0.5;
+        $refTime = $ref->getPlayingTime();
+        $canTime = $candidate->getPlayingTime();
+        $parts[] = [10, ($refTime > 0 && $canTime > 0) ? min($refTime, $canTime) / max($refTime, $canTime) : null];
 
-        $total = $mechScore * 0.40
-               + $catScore  * 0.20
-               + $playerScore * 0.15
-               + $complexScore * 0.15
-               + $ageScore  * 0.10;
+        $weights = 0;
+        $total   = 0.0;
+        foreach ($parts as [$w, $score]) {
+            if ($score !== null) {
+                $weights += $w;
+                $total   += $w * $score;
+            }
+        }
 
-        return (int) round($total * 100);
+        return $weights > 0 ? (int) round($total / $weights * 100) : 0;
+    }
+
+    /**
+     * Jaccard où chaque élément pèse `$weight(élément)`. Null quand les deux listes sont vides :
+     * aucune information n'est une absence de mesure, pas une ressemblance nulle.
+     *
+     * @param list<string>          $a
+     * @param list<string>          $b
+     * @param callable(string): int $weight
+     */
+    private function weightedJaccard(array $a, array $b, callable $weight): ?float
+    {
+        $union = array_unique([...$a, ...$b]);
+        if ($union === []) {
+            return null;
+        }
+        $common = array_intersect($a, $b);
+
+        return array_sum(array_map($weight, $common)) / array_sum(array_map($weight, $union));
     }
 
     /**
@@ -624,7 +630,7 @@ class RecommendationService
      */
     public function findSimilar(Game $ref, int $limit = 5): array
     {
-        $candidates = $this->gameRepository->findSimilarCandidates($ref, $limit * 6);
+        $candidates = $this->gameRepository->findSimilarCandidates($ref, max(120, $limit * 12));
 
         $scored = array_map(function (Game $candidate) use ($ref): array {
             $sim    = $this->computeSimilarity($ref, $candidate);
@@ -638,6 +644,8 @@ class RecommendationService
             return ['game' => $candidate, 'similarity' => $sim, 'reason' => $reason, '_score' => $score];
         }, $candidates);
 
+        // En dessous de 25 %, ce n'est plus « similaire » : mieux vaut en montrer moins.
+        $scored = array_filter($scored, fn($r) => $r['similarity'] >= 25);
         usort($scored, fn($a, $b) => $b['_score'] <=> $a['_score']);
 
         return array_slice(
@@ -648,23 +656,23 @@ class RecommendationService
 
     private function buildSimilarReason(Game $ref, Game $candidate, int $sim): string
     {
-        $sharedFamilies = array_intersect($ref->getMechanicFamilies(), $candidate->getMechanicFamilies());
-        $sharedCats     = array_intersect($ref->getCategories(), $candidate->getCategories());
+        // Ce qu'ils ont concrètement en commun : mécaniques BGG d'abord, sinon catégories.
+        $shared = array_values(array_intersect($ref->getMechanics(), $candidate->getMechanics()));
+        if ($shared === []) {
+            $shared = array_values(array_intersect($ref->getCategories(), $candidate->getCategories()));
+        }
 
         $parts = [];
-        if (!empty($sharedFamilies)) {
-            $labels = array_map(fn($f) => $f, array_slice(array_values($sharedFamilies), 0, 2));
-            $parts[] = 'mécaniques similaires';
+        if ($shared !== []) {
+            $parts[] = 'en commun : ' . implode(', ', array_slice($shared, 0, 2));
         }
-        if (!empty($sharedCats)) {
-            $parts[] = 'même univers';
-        }
-        if ($candidate->getRatingBgg() !== null && $candidate->getRatingBgg() >= 7.5) {
+        if ($candidate->getRatingBgg() !== null && $candidate->getRatingBgg() >= 7.5 && ($candidate->getUsersRated() ?? 0) >= 100) {
             $parts[] = number_format($candidate->getRatingBgg(), 1) . '/10 BGG';
         }
 
-        $prefix = $sim >= 80 ? 'Très proche' : ($sim >= 60 ? 'Proche' : 'Dans le même style');
-        return $prefix . ($parts ? ' · ' . implode(', ', $parts) : '');
+        $prefix = $sim >= 75 ? 'Très proche' : ($sim >= 55 ? 'Proche' : 'Dans le même style');
+
+        return $prefix . ($parts ? ' · ' . implode(' · ', $parts) : '');
     }
 
     private function recentFromYear(int $currentYear): int
