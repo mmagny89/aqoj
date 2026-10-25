@@ -230,7 +230,7 @@ class RecommendationService
                 continue;
             }
 
-            $scored = array_slice($this->scoreGames($games, $topFamilies, recentBoost: false), 0, 5);
+            $scored = $this->pickRandom($this->scoreGames($games, $topFamilies, recentBoost: false), 15, 5);
             if (!empty($scored)) {
                 $byDecade[$label] = $scored;
             }
@@ -243,6 +243,22 @@ class RecommendationService
             'coldStart' => false,
             'declared'  => $declared,
         ];
+    }
+
+    /**
+     * Tire `$count` éléments au hasard parmi les `$pool` premiers d'une liste déjà classée : la page d'accueil
+     * propose d'autres jeux à chaque chargement sans descendre dans les mal classés.
+     *
+     * @template T
+     * @param list<T> $ranked
+     * @return list<T>
+     */
+    private function pickRandom(array $ranked, int $pool, int $count): array
+    {
+        $candidates = array_slice(array_values($ranked), 0, $pool);
+        shuffle($candidates);
+
+        return array_slice($candidates, 0, $count);
     }
 
     /**
@@ -332,7 +348,7 @@ class RecommendationService
         usort($easy, fn($a, $b) => $b['score'] <=> $a['score']);
 
         return [
-            'easy'    => array_slice($easy, 0, 10),
+            'easy'    => $this->pickRandom($easy, 30, 10),
             'popular' => $this->popularAmongMembers($user, $players, $maxTime, $excludeIds, $library),
         ];
     }
@@ -376,7 +392,7 @@ class RecommendationService
              GROUP BY gs.game_id
              HAVING COUNT(DISTINCT gs.user_id) >= ?
              ORDER BY players DESC, sessions DESC, gs.game_id
-             LIMIT 10',
+             LIMIT 20',
             $params
         );
         if ($rows === []) {
@@ -396,7 +412,7 @@ class RecommendationService
             }
         }
 
-        return $popular;
+        return $this->pickRandom($popular, 20, 10);
     }
 
     /** Les 4 familles Engelstein du profil : goûts déclarés d'abord, puis celles des jeux aimés. */
@@ -752,7 +768,7 @@ class RecommendationService
             ($b['game']->getRatingBgg() ?? 0) <=> ($a['game']->getRatingBgg() ?? 0)
         );
 
-        return array_slice($gems, 0, 10);
+        return $this->pickRandom($gems, 30, 10);
     }
 
     private function computeScore(Game $game, ?array $stats, ?float $bggUserRating, ?int $maxTime, \DateTimeImmutable $now): float
