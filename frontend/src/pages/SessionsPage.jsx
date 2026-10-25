@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import { getSessions, createSession, getGames } from '../api'
+import { getSessions, createSession } from '../api'
+import GamePicker from '../components/GamePicker'
 
 const RATINGS = [
   { value: 5, label: 'Aimé', style: 'bg-brand-green text-paper' },
@@ -10,11 +11,10 @@ const field = 'min-h-12 w-full rounded-xl border-[3px] border-ink bg-paper px-3 
 
 export default function SessionsPage() {
   const [sessions, setSessions] = useState([])
-  const [games, setGames] = useState([])
   const [showForm, setShowForm] = useState(false)
   const [loading, setLoading] = useState(true)
   const [form, setForm] = useState({
-    gameId: '',
+    game: null,
     playersCount: 4,
     rating: null,
     note: '',
@@ -24,23 +24,20 @@ export default function SessionsPage() {
   const [error, setError] = useState(null)
 
   useEffect(() => {
-    Promise.all([getSessions(), getGames()])
-      .then(([s, g]) => {
-        setSessions(s)
-        setGames(g)
-      })
+    getSessions()
+      .then(setSessions)
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!form.gameId) return
+    if (!form.game) return
     setSubmitting(true)
     setError(null)
     try {
       const session = await createSession({
-        gameId: Number(form.gameId),
+        gameId: form.game.id,
         playersCount: Number(form.playersCount),
         rating: form.rating,
         note: form.note || null,
@@ -48,7 +45,7 @@ export default function SessionsPage() {
       })
       setSessions((prev) => [session, ...prev])
       setShowForm(false)
-      setForm({ gameId: '', playersCount: 4, rating: null, note: '', context: '' })
+      setForm({ game: null, playersCount: 4, rating: null, note: '', context: '' })
     } catch (err) {
       setError(err.message)
     } finally {
@@ -79,21 +76,7 @@ export default function SessionsPage() {
         <section aria-labelledby="titre-form" className="panel p-5 sm:p-6">
           <h2 id="titre-form" className="mb-4 text-2xl">Enregistrer une partie</h2>
           <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-            <div>
-              <label htmlFor="partie-jeu" className="mb-1 block font-bold">Jeu joué</label>
-              <select
-                id="partie-jeu"
-                value={form.gameId}
-                onChange={(e) => setForm((f) => ({ ...f, gameId: e.target.value }))}
-                required
-                className={field}
-              >
-                <option value="">Choisir un jeu…</option>
-                {games.map((g) => (
-                  <option key={g.id} value={g.id}>{g.name}</option>
-                ))}
-              </select>
-            </div>
+            <GamePicker value={form.game} onChange={(game) => setForm((f) => ({ ...f, game }))} />
 
             <fieldset className="m-0 border-0 p-0">
               <legend className="mb-2 font-bold">Joueurs</legend>
@@ -149,7 +132,7 @@ export default function SessionsPage() {
             {error && <p role="alert" className="rounded-xl border-[3px] border-brand-red bg-amber-100 p-3 font-bold">{error}</p>}
 
             <div className="flex flex-wrap gap-3">
-              <button type="submit" disabled={submitting || !form.gameId} className="btn btn-primary flex-1 sm:flex-none sm:px-8">
+              <button type="submit" disabled={submitting || !form.game} className="btn btn-primary flex-1 sm:flex-none sm:px-8">
                 {submitting ? 'Enregistrement…' : 'Enregistrer'}
               </button>
               <button type="button" onClick={() => setShowForm(false)} className="btn bg-paper">
