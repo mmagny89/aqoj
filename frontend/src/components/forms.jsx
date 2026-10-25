@@ -17,6 +17,16 @@ export function Field({ label, hint, className = '', ...props }) {
   )
 }
 
+export function SelectField({ label, className = '', children, ...props }) {
+  const id = useId()
+  return (
+    <div className={className}>
+      <label htmlFor={id} className="mb-1 block font-bold">{label}</label>
+      <select id={id} className={inputClass} {...props}>{children}</select>
+    </div>
+  )
+}
+
 export function ErrorMessage({ children }) {
   if (!children) return null
   return (
