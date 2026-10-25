@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { getForgottenGems, getHomeRecommendations, getTonightRecommendations, saveTable } from '../api'
 import GameCard from '../components/GameCard'
@@ -31,17 +31,11 @@ function FilterRow({ id, label, children }) {
 
 /* ── Bandeau « Qu'est-ce qu'on joue ce soir ? » ──────────────────────── */
 function Hero({ table, onTableChange, saved, scopeSwitch }) {
-  const navigate = useNavigate()
   const { players, maxTime } = table
-
-  const submit = (event) => {
-    event.preventDefault()
-    navigate(`/recommander?joueurs=${players}&duree=${maxTime}`)
-  }
 
   return (
     <section aria-labelledby="titre-hero" className="panel px-4 py-4 sm:px-6 sm:py-5">
-      <form onSubmit={submit} className="flex min-w-0 flex-col gap-2.5">
+      <div className="flex min-w-0 flex-col gap-2.5">
         <h1 id="titre-hero" className="text-2xl leading-tight sm:text-3xl">Qu'est-ce qu'on joue ce soir&nbsp;?</h1>
 
         <FilterRow id="filtre-joueurs" label="Joueurs">
@@ -62,17 +56,11 @@ function Hero({ table, onTableChange, saved, scopeSwitch }) {
 
         {scopeSwitch}
 
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pt-1">
-          <button type="submit" className="btn btn-primary px-6">Trouver un jeu</button>
-          <Link to="/rechercher" className="inline-flex min-h-11 items-center gap-2 font-bold text-brand-blue underline underline-offset-4">
-            <SearchIcon width={18} height={18} /> Chercher par nom
-          </Link>
-          <p role="status" className="m-0 text-sm text-stone-600 empty:hidden">
-            {saved === 'ok' && 'Table enregistrée.'}
-            {saved === 'error' && 'Impossible d’enregistrer la table pour l’instant.'}
-          </p>
-        </div>
-      </form>
+        <p role="status" className="m-0 text-sm text-stone-600 empty:hidden">
+          {saved === 'ok' && 'Table enregistrée.'}
+          {saved === 'error' && 'Impossible d’enregistrer la table pour l’instant.'}
+        </p>
+      </div>
     </section>
   )
 }
