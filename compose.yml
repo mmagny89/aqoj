@@ -34,6 +34,9 @@ services:
       SYMFONY_TRUSTED_PROXIES: ${SYMFONY_TRUSTED_PROXIES?SYMFONY_TRUSTED_PROXIES non declaree — vide en dev, private_ranges derriere un proxy}
       API_PREFIX: ${API_PREFIX}
       ALERT_EMAIL: ${ALERT_EMAIL:?ALERT_EMAIL manquante — destinataire des alertes d'echec de tache planifiee}
+      # 1 : l'inscription exige un code d'invitation (staging et production) ; 0 : elle reste libre (dev).
+      # La valeur vide est refusee : un oubli ne doit jamais ouvrir l'inscription en silence.
+      REGISTRATION_REQUIRES_CODE: ${REGISTRATION_REQUIRES_CODE:?REGISTRATION_REQUIRES_CODE manquante — 1 pour reserver l'inscription aux invites, 0 pour la laisser libre}
     volumes:
       - aqoj-caddy-data:/data
       - aqoj-caddy-config:/config

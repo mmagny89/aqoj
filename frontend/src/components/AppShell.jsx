@@ -58,7 +58,10 @@ function Account({ user, onLogout }) {
         <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full border-[3px] border-ink bg-brand-red font-display text-xl" aria-hidden="true">{initial}</span>
         <span className="block min-w-0">
           <strong className="block truncate">{user.email}</strong>
-          {user.isAdmin && <span className="badge bg-brand-yellow">Admin</span>}
+          <span className="flex flex-wrap gap-1">
+            <span className={`badge ${user.role === 'vip' ? 'bg-brand-yellow' : 'bg-paper'}`}>{user.role === 'vip' ? 'VIP' : 'Membre'}</span>
+            {user.isAdmin && <span className="badge bg-brand-red">Admin</span>}
+          </span>
         </span>
       </Link>
       <button type="button" onClick={onLogout} className="mt-2 flex min-h-11 w-full items-center gap-2 rounded-lg px-2 text-sm font-bold text-stone-600 hover:bg-amber-200">

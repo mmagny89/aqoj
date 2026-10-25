@@ -7,8 +7,8 @@ import RegisterPage from './RegisterPage'
 
 const login = vi.fn()
 vi.mock('../context/AuthContext', () => ({ useAuth: () => ({ login }) }))
-vi.mock('../api', () => ({ login: vi.fn(), register: vi.fn() }))
-import { login as apiLogin, register as apiRegister } from '../api'
+vi.mock('../api', () => ({ login: vi.fn(), register: vi.fn(), getRegistrationConfig: vi.fn() }))
+import { getRegistrationConfig, login as apiLogin, register as apiRegister } from '../api'
 
 const renderRoutes = (url) => render(
   <MemoryRouter initialEntries={[url]}>
@@ -21,7 +21,10 @@ const renderRoutes = (url) => render(
 )
 
 describe('Connexion et inscription', () => {
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(() => {
+    vi.clearAllMocks()
+    getRegistrationConfig.mockResolvedValue({ requiresCode: false })
+  })
 
   it('connecte puis ramène à l’accueil', async () => {
     apiLogin.mockResolvedValue({ token: 't', user: { email: 'a@example.test' } })
@@ -44,6 +47,21 @@ describe('Connexion et inscription', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Se connecter' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Identifiants invalides.')
+  })
+
+  it('réclame le code d’invitation quand l’inscription l’exige et l’envoie', async () => {
+    getRegistrationConfig.mockResolvedValue({ requiresCode: true })
+    apiRegister.mockResolvedValue({ token: 't', user: { email: 'a@example.test' } })
+    renderRoutes('/inscription')
+
+    const champ = await screen.findByLabelText(/Code d'invitation/)
+    await userEvent.type(champ, 'ABCDE-FGHJK')
+    await userEvent.type(screen.getByLabelText('E-mail'), 'a@example.test')
+    await userEvent.type(screen.getByLabelText(/^Mot de passe/), 'mot-de-passe-solide')
+    await userEvent.type(screen.getByLabelText('Confirmer le mot de passe'), 'mot-de-passe-solide')
+    await userEvent.click(screen.getByRole('button', { name: 'Créer mon compte' }))
+
+    expect(apiRegister).toHaveBeenCalledWith('a@example.test', 'mot-de-passe-solide', 'ABCDE-FGHJK')
   })
 
   it('refuse une confirmation différente avant tout appel', async () => {

@@ -25,8 +25,11 @@ async function request(path, options = {}) {
 }
 
 // Auth
-export const register = (email, password) =>
-  request('/auth/register', { method: 'POST', body: JSON.stringify({ email, password }) })
+export const register = (email, password, code) =>
+  request('/auth/register', { method: 'POST', body: JSON.stringify({ email, password, ...(code ? { code } : {}) }) })
+
+// Dit si l'inscription réclame un code d'invitation
+export const getRegistrationConfig = () => request('/auth/registration')
 
 export const login = (email, password) =>
   request('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) })
@@ -124,6 +127,15 @@ export const getAdminJobs = (params) => request('/admin/jobs' + query(params))
 export const getAdminGameFilters = () => request('/admin/games/filters')
 export const getAdminGames = (params) => request('/admin/games' + query(params))
 export const getAdminGame = (bggId) => request(`/admin/games/${bggId}`)
+
+// Admin — comptes, rôles et codes d'invitation
+export const getAdminUsers = (params) => request('/admin/users' + query(params))
+export const updateUserRole = (id, role) =>
+  request(`/admin/users/${id}`, { method: 'PATCH', body: JSON.stringify({ role }) })
+export const getInvitations = () => request('/admin/invitations')
+export const createInvitation = (data) =>
+  request('/admin/invitations', { method: 'POST', body: JSON.stringify(data) })
+export const revokeInvitation = (id) => request(`/admin/invitations/${id}/revoke`, { method: 'POST' })
 
 // Theme mappings
 export const getThemeMappings = () => request('/theme-mappings')

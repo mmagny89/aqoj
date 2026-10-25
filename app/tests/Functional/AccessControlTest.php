@@ -19,6 +19,11 @@ final class AccessControlTest extends ApiTestCase
         yield 'explorateur (compteurs)' => ['GET', '/api/admin/games/filters'];
         yield 'explorateur (liste)' => ['GET', '/api/admin/games'];
         yield 'explorateur (fiche)' => ['GET', '/api/admin/games/13'];
+        yield 'invitations (liste)' => ['GET', '/api/admin/invitations'];
+        yield 'invitations (création)' => ['POST', '/api/admin/invitations'];
+        yield 'invitations (révocation)' => ['POST', '/api/admin/invitations/1/revoke'];
+        yield 'comptes (liste)' => ['GET', '/api/admin/users'];
+        yield 'comptes (rôle)' => ['PATCH', '/api/admin/users/1'];
     }
 
     #[DataProvider('routesAdmin')]
