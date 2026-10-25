@@ -47,7 +47,7 @@ final class MyLudoPlaysImportTest extends ApiTestCase
         self::assertSame(['imported' => 2, 'duplicates' => 0, 'left' => 1, 'excluded' => 1, 'invalid' => 0], $bilan);
         $sessions = $this->call($client, 'GET', '/api/sessions', token: $token);
         self::assertCount(2, $sessions);
-        $derniere = $sessions[0];
+        $derniere = array_values($sessions)[0];
         self::assertSame($gameId, $derniere['game']['id']);
         self::assertSame(2, $derniere['playersCount']);
         self::assertSame(5, $derniere['rating']);
