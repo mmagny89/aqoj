@@ -272,21 +272,6 @@ export default function RecommendationPage() {
               )}
             </div>
 
-            {/* Suggestions issues des préférences */}
-            {favoriteStyles.length > 0 && (
-              <div role="group" aria-labelledby="styles-favoris" className="rounded-xl border-2 border-ink bg-amber-100 px-3 py-2.5">
-                <div className="mb-1.5 flex items-baseline justify-between gap-2">
-                  <p id="styles-favoris" className="m-0 text-sm font-bold">Vos styles favoris</p>
-                  <span className="text-xs text-stone-600">{selectedFamilies.filter(k => favoriteStyles.includes(k)).length} / {favoriteStyles.length}</span>
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {favoriteStyles.map(key => (
-                    <Chip small key={key} active={selectedFamilies.includes(key)} onClick={() => toggle(key)} label={familyLabel(key)} />
-                  ))}
-                </div>
-              </div>
-            )}
-
             {/* Joueurs */}
             <FilterSection title="Nombre de joueurs">
               <div className="flex flex-wrap gap-2">
@@ -408,6 +393,20 @@ export default function RecommendationPage() {
 
           {/* ── Zone résultats ────────────────────────────────────────── */}
           <div className="flex-1 min-w-0">
+            {/* Styles favoris : au-dessus des résultats, sur une seule bande */}
+            {favoriteStyles.length > 0 && (
+              <div role="group" aria-labelledby="styles-favoris" className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                <p id="styles-favoris" className="m-0 text-sm font-bold">
+                  Vos styles favoris <span className="font-normal text-stone-600">({selectedFamilies.filter(k => favoriteStyles.includes(k)).length}/{favoriteStyles.length})</span>
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {favoriteStyles.map(key => (
+                    <Chip small key={key} active={selectedFamilies.includes(key)} onClick={() => toggle(key)} label={familyLabel(key)} />
+                  ))}
+                </div>
+              </div>
+            )}
+
             <ResultsPanel results={results} activeTab={activeTab} onTabChange={setActiveTab} />
           </div>
 
