@@ -151,6 +151,58 @@ final class HomeRecommendationTest extends ApiTestCase
         self::assertSame(['easy' => [], 'popular' => []], $table);
     }
 
+    public function testLaTableChoisieEstEnregistreeEtRenduePourLAccueil(): void
+    {
+        $client = static::createClient();
+        $token = $this->register($client, 'tablesave@example.test');
+
+        self::assertNull($this->call($client, 'GET', '/api/games/home-reco', token: $token)['table']);
+
+        $reponse = $this->call($client, 'PUT', '/api/user/table', ['players' => 6, 'maxTime' => 90], $token);
+        self::assertResponseIsSuccessful();
+        self::assertSame(['players' => 6, 'maxTime' => 90], $reponse['table']);
+
+        self::assertSame(['players' => 6, 'maxTime' => 90], $this->call($client, 'GET', '/api/games/home-reco', token: $token)['table']);
+        self::assertSame(['players' => 6, 'maxTime' => 90], $this->call($client, 'GET', '/api/user/preferences', token: $token)['table']);
+    }
+
+    public function testLaTableEnregistreeSurvitAuRecalculEtAuxGouts(): void
+    {
+        $client = static::createClient();
+        $token = $this->register($client, 'tablekeep@example.test');
+        $this->call($client, 'PUT', '/api/user/table', ['players' => 3, 'maxTime' => 30], $token);
+
+        $this->call($client, 'POST', '/api/user/preferences/recompute', token: $token);
+        $this->call($client, 'PUT', '/api/user/taste', ['families' => ['auction']], $token);
+
+        $prefs = $this->call($client, 'GET', '/api/user/preferences', token: $token);
+        self::assertSame(['players' => 3, 'maxTime' => 30], $prefs['table']);
+        self::assertSame(['auction'], $prefs['declaredFamilies']);
+    }
+
+    public function testLaTableRefuseLesValeursInvalides(): void
+    {
+        $client = static::createClient();
+        $token = $this->register($client, 'tablebad@example.test');
+
+        foreach ([
+            ['players' => 0, 'maxTime' => 60],
+            ['players' => 9, 'maxTime' => 60],
+            ['players' => '4', 'maxTime' => 60],
+            ['players' => 4, 'maxTime' => 10],
+            ['players' => 4, 'maxTime' => 250],
+            ['players' => 4, 'maxTime' => 50],
+            ['players' => 4],
+            [],
+        ] as $corps) {
+            $this->call($client, 'PUT', '/api/user/table', $corps, $token);
+            self::assertResponseStatusCodeSame(400);
+        }
+
+        $this->call($client, 'PUT', '/api/user/table', ['players' => 4, 'maxTime' => 60]);
+        self::assertResponseStatusCodeSame(401);
+    }
+
     public function testLeRecalculDesPreferencesGardeLesGoutsDeclares(): void
     {
         $client = static::createClient();

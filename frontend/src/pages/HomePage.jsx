@@ -1,22 +1,27 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { getForgottenGems, getHomeRecommendations, getTonightRecommendations, saveTaste } from '../api'
+import { getForgottenGems, getHomeRecommendations, getTonightRecommendations, saveTable, saveTaste } from '../api'
 import GameCard from '../components/GameCard'
 import { DiceIcon, DownloadIcon, SearchIcon, ShelfIcon } from '../components/icons'
 import { ENGINES, familyLabel, familyColor, isEngine } from '../utils/engelstein'
 
-const PLAYERS = [1, 2, 3, 4, 5]
+const PLAYERS = [1, 2, 3, 4, 5, 6, 7, 8]
 const DURATIONS = [
+  { label: '≤ 15 min', value: 15 },
   { label: '≤ 30 min', value: 30 },
   { label: '≤ 1 h', value: 60 },
+  { label: '≤ 1 h 30', value: 90 },
   { label: '≤ 2 h', value: 120 },
+  { label: '≤ 3 h', value: 180 },
   { label: 'Peu importe', value: 240 },
 ]
+const DEFAULT_TABLE = { players: 4, maxTime: 60 }
 
 /* ── Bandeau « Qu'est-ce qu'on joue ce soir ? » ──────────────────────── */
-function Hero({ players, setPlayers, maxTime, setMaxTime }) {
+function Hero({ table, onTableChange, saved }) {
   const navigate = useNavigate()
+  const { players, maxTime } = table
 
   const submit = (event) => {
     event.preventDefault()
@@ -34,8 +39,8 @@ function Hero({ players, setPlayers, maxTime, setMaxTime }) {
         <fieldset className="m-0 flex flex-wrap items-center gap-2 border-0 p-0">
           <legend className="mb-1 float-left w-full font-bold sm:float-none sm:mb-0 sm:w-24 sm:inline-block">Joueurs</legend>
           {PLAYERS.map(n => (
-            <button key={n} type="button" className="chip" aria-pressed={players === n} onClick={() => setPlayers(n)}>
-              {n === 5 ? '5 et +' : n}
+            <button key={n} type="button" className="chip" aria-pressed={players === n} onClick={() => onTableChange({ ...table, players: n })}>
+              {n}
             </button>
           ))}
         </fieldset>
@@ -43,7 +48,7 @@ function Hero({ players, setPlayers, maxTime, setMaxTime }) {
         <fieldset className="m-0 flex flex-wrap items-center gap-2 border-0 p-0">
           <legend className="mb-1 float-left w-full font-bold sm:float-none sm:mb-0 sm:w-24 sm:inline-block">Durée</legend>
           {DURATIONS.map(({ label, value }) => (
-            <button key={value} type="button" className="chip" aria-pressed={maxTime === value} onClick={() => setMaxTime(value)}>
+            <button key={value} type="button" className="chip" aria-pressed={maxTime === value} onClick={() => onTableChange({ ...table, maxTime: value })}>
               {label}
             </button>
           ))}
@@ -55,6 +60,10 @@ function Hero({ players, setPlayers, maxTime, setMaxTime }) {
             <SearchIcon width={20} height={20} /> Chercher par nom
           </Link>
         </div>
+        <p role="status" className="m-0 min-h-6 text-stone-600">
+          {saved === 'ok' && 'Table enregistrée : on la retrouvera à votre prochaine visite.'}
+          {saved === 'error' && 'Impossible d’enregistrer la table pour l’instant.'}
+        </p>
       </form>
       <img src="/edj-mascotte.png" alt="" width="250" height="278" className="hidden h-auto w-56 shrink-0 self-center object-contain lg:block xl:w-64" />
     </section>
@@ -95,7 +104,7 @@ function Carousel({ items, label }) {
 /* ── Pour la table du soir ───────────────────────────────────────────── */
 function TonightSection({ tonight, players, maxTime }) {
   const durationLabel = DURATIONS.find(d => d.value === maxTime)?.label
-  const table = `${players === 5 ? '5 joueurs et plus' : `${players} joueur${players > 1 ? 's' : ''}`}${maxTime < 240 ? `, ${durationLabel}` : ''}`
+  const table = `${players} joueur${players > 1 ? 's' : ''}${maxTime < 240 ? `, ${durationLabel}` : ''}`
 
   return (
     <section aria-labelledby="titre-table" className="flex flex-col gap-6">
@@ -214,10 +223,20 @@ export default function HomePage() {
   const [recoError, setRecoError]     = useState(null)
   const [reloadKey, setReloadKey]     = useState(0)
 
-  // La table choisie dans le bandeau pilote les idées « pour votre table » ; « Peu importe » (4 h) ne filtre pas la durée.
-  const [players, setPlayers] = useState(4)
-  const [maxTime, setMaxTime] = useState(60)
-  const [tonight, setTonight] = useState({ easy: [], popular: [] })
+  // La table du bandeau pilote les idées « pour votre table » ; « Peu importe » (4 h) ne filtre pas la durée.
+  // Elle est mémorisée sur le compte : les idées ne se chargent qu'une fois la table retrouvée.
+  const [table, setTable]           = useState(DEFAULT_TABLE)
+  const [tableReady, setTableReady] = useState(false)
+  const [tableSaved, setTableSaved] = useState(null)
+  const [tonight, setTonight]       = useState({ easy: [], popular: [] })
+  const { players, maxTime } = table
+
+  const changeTable = (next) => {
+    setTable(next)
+    setTableSaved(null)
+    if (!user) return
+    saveTable(next).then(() => setTableSaved('ok')).catch(() => setTableSaved('error'))
+  }
 
   useEffect(() => {
     if (authLoading || !user) return
@@ -225,20 +244,23 @@ export default function HomePage() {
     setRecoLoading(true)
     setRecoError(null)
     getHomeRecommendations()
-      .then(data => setReco(data))
+      .then(data => {
+        setReco(data)
+        if (data.table) setTable(data.table)
+      })
       .catch(err  => setRecoError(err.message))
-      .finally(() => setRecoLoading(false))
+      .finally(() => { setRecoLoading(false); setTableReady(true) })
     getForgottenGems().then(setForgotten).catch(() => setForgotten([]))
   }, [user, authLoading, reloadKey])
 
   useEffect(() => {
-    if (authLoading || !user) return
+    if (authLoading || !user || !tableReady) return
     let current = true
     getTonightRecommendations({ players, maxTime: maxTime >= 240 ? null : maxTime })
       .then(data => { if (current) setTonight(data) })
       .catch(() => { if (current) setTonight({ easy: [], popular: [] }) })
     return () => { current = false }
-  }, [user, authLoading, players, maxTime])
+  }, [user, authLoading, tableReady, players, maxTime])
 
   // Un même jeu ne s'affiche qu'une fois : ce que jouent les membres d'abord, les nouveautés avant les « faciles ».
   const shown      = new Set(tonight.popular.map(({ game }) => game.id))
@@ -255,7 +277,7 @@ export default function HomePage() {
 
   return (
     <div className="mx-auto flex max-w-7xl flex-col gap-10 px-4 py-6 sm:px-6 lg:px-10 lg:py-8">
-      <Hero players={players} setPlayers={setPlayers} maxTime={maxTime} setMaxTime={setMaxTime} />
+      <Hero table={table} onTableChange={changeTable} saved={tableSaved} />
 
       {!authLoading && user && hasTonight && <TonightSection tonight={tonightShown} players={players} maxTime={maxTime} />}
 

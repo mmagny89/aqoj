@@ -4,6 +4,7 @@ namespace App\Controller;
 
 use App\Entity\Game;
 use App\Repository\GameRepository;
+use App\Repository\UserPreferenceRepository;
 use App\Repository\UserGameRepository;
 use App\Service\BggApiService;
 use App\Service\MechanicFamilyResolver;
@@ -95,10 +96,11 @@ class GameController extends AbstractController
     #[Route('/api/games/home-reco', name: 'api_games_home_reco', methods: ['GET'])]
     public function homeRecommendations(
         RecommendationService $service,
+        UserPreferenceRepository $prefRepository,
     ): JsonResponse {
         $user = $this->appUser();
         if (!$user) {
-            return $this->json(['recommendations' => [], 'families' => [], 'coldStart' => false, 'declared' => []]);
+            return $this->json(['recommendations' => [], 'families' => [], 'coldStart' => false, 'declared' => [], 'table' => null]);
         }
 
         $result = $service->recommendHomeDiscover($user);
@@ -119,6 +121,7 @@ class GameController extends AbstractController
             'byDecade' => $byDecade,
             'coldStart' => $result['coldStart'],
             'declared'  => $result['declared'],
+            'table'     => $prefRepository->find($user->getId())?->getTable(),
         ]);
     }
 
