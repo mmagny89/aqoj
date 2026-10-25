@@ -7,6 +7,7 @@ const COMMANDS = {
   'app:bgg:enrich-pending': 'Enrichissement BGG',
   'app:bgg:sync-new': 'Nouveautés BGG',
   'app:bgg:relink-expansions': 'Liens des extensions',
+  'app:maintenance:purge': 'Ménage hebdomadaire',
 }
 
 const STATUS = {

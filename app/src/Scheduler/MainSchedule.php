@@ -50,6 +50,8 @@ final readonly class MainSchedule implements ScheduleProviderInterface
                 RecurringMessage::cron($this->syncNewCron, $this->command('app:bgg:sync-new'), self::TIMEZONE),
                 // Import du CSV BGG, si un nouveau ZIP a été déposé dans var/imports/bgg/.
                 RecurringMessage::cron($this->importCsvCron, $this->command('app:bgg:import-csv'), self::TIMEZONE),
+                // Ménage du dimanche : journal des tâches ancien, jetons périmés. Pas d'appel à BGG : l'horaire est fixe.
+                RecurringMessage::cron('0 5 * * 0', $this->command('app:maintenance:purge'), self::TIMEZONE),
             )
             // Un redéploiement à l'heure d'un passage le ferait sauter : l'état retient la dernière
             // exécution et rattrape ce qui a été manqué.
