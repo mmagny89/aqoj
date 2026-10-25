@@ -12,6 +12,7 @@ version devient le texte de sa release GitHub.
 
 ### Ajouté
 
+- **Icône du site** : la mascotte de l'association sert de favicon (onglet du navigateur, écran d'accueil d'un téléphone).
 - **Import MyLudo** : le menu « Import » a trois onglets (compte BGG, collection MyLudo, parties MyLudo à venir). On dépose
   l'export CSV de sa ludothèque MyLudo ; les jeux sont rapprochés du catalogue, puis on départage les homonymes, on
   cherche les jeux introuvables ou on les laisse de côté. Rien n'est ajouté avant confirmation, et la note personnelle est reprise.
