@@ -13,7 +13,7 @@ const MAIN_LINKS = [
   { to: '/rechercher', label: 'Explorer', Icon: SearchIcon },
   { to: '/ludotheque', label: 'Ma ludothèque', Icon: ShelfIcon },
   { to: '/parties', label: 'Mes parties', Icon: DiceIcon },
-  { to: '/importer', label: 'Import BGG', Icon: DownloadIcon },
+  { to: '/importer', label: 'Import', Icon: DownloadIcon },
 ]
 
 function Brand({ compact = false }) {

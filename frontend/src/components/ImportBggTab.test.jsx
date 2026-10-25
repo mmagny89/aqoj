@@ -2,14 +2,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
-import ImportBggPage from './ImportBggPage'
+import ImportBggTab from './ImportBggTab'
 
 const login = vi.fn()
 vi.mock('../context/AuthContext', () => ({ useAuth: () => ({ user: { email: 'a@example.test' }, login }) }))
 vi.mock('../api', () => ({ importBgg: vi.fn(), getMe: vi.fn() }))
 import { getMe, importBgg } from '../api'
 
-describe('ImportBggPage', () => {
+describe('ImportBggTab', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     localStorage.setItem('aqoj_token', 'jeton')
@@ -18,7 +18,7 @@ describe('ImportBggPage', () => {
   it('importe la collection et affiche le bilan', async () => {
     importBgg.mockResolvedValue({ message: 'Collection importée.', total: 12, imported: 10, skipped: 2, enriched: 0 })
     getMe.mockResolvedValue({ email: 'a@example.test', bggUsername: 'Kiki' })
-    render(<MemoryRouter><ImportBggPage /></MemoryRouter>)
+    render(<MemoryRouter><ImportBggTab /></MemoryRouter>)
 
     await userEvent.type(screen.getByLabelText('Pseudo BoardGameGeek'), 'Kiki')
     await userEvent.click(screen.getByRole('button', { name: 'Importer ma collection' }))
@@ -31,7 +31,7 @@ describe('ImportBggPage', () => {
 
   it('affiche l’erreur de BoardGameGeek', async () => {
     importBgg.mockRejectedValue(new Error('Collection privée.'))
-    render(<MemoryRouter><ImportBggPage /></MemoryRouter>)
+    render(<MemoryRouter><ImportBggTab /></MemoryRouter>)
 
     await userEvent.type(screen.getByLabelText('Pseudo BoardGameGeek'), 'Kiki')
     await userEvent.click(screen.getByRole('button', { name: 'Importer ma collection' }))

@@ -73,7 +73,7 @@ export default function HelpPage() {
       <Section id="h-debut" title="Par où commencer ?">
         <ol className="m-0 flex list-none flex-col gap-4 p-0">
           <Step n={1} title="Créez un compte" desc="Inscrivez-vous avec votre adresse e-mail. Aucune donnée n'est partagée publiquement." />
-          <Step n={2} title="Importez votre collection BGG" desc="Dans « Import BGG », renseignez votre pseudo BoardGameGeek : l'application récupère vos jeux possédés, vos notes et vos extensions." />
+          <Step n={2} title="Importez votre collection" desc="Dans « Import », renseignez votre pseudo BoardGameGeek (l'application récupère vos jeux possédés, vos notes et vos extensions) ou déposez l'export CSV de MyLudo." />
           <Step n={3} title="Explorez les recommandations" desc="Sur « Ce soir on joue », choisissez le nombre de joueurs, la durée et vos mécaniques préférées. Vous voyez des jeux de votre collection et des jeux à découvrir." />
           <Step n={4} title="Enregistrez vos parties" desc="Après chaque partie, dites si vous avez aimé ou non. Cela améliore vos recommandations futures." />
         </ol>
@@ -160,7 +160,7 @@ export default function HelpPage() {
 
       <div className="flex flex-col justify-center gap-3 pt-2 sm:flex-row">
         <Link to="/recommander" className="btn btn-primary">Trouver un jeu pour ce soir</Link>
-        <Link to="/importer" className="btn btn-secondary">Importer ma collection BGG</Link>
+        <Link to="/importer" className="btn btn-secondary">Importer ma collection</Link>
       </div>
     </div>
   )
