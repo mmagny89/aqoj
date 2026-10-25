@@ -189,7 +189,8 @@ export default function LibraryPage() {
 
   const tab    = activeTab === 'played' ? playedTab : unplayedTab
   const tabDef = TABS.find(t => t.key === activeTab)
-  const unit   = subTab === 'ext' ? 'extension' : 'jeu'
+  // Pluriel irrégulier : « jeux », pas « jeus ».
+  const countLabel = (n) => `${n} ${subTab === 'ext' ? 'extension' : 'jeu'}${n > 1 ? (subTab === 'ext' ? 's' : 'x') : ''}`
 
   if (!user) {
     return (
@@ -225,7 +226,7 @@ export default function LibraryPage() {
         </div>
         {tab.total !== null && (
           <p className="badge bg-cream !text-base tabular-nums" aria-live="polite">
-            {tab.total} {unit}{tab.total > 1 ? 's' : ''}
+            {countLabel(tab.total)}
           </p>
         )}
       </div>
@@ -317,7 +318,7 @@ export default function LibraryPage() {
 
         {!tab.hasMore && tab.games.length > 0 && (
           <p className="py-2 text-center text-sm text-stone-600">
-            {tab.total ?? tab.games.length} {unit}{(tab.total ?? tab.games.length) > 1 ? 's' : ''}
+            {countLabel(tab.total ?? tab.games.length)}
           </p>
         )}
       </div>
