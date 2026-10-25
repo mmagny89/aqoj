@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { login as apiLogin } from '../api'
 import { useAuth } from '../context/AuthContext'
-import { AuthCard, ErrorMessage, Field } from '../components/forms'
+import { AuthCard, ErrorMessage, Field, PasswordField } from '../components/forms'
 
 export default function LoginPage() {
   const { login } = useAuth()
@@ -34,7 +34,10 @@ export default function LoginPage() {
     >
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <Field label="E-mail" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
-        <Field label="Mot de passe" type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
+        <PasswordField label="Mot de passe" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
+        <p className="-mt-2 text-right">
+          <Link to="/mot-de-passe-oublie" className="inline-flex min-h-11 items-center font-bold text-brand-blue underline underline-offset-4">Mot de passe oublié ?</Link>
+        </p>
         <ErrorMessage>{error}</ErrorMessage>
         <button type="submit" disabled={loading} className="btn btn-primary w-full">
           {loading ? 'Connexion…' : 'Se connecter'}

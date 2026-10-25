@@ -26,6 +26,17 @@ class JwtService
         return JWT::encode($payload, $this->jwtSecret, self::ALGO);
     }
 
+    /**
+     * Un jeton émis avant le dernier changement de mot de passe ne vaut plus. Une seconde de tolérance :
+     * la colonne est à la seconde (arrondie), et le jeton rendu juste après le changement ne doit jamais être refusé.
+     */
+    public function isRevoked(User $user, \stdClass $payload): bool
+    {
+        $changedAt = $user->getPasswordChangedAt();
+
+        return $changedAt !== null && (int) ($payload->iat ?? 0) < $changedAt->getTimestamp() - 1;
+    }
+
     public function decode(string $token): \stdClass
     {
         return JWT::decode($token, new Key($this->jwtSecret, self::ALGO));

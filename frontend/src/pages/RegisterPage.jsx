@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { getRegistrationConfig, register as apiRegister } from '../api'
 import { useAuth } from '../context/AuthContext'
-import { AuthCard, ErrorMessage, Field } from '../components/forms'
+import { AuthCard, ErrorMessage, Field, PasswordField } from '../components/forms'
 
 export default function RegisterPage() {
   const { login } = useAuth()
@@ -58,8 +58,8 @@ export default function RegisterPage() {
           value={code}
           onChange={(e) => setCode(e.target.value)}
         />
-        <Field label="Mot de passe" hint="(8 caractères minimum)" type="password" autoComplete="new-password" required minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} />
-        <Field label="Confirmer le mot de passe" type="password" autoComplete="new-password" required value={confirm} onChange={(e) => setConfirm(e.target.value)} />
+        <PasswordField label="Mot de passe" hint="(8 caractères minimum)" autoComplete="new-password" required minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} />
+        <PasswordField label="Confirmer le mot de passe" autoComplete="new-password" required value={confirm} onChange={(e) => setConfirm(e.target.value)} />
         <ErrorMessage>{error}</ErrorMessage>
         <button type="submit" disabled={loading} className="btn btn-primary w-full">
           {loading ? 'Création…' : 'Créer mon compte'}

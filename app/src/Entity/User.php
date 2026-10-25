@@ -42,6 +42,14 @@ class User implements \JsonSerializable, UserInterface
     #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
     private ?InvitationCode $invitationCode = null;
 
+    /** Numéro d'adhérent à l'association (EDJ-0001), saisi par la personne et non vérifié. */
+    #[ORM\Column(length: 16, nullable: true)]
+    private ?string $memberNumber = null;
+
+    /** Les jetons de session émis avant cette date ne valent plus : un changement de mot de passe déconnecte les autres appareils. */
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $passwordChangedAt = null;
+
     #[ORM\Column]
     private \DateTimeImmutable $createdAt;
 
@@ -74,6 +82,7 @@ class User implements \JsonSerializable, UserInterface
             'bggUsername' => $this->bggUsername,
             'isAdmin' => $this->isAdmin,
             'role' => $this->role->value,
+            'memberNumber' => $this->memberNumber,
             'createdAt' => $this->createdAt->format('c'),
         ];
     }
@@ -83,6 +92,18 @@ class User implements \JsonSerializable, UserInterface
     public function setEmail(string $email): static { $this->email = $email; return $this; }
     public function getPasswordHash(): string { return $this->passwordHash; }
     public function setPasswordHash(string $hash): static { $this->passwordHash = $hash; return $this; }
+
+    /** Changement de mot de passe d'un compte existant : date l'événement, qui révoque les anciens jetons de session. */
+    public function changePasswordHash(string $hash): static
+    {
+        $this->passwordHash = $hash;
+        $this->passwordChangedAt = new \DateTimeImmutable();
+
+        return $this;
+    }
+    public function getPasswordChangedAt(): ?\DateTimeImmutable { return $this->passwordChangedAt; }
+    public function getMemberNumber(): ?string { return $this->memberNumber; }
+    public function setMemberNumber(?string $memberNumber): static { $this->memberNumber = $memberNumber; return $this; }
     public function getBggUsername(): ?string { return $this->bggUsername; }
     public function setBggUsername(?string $bggUsername): static { $this->bggUsername = $bggUsername; return $this; }
     public function getGames(): Collection { return $this->games; }

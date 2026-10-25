@@ -6,6 +6,8 @@ use App\Entity\InvitationCode;
 use App\Entity\User;
 use App\Repository\InvitationCodeRepository;
 use App\Repository\UserRepository;
+use App\Service\AccountMailer;
+use App\Service\PasswordResetTokens;
 use App\Service\JwtService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -140,6 +142,78 @@ class AuthController extends AbstractController
         );
     }
 
+    /**
+     * Mot de passe oublié. La réponse est la même que le compte existe ou non : elle ne révèle pas
+     * quelles adresses sont inscrites. Le lien arrive par e-mail, jamais dans la réponse.
+     */
+    #[Route('/api/auth/forgot-password', name: 'api_auth_forgot_password', methods: ['POST'])]
+    public function forgotPassword(
+        Request $request,
+        UserRepository $userRepository,
+        PasswordResetTokens $tokens,
+        AccountMailer $mailer,
+        RateLimiterFactoryInterface $passwordResetLimiter,
+    ): JsonResponse {
+        $data = json_decode($request->getContent(), true);
+        $email = trim(strtolower((string) (is_array($data) ? ($data['email'] ?? '') : '')));
+
+        $byAddress = $passwordResetLimiter->create('ip-'.($request->getClientIp() ?? 'inconnue'))->consume();
+        $byEmail = $passwordResetLimiter->create('mail-'.sha1($email))->consume();
+        if (!$byAddress->isAccepted() || !$byEmail->isAccepted()) {
+            return $this->tooManyAttempts($byAddress->isAccepted() ? $byEmail : $byAddress);
+        }
+
+        $user = $email !== '' ? $userRepository->findByEmail($email) : null;
+        if ($user !== null) {
+            try {
+                $mailer->sendResetLink($user, $tokens->issue($user));
+            } catch (\Throwable) {
+                // Un transport en panne ne doit pas se voir de l'extérieur : la réponse reste identique.
+            }
+        }
+
+        return $this->json(['message' => 'Si un compte existe avec cette adresse, un e-mail vient de lui être envoyé.'], 202);
+    }
+
+    #[Route('/api/auth/reset-password', name: 'api_auth_reset_password', methods: ['POST'])]
+    public function resetPassword(
+        Request $request,
+        UserRepository $userRepository,
+        PasswordResetTokens $tokens,
+        AccountMailer $mailer,
+        EntityManagerInterface $em,
+        RateLimiterFactoryInterface $passwordResetLimiter,
+    ): JsonResponse {
+        $limit = $passwordResetLimiter->create('reset-'.($request->getClientIp() ?? 'inconnue'))->consume();
+        if (!$limit->isAccepted()) {
+            return $this->tooManyAttempts($limit);
+        }
+
+        $data = json_decode($request->getContent(), true);
+        $data = is_array($data) ? $data : [];
+        $token = trim((string) ($data['token'] ?? ''));
+        $password = (string) ($data['password'] ?? '');
+
+        if (strlen($password) < 8) {
+            return $this->json(['error' => 'Le mot de passe doit contenir au moins 8 caractères.'], 422);
+        }
+
+        $userId = $token !== '' ? $tokens->consume($token) : null;
+        $user = $userId !== null ? $userRepository->find($userId) : null;
+        if ($user === null) {
+            return $this->json(['error' => 'Lien invalide ou expiré. Demandez-en un nouveau.'], 422);
+        }
+
+        $user->changePasswordHash(password_hash($password, PASSWORD_BCRYPT, ['cost' => 12]));
+        $em->flush();
+        try {
+            $mailer->sendPasswordChanged($user);
+        } catch (\Throwable) {
+        }
+
+        return $this->json(['message' => 'Mot de passe modifié. Vous pouvez vous connecter.']);
+    }
+
     #[Route('/api/auth/me', name: 'api_auth_me', methods: ['GET'])]
     public function me(Request $request, JwtService $jwt, EntityManagerInterface $em): JsonResponse
     {
@@ -160,7 +234,9 @@ class AuthController extends AbstractController
 
         try {
             $payload = $jwt->decode(substr($header, 7));
-            return $em->find(User::class, $payload->sub);
+            $user = $em->find(User::class, $payload->sub);
+
+            return $user !== null && $jwt->isRevoked($user, $payload) ? null : $user;
         } catch (\Throwable) {
             return null;
         }
