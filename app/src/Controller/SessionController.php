@@ -29,19 +29,43 @@ class SessionController extends AbstractController
         $limit  = max(1, min(200, $request->query->getInt('limit', 50)));
         $offset = max(0, $request->query->getInt('offset'));
 
-        return $this->json($repository->findByUser($user, $limit, $offset));
+        return $this->json($repository->findByUser($user, $limit, $offset, $this->filters($request)));
     }
 
     /** Le bilan de toutes les parties (nombre, jeux différents, aimées), indépendant de la page affichée. */
     #[Route('/api/sessions/summary', name: 'api_sessions_summary', methods: ['GET'])]
-    public function summary(GameSessionRepository $repository): JsonResponse
+    public function summary(Request $request, GameSessionRepository $repository): JsonResponse
     {
         $user = $this->appUser();
         if (!$user) {
             return $this->json(['error' => 'Authentification requise.'], 401);
         }
 
-        return $this->json($repository->summaryForUser($user));
+        return $this->json($repository->summaryForUser($user, $this->filters($request)));
+    }
+
+    /** Statistiques par jeu, par nombre de joueurs et par année, avec les mêmes filtres que la liste. */
+    #[Route('/api/sessions/stats', name: 'api_sessions_stats', methods: ['GET'])]
+    public function stats(Request $request, GameSessionRepository $repository): JsonResponse
+    {
+        $user = $this->appUser();
+        if (!$user) {
+            return $this->json(['error' => 'Authentification requise.'], 401);
+        }
+
+        return $this->json($repository->statsForUser($user, $this->filters($request)));
+    }
+
+    /** @return array{q: string, source: string, rating: string, players: int, year: int} */
+    private function filters(Request $request): array
+    {
+        return [
+            'q'       => mb_substr(trim((string) $request->query->get('q', '')), 0, 100),
+            'source'  => (string) $request->query->get('source', ''),
+            'rating'  => (string) $request->query->get('rating', ''),
+            'players' => $request->query->getInt('players'),
+            'year'    => $request->query->getInt('year'),
+        ];
     }
 
     #[Route('/api/sessions', name: 'api_sessions_create', methods: ['POST'])]
@@ -96,7 +120,7 @@ class SessionController extends AbstractController
         return $this->json($session, 201);
     }
 
-    /** Supprime une partie du joueur connecté. Celle d'un autre joueur répond 404, comme une partie inexistante. */
+    /** Supprime une partie saisie par le joueur connecté. Celle d'un autre joueur répond 404, comme une partie inexistante ; une partie importée de MyLudo, 403. */
     #[Route('/api/sessions/{id}', name: 'api_sessions_delete', requirements: ['id' => '\d+'], methods: ['DELETE'])]
     public function delete(
         int $id,
@@ -112,6 +136,10 @@ class SessionController extends AbstractController
         $session = $repository->find($id);
         if ($session === null || $session->getUser()?->getId() !== $user->getId()) {
             return $this->json(['error' => 'Partie introuvable.'], 404);
+        }
+
+        if ($session->isImported()) {
+            return $this->json(['error' => 'Une partie importée de MyLudo ne se supprime pas ici.'], 403);
         }
 
         $liked = $session->getRating() === 5;
