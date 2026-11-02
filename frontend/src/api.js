@@ -24,6 +24,7 @@ async function request(path, options = {}) {
     error.code = err.code
     throw error
   }
+  if (res.status === 204) return null
   return res.json()
 }
 
@@ -190,9 +191,19 @@ export const deleteThemeMapping = (id) =>
   request(`/admin/theme-mappings/${id}`, { method: 'DELETE' }).catch(() => {})
 
 // Sessions
-export const getSessions = ({ offset = 0, limit = 50 } = {}) => request(`/sessions?offset=${offset}&limit=${limit}`)
+// Filtres de Mes parties : q, source (myludo|manual), rating (liked|disliked|none), players, year ; les vides sont omis.
+const sessionQuery = (params) => {
+  const qs = new URLSearchParams()
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== '' && value !== null && value !== undefined) qs.set(key, value)
+  }
+  const text = qs.toString()
+  return text ? `?${text}` : ''
+}
+export const getSessions = ({ offset = 0, limit = 50, ...filters } = {}) => request(`/sessions${sessionQuery({ offset, limit, ...filters })}`)
 export const deleteSession = (id) => request(`/sessions/${id}`, { method: 'DELETE' })
-export const getSessionsSummary = () => request('/sessions/summary')
+export const getSessionsSummary = (filters = {}) => request(`/sessions/summary${sessionQuery(filters)}`)
+export const getSessionsStats = (filters = {}) => request(`/sessions/stats${sessionQuery(filters)}`)
 
 export const createSession = (data) =>
   request('/sessions', { method: 'POST', body: JSON.stringify(data) })

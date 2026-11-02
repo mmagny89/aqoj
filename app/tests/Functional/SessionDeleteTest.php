@@ -35,4 +35,25 @@ final class SessionDeleteTest extends ApiTestCase
         $this->call($client, 'DELETE', '/api/sessions/' . $mienne['id']);
         self::assertResponseStatusCodeSame(401);
     }
+
+    public function testUnePartieImporteeDeMyLudoNeSeSupprimePas(): void
+    {
+        $client = static::createClient();
+        $token = $this->register($client, 'suppr-import@example.test');
+        $conn = static::getContainer()->get(Connection::class);
+        $conn->executeStatement(
+            "INSERT INTO game (bgg_id, name, min_players, max_players, playing_time, complexity, categories, mechanics, mechanic_families, created_at)
+             VALUES ('zzimport', 'Zzimport', 2, 4, 30, 2.0, '[]', '[]', '[]', NOW())"
+        );
+        $conn->executeStatement(
+            "INSERT INTO game_session (user_id, game_id, players_count, played_at, import_key)
+             VALUES ((SELECT id FROM app_user WHERE email = 'suppr-import@example.test'), (SELECT id FROM game WHERE bgg_id = 'zzimport'), 2, NOW(), 'ffffffffffffffffffffffffffffffff')"
+        );
+        $id = (int) $conn->fetchOne('SELECT id FROM game_session WHERE import_key = ?', ['ffffffffffffffffffffffffffffffff']);
+
+        $this->call($client, 'DELETE', '/api/sessions/' . $id, token: $token);
+
+        self::assertResponseStatusCodeSame(403);
+        self::assertCount(1, $this->call($client, 'GET', '/api/sessions', token: $token));
+    }
 }

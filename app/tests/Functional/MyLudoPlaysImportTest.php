@@ -58,7 +58,7 @@ final class MyLudoPlaysImportTest extends ApiTestCase
         // Pagination et bilan : indépendants de la page.
         self::assertCount(1, $this->call($client, 'GET', '/api/sessions?limit=1', token: $token));
         self::assertCount(1, $this->call($client, 'GET', '/api/sessions?limit=1&offset=1', token: $token));
-        self::assertSame(['plays' => 2, 'games' => 1, 'liked' => 2], $this->call($client, 'GET', '/api/sessions/summary', token: $token));
+        self::assertSame(['plays' => 2, 'games' => 1, 'liked' => 2, 'myludo' => 2, 'firstYear' => 2026], $this->call($client, 'GET', '/api/sessions/summary', token: $token));
 
         // Le même fichier rejoué n'ajoute rien, et l'analyse le sait.
         $encore = $this->call($client, 'POST', '/api/myludo/plays/import', ['csv' => $this->csv(), 'mapping' => ['501' => $gameId]], $token);

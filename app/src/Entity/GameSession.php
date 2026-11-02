@@ -37,6 +37,10 @@ class GameSession implements \JsonSerializable
     #[ORM\Column(length: 100, nullable: true)]
     private ?string $context = null;
 
+    /** Empreinte d'une partie importée de MyLudo ; NULL pour une partie saisie à la main. */
+    #[ORM\Column(length: 32, nullable: true)]
+    private ?string $importKey = null;
+
     public function __construct()
     {
         $this->playedAt = new \DateTimeImmutable();
@@ -52,9 +56,12 @@ class GameSession implements \JsonSerializable
             'note' => $this->note,
             'playedAt' => $this->playedAt->format('c'),
             'context' => $this->context,
+            'source' => $this->importKey === null ? 'manual' : 'myludo',
         ];
     }
 
+    /** Une partie importée de MyLudo n'est pas supprimable ici : rejouer le fichier la ferait revenir. */
+    public function isImported(): bool { return $this->importKey !== null; }
     public function getId(): ?int { return $this->id; }
     public function getUser(): ?User { return $this->user; }
     public function setUser(?User $user): static { $this->user = $user; return $this; }
