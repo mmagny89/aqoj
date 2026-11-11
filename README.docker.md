@@ -13,7 +13,7 @@ Serveur staging/prod : partage. Traefik en frontal (reseau externe `proxy`), TLS
 | `.env` | Variables Docker Compose : versions, ports, UID/GID, `POSTGRES_*` |
 | `.env.staging.local.dist` / `.env.prod.local.dist` | Modeles de secrets, committes |
 | `.env.staging.local` / `.env.prod.local` | Secrets reels — jamais committes |
-| `compose.yml` | Socle : services `php`, `database`, `node` (profil `frontend` : `docker compose --profile frontend up -d`, une fois le front installe) |
+| `compose.yml` | Socle : services `php`, `worker`, `database`, `libretranslate`, `node` (profil `frontend` : `docker compose --profile frontend up -d`, une fois le front installe) |
 | `compose.dev.yml` | Ajoute `mailpit`, qui retient les emails de developpement |
 | `compose.dev.yml` / `compose.staging.yml` / `compose.prod.yml` | Overrides par environnement |
 | `docker/php/**` | Dockerfile, Caddyfile(s), scripts d'entrypoint/healthcheck/installation |
@@ -225,6 +225,28 @@ sh outils/installer-deploiement.sh projet prod
 
 Les volumes survivent au rebuild. **Ne jamais passer `--volumes`** a
 `docker compose down` sur un environnement portant des donnees.
+
+### Traduction des descriptions (`libretranslate`)
+
+BGG n'a qu'une description par jeu, en anglais. Le service `libretranslate` (LibreTranslate, moteur Argos Translate,
+CPU seulement, paire `en,fr`) la traduit sur place : **aucun texte ne quitte l'hote**. Il n'est pas dans le manifeste
+d'agence (ecart signale) : il s'ajoute aux services `php`, `worker`, `database`.
+
+- Reseau du projet uniquement, **aucun port publie**. `php` et `worker` le joignent par `LIBRETRANSLATE_URL`
+  (`http://libretranslate:5000`, en dur dans `compose.yml`). Sans cette variable, la traduction est desactivee et les
+  descriptions restent en anglais : aucune page ne casse.
+- Version : `LIBRETRANSLATE_VERSION` (`.env` et les deux `.dist`), tag verifie sur Docker Hub.
+- **Premier demarrage lent** : les modeles se telechargent (quelques centaines de Mo) dans le volume
+  `aqoj-<env>-libretranslate-models`, d'ou un `start_period` de 5 minutes. Les volumes survivent au rebuild : ne pas
+  les supprimer, sous peine de retelecharger. Compter 2 a 4 Go de memoire libre sur l'hote (estimation des guides
+  de l'editeur, a mesurer sur le serveur).
+- Staging et production : `cap_drop: ALL` (verifie : le service demarre et passe son controle de sante sans aucune capability).
+- Rien n'en depend : si le service est arrete, `docker compose up -d --wait` ne bloque pas les autres, et les
+  descriptions manquantes sont reprises plus tard par le worker.
+- Controle : `docker compose exec php php bin/console app:translate:descriptions --dry-run` compte ce qui attend ;
+  `docker compose logs -f libretranslate` pour le service.
+- Premier `up` apres cette mise a jour : `docker compose up -d --build --wait` recree aussi `php` et `worker` pour qu'ils recoivent
+  `LIBRETRANSLATE_URL` et `TRANSLATE_CRON`. **Ne pas le lancer pendant un enrichissement BGG en cours** (il le tue ; la reprise est sans perte).
 
 ### Observabilite
 

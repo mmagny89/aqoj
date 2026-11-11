@@ -1,16 +1,18 @@
 # À quoi on joue
 
-[![Qualité et déploiement](https://github.com/mmagny89/aqoj/actions/workflows/qualite.yml/badge.svg?branch=develop)](https://github.com/mmagny89/aqoj/actions/workflows/qualite.yml)
+[![Qualité et déploiement](https://github.com/mmagny89/aqoj/actions/workflows/qualite.yml/badge.svg?branch=main)](https://github.com/mmagny89/aqoj/actions/workflows/qualite.yml)
+[![Release](https://github.com/mmagny89/aqoj/actions/workflows/release.yml/badge.svg)](https://github.com/mmagny89/aqoj/actions/workflows/release.yml)
 [![Version](https://img.shields.io/github/v/tag/mmagny89/aqoj?label=version&sort=semver)](CHANGELOG.md)
+[![Licence propriétaire](https://img.shields.io/badge/licence-propri%C3%A9taire-lightgrey)](LICENSE)
+[![Conventional Commits](https://img.shields.io/badge/Conventional_Commits-1.0.0-fe5196?logo=conventionalcommits&logoColor=white)](https://www.conventionalcommits.org/fr/v1.0.0/)
 ![PHP](https://img.shields.io/badge/PHP-8.5-777BB4?logo=php&logoColor=white)
 ![Symfony](https://img.shields.io/badge/Symfony-8.1-000000?logo=symfony&logoColor=white)
 ![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-18-4169E1?logo=postgresql&logoColor=white)
+![FrankenPHP](https://img.shields.io/badge/FrankenPHP-1.13-5A4FCF)
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?logo=tailwindcss&logoColor=white)
-[![Licence propriétaire](https://img.shields.io/badge/licence-propri%C3%A9taire-lightgrey)](LICENSE)
-[![Conventional Commits](https://img.shields.io/badge/Conventional_Commits-1.0.0-fe5196?logo=conventionalcommits&logoColor=white)](https://www.conventionalcommits.org/fr/v1.0.0/)
 
-Plateforme de découverte et recommandation de jeux de société, connectée à BoardGameGeek.
+Plateforme de découverte et de recommandation de jeux de société pour les membres de l'association Envie de Jouer, alimentée par BoardGameGeek (BGG). Beaucoup de membres n'ont pas de compte BGG (leur ludothèque est sur MyLudo, qui n'a pas d'API) : le site se sert de l'export CSV de MyLudo et de goûts déclarés, pas seulement de BGG.
 
 ## Stack technique
 
@@ -20,6 +22,7 @@ Plateforme de découverte et recommandation de jeux de société, connectée à 
 | Frontend | React 18 + Vite 6 + TailwindCSS v4 |
 | Base de données | PostgreSQL 18 |
 | Serveur web | FrankenPHP (Caddy intégré), Traefik en frontal en staging et production |
+| Traduction | LibreTranslate auto-hébergé (en→fr), service `libretranslate` |
 | Conteneurisation | Docker Compose |
 
 ---
@@ -27,10 +30,10 @@ Plateforme de découverte et recommandation de jeux de société, connectée à 
 ## Fonctionnalités
 
 ### Ludothèque personnelle
-- Import de la collection depuis BoardGameGeek (username BGG)
-- Synchronisation des notes personnelles BGG (1–10) sur chaque jeu
+- Import de la collection depuis **BoardGameGeek** (pseudo BGG) ou depuis l'**export CSV de MyLudo** (voir « Import »)
+- Notes personnelles (1–10) reprises de BGG ou de MyLudo
 - Vue en deux onglets principaux :
-  - **⭐ Déjà joués** — jeux avec une note BGG, triés par note décroissante
+  - **⭐ Déjà joués** — jeux avec une note, triés par note décroissante
   - **🎁 Pas encore joués** — jeux sans note, triés alphabétiquement
 - Chaque onglet dispose de deux sous-onglets **🎲 Jeux de base** et **➕ Extensions**
 - Infinite scroll sur chaque onglet
@@ -40,9 +43,32 @@ Plateforme de découverte et recommandation de jeux de société, connectée à 
   - Catégories BGG favorites
   - Recalcul automatique si les préférences sont absentes
 
-### Recommandations personnalisées
-- **Ma collection** — recommande parmi les jeux possédés, scorés par note personnelle + fraîcheur + qualité BGG
-- **À découvrir** — suggère des jeux hors collection avec un seuil de qualité BGG ≥ 6.5
+### Accueil
+- **La table** : le bandeau « Qu'est-ce qu'on joue ce soir ? » se règle librement (1 à 8 joueurs, de 15 min à « peu importe ») et **s'enregistre sur le compte** à chaque changement. On la retrouve à la visite suivante et sur la page de recommandation.
+- **Pour votre table** — deux rangées qui suivent la table :
+  - **Ce que jouent les autres membres** : jeux de base joués dans l'année par au moins deux joueurs distincts. Seuls des totaux sortent, jamais qui a joué.
+  - **Faciles à expliquer** : jeux du catalogue de complexité ≤ 2,5, nouveautés favorisées.
+- **Nouveautés pour vous** : jeux des **5 dernières années** proches de votre profil. Bonus de récence continu et seuil de confiance réduit pour les jeux peu votés.
+- **Oubliés de votre ludothèque**, puis **Par époque** (décennies précédant les nouveautés).
+- **Sans historique ni compte BGG** (démarrage à froid) : « Nouveautés à découvrir », jeux de base récents, abordables (complexité ≤ 3) et assez votés, sans filtre de mécanique, puis le questionnaire de goûts.
+- Un même jeu ne s'affiche qu'une fois sur la page.
+
+### Mes goûts (questionnaire)
+- Jusqu'à six styles de jeu, à remplir sur l'accueil (démarrage à froid) ou dans **Mon compte → Mes goûts**, où on peut aussi tout effacer.
+- Ils passent **avant** les goûts déduits de l'historique (notes, parties aimées), qui les complètent jusqu'à quatre familles ; le recalcul des préférences ne les efface jamais.
+- Tant que rien n'est déclaré, l'accueil le rappelle (« Plus tard » masque le rappel une semaine).
+
+### Import (menu « Import »)
+- Trois onglets : **Compte BGG**, **Ma collection MyLudo**, **Mes parties MyLudo**.
+- **Parties MyLudo** : on dépose l'export CSV des parties ; les jeux sont rapprochés du catalogue (comme la collection), puis seules les parties des jeux confirmés entrent dans « Mes parties » (date, nombre de joueurs, lieu, commentaire ; l'avis découle de la note du jeu). Le même fichier peut être rejoué sans créer de doublon, ce qui permet de traiter les jeux douteux après coup.
+- **MyLudo** : on dépose l'export CSV de sa ludothèque. MyLudo ne donne pas d'identifiant BGG : le fichier est rapproché du catalogue par le titre (avec ou sans sous-titre, sans accents ni ponctuation) et l'année d'édition. Une interface permet ensuite de **départager les homonymes**, de **chercher les jeux introuvables** ou de les laisser de côté. Rien n'est ajouté avant la confirmation ; le fichier n'est pas conservé ; la note personnelle est reprise sans effacer une note existante.
+- **Ludothèque de l'association** : un administrateur choisit « La ludothèque de l'association » comme destination, puis importe un export MyLudo ou le compte BGG de l'association (pseudo obligatoire, jamais celui de l'administrateur). La liste est consultable et un jeu mal importé se retire. Elle alimente l'accueil et l'onglet « À l'association » de « À quoi on joue ».
+
+### Recommandations personnalisées (page « À quoi on joue »)
+- **Dans ma ludothèque** — recommande parmi les jeux possédés, scorés par note personnelle + fraîcheur + qualité BGG
+- **À l'association** — les jeux de la ludothèque de l'association et de tous les membres (le vôtre compris), sans seuil de note
+- **Tout le catalogue** — suggère des jeux hors collection (qualité BGG ≥ 6.5), avec un lot de nouveautés ajouté à la sélection et une qualité notée de façon continue, pour que les jeux récents ne soient pas noyés par les classiques
+- Les résultats arrivent à l'ouverture, selon les styles favoris (goûts déclarés d'abord) et la table enregistrée, puis **se mettent à jour à chaque changement** de critère (pas de bouton)
 - Jusqu'à **30 résultats** par onglet, séparés en sous-onglets Jeux de base / Extensions
 - Filtres disponibles dans la barre latérale :
   - Nombre de joueurs
@@ -53,7 +79,7 @@ Plateforme de découverte et recommandation de jeux de société, connectée à 
   - **Thèmes & univers** — catégories mappées dans l'interface admin
   - **Types de jeu** — catégories mappées dans l'interface admin
 - Les filtres thématiques sont chargés dynamiquement depuis les mappings admin (plus de liste figée dans le code)
-- Suggestions de filtres basées sur les préférences mécaniques de l'utilisateur
+- « Vos styles favoris » reprend les goûts déclarés puis les moteurs déduits de l'historique
 
 ### Moteur de mécaniques (modèle Engelstein)
 Chaque jeu est analysé selon 18 familles de mécaniques :
@@ -70,6 +96,8 @@ Le mapping entre mécaniques BGG et familles Engelstein est entièrement configu
 - Moteurs principaux et mécaniques de support avec les équivalents BGG
 - Caractéristiques transversales (solo, temps réel, dextérité, legacy)
 - Description, complexité (1–5), joueurs, durée, note communauté + note personnelle
+- **Description en français** : BGG n'en fournit qu'une, en anglais ; elle est traduite automatiquement sur place (LibreTranslate, aucun texte envoyé à un tiers), signalée « Traduction automatique », avec un accès à l'original. La première ouverture d'une fiche par un membre déclenche la traduction ; le planificateur traduit le reste, jeux de l'association en premier
+- **Édition d'origine** (éditeur et année) et **édition française** quand BGG en connaît une : titre, éditeur, année, et **image de la boîte française** à la place de l'image d'origine (description, elle, reste en anglais : BGG n'en a qu'une)
 - Lien direct vers la fiche BoardGameGeek (URL adaptée : `/boardgame/` ou `/boardgameexpansion/`)
 - **Section Extensions** : liste des extensions connues avec indicateur de possession
 - **Jeux similaires** : liste avec score de similarité (mécaniques 40%, catégories 20%, joueurs 15%, complexité 15%, âge 10%), bouton "Voir 5 de plus" jusqu'à épuisement
@@ -90,7 +118,7 @@ Ces mappings alimentent directement les filtres de la page Recommandations.
 Explications sur le fonctionnement du site, du modèle de recommandation, du modèle Engelstein, du score de similarité et du calcul de préférences mécaniques.
 
 ### Recherche
-- Recherche textuelle dans le catalogue (jusqu'à 200 résultats)
+- Recherche textuelle dans le catalogue (jusqu'à 200 résultats), le titre exact d'abord, puis les titres qui commencent par la saisie, puis le reste
 - Inclut les extensions et packs promo
 - Enrichissement automatique depuis BGG pour les jeux absents de la base
 
@@ -99,12 +127,17 @@ Explications sur le fonctionnement du site, du modèle de recommandation, du mod
 - Gestion des thématiques BGG → labels français + emoji (groupes : thèmes / types de jeu)
 - Recalcul en masse des familles pour tous les jeux en base
 - Visualisation des mécaniques BGG non encore mappées, triées par fréquence
+- Session : un jeton dure 8 h et se renouvelle tout seul tant que vous utilisez l'application (au plus 30 jours après la dernière connexion) ; changer son mot de passe déconnecte les autres appareils. L'API publique est plafonnée par adresse (catalogue 240 requêtes par minute) et répond `X-RateLimit-*` et `Retry-After`.
+- Mot de passe : l'œil affiche ou masque la saisie ; « Mot de passe oublié ? » envoie par e-mail un lien valable une heure et à usage unique (l'empreinte seule est stockée, la réponse est la même que le compte existe ou non) ; « Mon compte » change le mot de passe (exige l'actuel, déconnecte les autres appareils, avertit par e-mail) et enregistre le **numéro d'adhérent** (EDJ-0123, saisi par la personne, non vérifié ; visible et cherchable par l'administration).
+- Confirmation d'adresse : l'inscription n'ouvre aucune session. Un e-mail envoie un lien valable sept jours, à usage unique ; l'ouvrir confirme l'adresse et connecte. Tant qu'elle n'est pas confirmée, la connexion répond « Adresse e-mail non confirmée » (mot de passe juste seulement) et propose de renvoyer le lien. Réinitialiser son mot de passe confirme aussi l'adresse. Les comptes jamais confirmés sont supprimés au bout de 14 jours (ménage du dimanche), et les comptes antérieurs sont réputés confirmés. L'administration les repère par l'étiquette « Non confirmé ».
+- Rôles : un compte est **Membre** ou **VIP** (le statut administrateur est à part). L'inscription se fait par **code d'invitation** en préproduction et production : créé dans l'onglet Membres de `/admin` ou par `app:invitation:create "<libellé>" --role=member|vip --uses=N --until=AAAA-MM-JJ`, il accorde son rôle, sert N fois, expire et se révoque. `app:user:role <e-mail> member|vip` change un rôle, `app:user:admin <e-mail> [--revoke]` donne ou retire l'administration (jamais depuis l'interface). Le catalogue, la recherche et l'API `/api/catalogue` restent publics.
+- Tableau de bord (`/admin`, six onglets : Catalogue, Tâches, Explorer, Membres, Communauté, Mappings ; l'onglet courant est dans l'URL, `?onglet=`) : dernière exécution et historique des tâches d'import et de synchronisation (bilan chiffré, durée, erreur), puis explorateur du catalogue filtrable (à enrichir, jamais demandés à BGG, sans réponse de BGG, à rafraîchir, sans image, extensions sans jeu de base…) avec fiche de diagnostic ; lecture seule. L'onglet Tâches permet d'**arrêter** une tâche en cours (elle finit son lot, l'enregistre et rend la main) puis, si elle ne réagit plus, de **forcer l'arrêt** (avec confirmation ; le lot en cours est perdu) ; c'est aussi ainsi qu'on clôture une exécution restée « en cours » dont le processus a disparu
 
 ---
 
 ## Tâches planifiées
 
-Le service `worker` (planificateur Symfony, `app/src/Scheduler/MainSchedule.php`) exécute quatre tâches chaque nuit, heure de Paris.
+Le service `worker` (planificateur Symfony, `app/src/Scheduler/MainSchedule.php`) exécute quatre tâches BGG chaque nuit et une tâche de traduction toutes les dix minutes, heure de Paris.
 Les horaires se changent par les variables `BGG_*_CRON` (voir « Variables d'environnement ») : la préproduction décale les siens,
 car elle partage le jeton BGG avec la production.
 Aucun appel BGG n'est fait pendant la requête d'un joueur, hormis trois exceptions bornées : l'import de sa collection, le premier enrichissement d'une fiche encore vide (un essai par jour et par jeu) et le repli de la recherche textuelle (mis en cache 24 h).
@@ -115,6 +148,7 @@ Une tâche qui échoue écrit sur le canal `messenger` ; en préproduction et en
 2h00  app:bgg:enrich-pending --mode=pending →  Premiers enrichissements CSV
 3h00  app:bgg:sync-new                      →  Nouveautés BGG (Hot List + année)
 4h00  app:bgg:import-csv                    →  Import ZIP BGG si disponible
+*/10  app:translate:descriptions            →  Traduction des descriptions (60 jeux au plus, 3 min au plus)
 ```
 
 ### Détail de chaque tâche
@@ -136,6 +170,12 @@ Priorité par rang BGG croissant (jeux populaires d'abord).
 #### 4h00 — Import CSV BGG
 Importe le catalogue complet depuis un fichier ZIP déposé dans `app/var/imports/bgg/`.  
 Ne fait rien si aucun fichier n'est présent.
+
+#### Toutes les 10 minutes — Traduction des descriptions
+Traduit en français, avec le service local `libretranslate`, les descriptions que BGG ne fournit qu'en anglais.
+Ordre : jeux de la ludothèque de l'association, jeux possédés par des membres, puis les mieux classés. Un jeu n'est traduit
+qu'une fois (sauf si BGG change sa description), et un échec n'est retenté qu'au bout d'un jour. Le passage s'interrompt
+après trois échecs sans succès (service arrêté). Aucun appel BGG, donc l'horaire (`TRANSLATE_CRON`) est le même partout.
 
 ### Consulter les tâches
 
@@ -197,6 +237,7 @@ docker compose exec php php bin/console app:games:seed
 
 # Option B — catalogue complet depuis un ZIP BGG (voir section "Mettre à jour le catalogue")
 docker compose exec php php bin/console app:bgg:import-csv --include-expansions
+# ou, depuis un CSV déjà extrait : app:import:catalogue <fichier> --source=bgg --include-expansions --no-debug
 docker compose exec php php bin/console app:bgg:enrich-pending --mode=pending --limit=200
 docker compose exec php php bin/console app:bgg:relink-expansions
 ```
@@ -209,6 +250,7 @@ docker compose exec php php bin/console app:bgg:relink-expansions
 |---|---|
 | Frontend (Vite) | http://localhost:5173 |
 | API Symfony | https://localhost/api/health (certificat local : accepter l'avertissement) |
+| Catalogue des jeux (lecture seule, pour BG-TCG) | https://localhost/api/catalogue/games?itemsPerPage=10 ; interface Swagger UI : https://localhost/api/docs (dev) |
 | E-mails de développement (Mailpit) | http://localhost:8025 |
 
 ---
@@ -256,49 +298,53 @@ aqoj/
 │
 ├── app/                            # Symfony 8.1 — API JSON
 │   ├── src/
-│   │   ├── Command/                # Commandes CLI
-│   │   │   ├── ImportBggCsvCommand.php
+│   │   ├── Command/                # Commandes CLI (import et enrichissement BGG, comptes, ménage…)
+│   │   │   ├── ImportCatalogueCommand.php  # app:import:catalogue <fichier> --source=bgg
+│   │   │   ├── ImportBggCsvCommand.php     # ZIP déposé → importeur (tâche planifiée)
 │   │   │   ├── EnrichGamesPendingCommand.php
 │   │   │   ├── SyncBggNewReleasesCommand.php
-│   │   │   ├── RelinkExpansionsCommand.php
-│   │   │   ├── RecomputeMechanicFamiliesCommand.php
-│   │   │   └── SeedGamesCommand.php
+│   │   │   └── …                           # RelinkExpansions, RecomputeMechanicFamilies, SeedGames, comptes, purge
 │   │   ├── Controller/             # Endpoints API
-│   │   │   ├── AuthController.php
-│   │   │   ├── GameController.php
-│   │   │   ├── UserController.php
-│   │   │   └── AdminController.php
-│   │   ├── Entity/                 # Entités Doctrine
-│   │   │   ├── Game.php
-│   │   │   ├── User.php
-│   │   │   ├── UserGame.php
-│   │   │   ├── UserPreference.php
-│   │   │   └── ThemeMapping.php
-│   │   ├── Repository/             # Requêtes DB
+│   │   │   ├── AuthController.php, AccountController.php
+│   │   │   ├── GameController.php          # catalogue, recherche, recommandations, accueil
+│   │   │   ├── BggController.php           # import BGG (ma ludothèque ou celle de l'association)
+│   │   │   ├── MyLudoController.php        # import MyLudo : analyse puis confirmation
+│   │   │   ├── UserPreferenceController.php # préférences, goûts (PUT /user/taste), table (PUT /user/table)
+│   │   │   ├── SessionController.php       # parties jouées
+│   │   │   └── Admin*Controller.php        # statistiques, membres, invitations, catalogue, mappings, ludothèque de l'asso
+│   │   ├── Entity/                 # Game, User, UserPreference, GameSession, InvitationCode, mappings
+│   │   ├── Repository/             # Requêtes DB (dont UserGame et AssociationGame, en DBAL)
+│   │   ├── MyLudo/                 # CsvParser (export MyLudo) et Matcher (rapprochement avec le catalogue)
 │   │   ├── Scheduler/              # Planification des tâches BGG (worker)
+│   │   ├── Catalogue/              # Import : sources (Import/), rapprochement (CatalogueImporter)
 │   │   ├── Security/               # Authentification JWT du pare-feu
 │   │   └── Service/                # Logique métier
 │   │       ├── BggApiService.php         # Appels API BGG
-│   │       ├── BggCsvImportService.php   # Import CSV
 │   │       ├── GameEnrichmentService.php # Hydratation des entités
 │   │       ├── MechanicFamilyResolver.php
-│   │       ├── RecommendationService.php
+│   │       ├── RecommendationService.php # accueil, découverte, table du soir, démarrage à froid
 │   │       └── UserPreferenceService.php
-│   └── migrations/                 # Migrations Doctrine
+│   └── migrations/                 # Migrations Doctrine (SQL écrit à la main)
 │
 └── frontend/                       # React 18 + Vite + Tailwind v4 (build statique servi par FrankenPHP)
     └── src/
         ├── pages/
-        │   ├── HomePage.jsx
-        │   ├── LibraryPage.jsx        # Ludothèque (sous-onglets base/ext)
+        │   ├── HomePage.jsx           # Accueil : table, pour votre table, nouveautés, goûts
         │   ├── RecommendationPage.jsx # Recommandations (filtres dynamiques)
+        │   ├── LibraryPage.jsx        # Ludothèque (sous-onglets base/ext)
+        │   ├── ImportPage.jsx         # Import : onglets BGG, MyLudo, parties
+        │   ├── AccountPage.jsx        # Compte : numéro d'adhérent, goûts, mot de passe, données
         │   ├── GameDetailPage.jsx     # Fiche jeu + extensions + similarité
-        │   ├── SearchPage.jsx
+        │   ├── SearchPage.jsx, SessionsPage.jsx
         │   ├── HelpPage.jsx           # /aide — explication du moteur
-        │   ├── AdminPage.jsx
-        │   └── AdminThemesPage.jsx
+        │   └── Admin*.jsx             # Tableau de bord, mécaniques, thèmes
         ├── components/
-        │   └── GameCard.jsx           # Carte jeu (badge extension, % similarité)
+        │   ├── GameCard.jsx           # Carte jeu (badge extension, % similarité)
+        │   ├── TasteForm.jsx          # Questionnaire de goûts (accueil et compte)
+        │   ├── ImportBggTab.jsx, ImportMyLudoTab.jsx  # Onglets de la page Import (rapprochement MyLudo)
+        │   ├── AssociationLibraryPanel.jsx            # Contenu de la ludothèque de l'asso (admin)
+        │   ├── GamePicker.jsx         # Choisir un jeu dans la base (recherche locale)
+        │   └── AppShell.jsx           # Coque : rail latéral, barre d'onglets, recherche
         ├── utils/
         │   ├── engelstein.js          # Familles de mécaniques + couleurs
         │   └── categories.js          # Catégories BGG (recherche)
@@ -321,7 +367,11 @@ Commité, sans secret. En préproduction et production, il est **remplacé** (pa
 | `SYMFONY_TRUSTED_PROXIES` | Proxies de confiance (adresse du client) | *(vide)* | `private_ranges` |
 | `MAILER_DSN`, `MAILER_FROM` | Transport et expéditeur des e-mails | Mailpit | transport réel |
 | `ALERT_EMAIL` | Destinataire des alertes d'échec de tâche | `alerte@aqoj.test` | adresse réelle |
+| `PUBLIC_URL` | Adresse publique du site, pour les liens des e-mails (jamais déduite de l'en-tête Host) | `http://localhost:5173` | `https://<domaine>` |
+| `REGISTRATION_REQUIRES_CODE` | `1` : l'inscription exige un code d'invitation ; `0` : elle reste libre. Vide refusé | `0` | `1` |
 | `BGG_*_CRON` | Horaires des quatre tâches BGG (heure de Paris) | 1 h, 2 h, 3 h, 4 h | décalés en préproduction |
+| `TRANSLATE_CRON` | Horaire de la traduction des descriptions | toutes les 10 min | idem |
+| `LIBRETRANSLATE_VERSION` | Version de l'image LibreTranslate | `1.9.6` | idem |
 | `APP_SECRET`, `JWT_SECRET`, `BGG_TOKEN` | Secrets applicatifs | `app/.env.local` | `.env.prod.local` |
 
 ### `app/.env.local` — développement uniquement

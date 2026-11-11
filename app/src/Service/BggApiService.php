@@ -262,37 +262,118 @@ class BggApiService
     }
 
     /**
-     * Titre français : celui de l'édition monolingue française la plus récente
-     * (`thing?versions=1`). Une édition multilingue garde le plus souvent le titre
-     * anglais, et les noms alternatifs mélangent toutes les langues : aucun des
-     * deux n'est fiable.
+     * Édition française, tirée de `thing?versions=1`. Les versions ne portent ni description ni autre texte.
+     *
+     * On ne garde que les éditions monolingues françaises (une édition multilingue garde le plus souvent le titre
+     * anglais, et les noms alternatifs mélangent toutes les langues). Parmi elles, l'édition retenue est la plus
+     * récente **du titre le plus répandu** : prendre simplement la plus récente choisirait une extension, un format
+     * « mini » ou une édition collector (« Azul Mini » pour Azul, alors que deux éditions s'appellent « Azul »).
+     * À égalité de titres, la plus récente l'emporte.
+     *
+     * Éditeur et année sont ceux de l'édition retenue ; l'image est celle de la boîte de la plus récente édition
+     * de ce même titre qui en a une, et reste vide sinon : une boîte d'un autre titre ne vaut pas mieux que l'image d'origine.
+     *
+     * @return array{title: string, year: ?int, publisher: ?string, imageUrl: ?string}|null
      */
-    private function frenchTitle(SimpleXMLElement $item): ?string
+    private function frenchEdition(SimpleXMLElement $item): ?array
     {
-        $title = null;
-        $titleYear = -1;
+        $groups = [];   // titre normalisé => éditions françaises portant ce titre
 
         foreach ($item->versions->item ?? [] as $version) {
             $languages = [];
+            $publishers = [];
             foreach ($version->link as $link) {
-                if ((string) $link['type'] === 'language') {
+                $type = (string) $link['type'];
+                if ($type === 'language') {
                     $languages[] = (string) $link['value'];
+                } elseif ($type === 'boardgamepublisher') {
+                    $publishers[] = $this->cleanVersionText((string) $link['value']);
                 }
             }
             if ($languages !== ['French']) {
                 continue;
             }
 
-            // BGG échappe certaines apostrophes et double parfois les espaces.
-            $name = trim((string) preg_replace('/\s+/u', ' ', str_replace("\\'", "'", (string) ($version->canonicalname['value'] ?? ''))));
+            $title = $this->cleanVersionText((string) ($version->canonicalname['value'] ?? ''));
+            if ($title === '') {
+                continue;
+            }
+            $image = trim((string) $version->image);
             $year = (int) ($version->yearpublished['value'] ?? 0);
-            if ($name !== '' && $year > $titleYear) {
-                $title = $this->sanitizeUtf8($name);
-                $titleYear = $year;
+
+            $groups[mb_strtolower($title)][] = [
+                'title'     => $title,
+                'year'      => $year > 0 ? $year : null,
+                'publisher' => implode(', ', array_slice(array_filter($publishers), 0, 3)) ?: null,
+                'imageUrl'  => $image === '' ? null : $this->sanitizeUtf8(str_starts_with($image, 'http') ? $image : 'https:' . $image),
+            ];
+        }
+
+        if ($groups === []) {
+            return null;
+        }
+
+        $newest = fn(array $editions): int => max(array_map(fn(array $e) => $e['year'] ?? 0, $editions));
+        uasort($groups, fn(array $a, array $b) => [count($b), $newest($b)] <=> [count($a), $newest($a)]);
+
+        $editions = array_values(reset($groups));
+        usort($editions, fn(array $a, array $b) => ($b['year'] ?? 0) <=> ($a['year'] ?? 0));
+        $withImage = array_values(array_filter($editions, fn(array $e) => $e['imageUrl'] !== null));
+
+        return [
+            'title'     => $editions[0]['title'],
+            'year'      => $editions[0]['year'],
+            'publisher' => $editions[0]['publisher'],
+            'imageUrl'  => $withImage[0]['imageUrl'] ?? null,
+        ];
+    }
+
+    /**
+     * Éditeur de l'édition d'origine. BGG ne désigne pas l'édition d'origine, mais il liste sur la fiche du jeu
+     * l'éditeur principal en premier, puis les autres par ordre alphabétique (KOSMOS pour Catan, Repos Production
+     * pour 7 Wonders) : c'est le premier choix. Sans éditeur sur la fiche, on prend celui de la première édition
+     * (toutes langues) de l'année du jeu, ou à défaut de la plus ancienne.
+     */
+    private function originalPublisher(SimpleXMLElement $item, ?int $gameYear): ?string
+    {
+        foreach ($item->link as $link) {
+            if ((string) $link['type'] === 'boardgamepublisher') {
+                $name = $this->cleanVersionText((string) $link['value']);
+                if ($name !== '') {
+                    return $name;
+                }
             }
         }
 
-        return $title;
+        $candidates = [];   // année => éditeurs de la première édition de cette année qui en nomme
+        foreach ($item->versions->item ?? [] as $version) {
+            $year = (int) ($version->yearpublished['value'] ?? 0);
+            if ($year <= 0 || isset($candidates[$year])) {
+                continue;
+            }
+            $publishers = [];
+            foreach ($version->link as $link) {
+                if ((string) $link['type'] === 'boardgamepublisher') {
+                    $publishers[] = $this->cleanVersionText((string) $link['value']);
+                }
+            }
+            $publishers = array_slice(array_filter($publishers), 0, 3);
+            if ($publishers !== []) {
+                $candidates[$year] = implode(', ', $publishers);
+            }
+        }
+
+        if ($candidates === []) {
+            return null;
+        }
+
+        return ($gameYear !== null ? ($candidates[$gameYear] ?? null) : null) ?? $candidates[min(array_keys($candidates))];
+    }
+
+    /** BGG échappe certaines apostrophes et double parfois les espaces. */
+    private function cleanVersionText(string $text): string
+    {
+        return $this->sanitizeUtf8(trim((string) preg_replace('/\s+/u', ' ', str_replace("\\'", "'", $text))));
     }
 
     private function parseGameXml(SimpleXMLElement $item): array
@@ -307,7 +388,8 @@ class BggApiService
             }
         }
 
-        $nameFr = $this->frenchTitle($item);
+        $editionFr = $this->frenchEdition($item);
+        $nameFr = $editionFr['title'] ?? null;
 
         $categories      = [];
         $mechanics       = [];
@@ -374,6 +456,8 @@ class BggApiService
             'bggType'      => in_array($bggType, ['boardgame', 'boardgameexpansion'], true) ? $bggType : 'boardgame',
             'name'         => $this->sanitizeUtf8($name ?: 'Unknown'),
             'nameFr'       => $nameFr,
+            'editionFr'    => $editionFr,
+            'publisherOriginal' => $this->originalPublisher($item, (int) $item->yearpublished['value'] ?: null),
             'minAge'       => $minAge > 0 ? $minAge : null,
             'description'  => $description ?: null,
             'minPlayers'   => max(1, (int) $item->minplayers['value']),

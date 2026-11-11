@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { getAdminStats } from '../api'
 import { useAuth } from '../context/AuthContext'
+import { GamesPanel, JobsPanel } from '../components/AdminCatalogue'
+import AdminMembers from '../components/AdminMembers'
 
 /* ── Carte de stat simple ────────────────────────────────────────────── */
-function StatCard({ label, value, sub, color = 'stone', icon }) {
+function StatCard({ label, value, sub, color = 'stone', icon, onClick }) {
   const colors = {
     amber:  'bg-amber-50  border-amber-200  text-amber-700',
     green:  'bg-green-50  border-green-200  text-green-700',
@@ -14,21 +16,27 @@ function StatCard({ label, value, sub, color = 'stone', icon }) {
     stone:  'bg-stone-50  border-stone-200  text-stone-600',
     orange: 'bg-orange-50 border-orange-200 text-orange-700',
   }
-  return (
-    <div className={`rounded-xl border p-4 ${colors[color]}`}>
+  const content = (
+    <>
       <div className="flex items-start justify-between gap-2 mb-1">
         <p className="text-xs font-semibold uppercase tracking-wide opacity-70 leading-tight">{label}</p>
         {icon && <span className="text-lg leading-none flex-shrink-0">{icon}</span>}
       </div>
       <p className="text-2xl font-black">{value ?? '—'}</p>
       {sub && <p className="text-xs mt-0.5 opacity-60">{sub}</p>}
-    </div>
+    </>
   )
+  const base = `rounded-xl border p-4 ${colors[color]}`
+  // Une carte qui ouvre l'explorateur est un bouton, pas un bloc cliquable.
+  return onClick
+    ? <button type="button" onClick={onClick} className={`${base} min-h-11 text-left transition-shadow hover:shadow-md`}>{content}</button>
+    : <div className={base}>{content}</div>
 }
 
 /* ── Barre de progression ────────────────────────────────────────────── */
-function ProgressBar({ value, max, color = 'amber', label }) {
-  const pct = max > 0 ? Math.round((value / max) * 100) : 0
+function ProgressBar({ value, max, color = 'amber', label, hint, onHint }) {
+  // Jamais 100 % tant qu'il manque un jeu : l'arrondi cacherait le reste à faire.
+  const pct = max > 0 ? (value >= max ? 100 : Math.min(99, Math.round((value / max) * 100))) : 0
   const bars = { amber: 'bg-amber-400', green: 'bg-green-400', red: 'bg-red-400', blue: 'bg-blue-400', violet: 'bg-violet-400' }
   return (
     <div>
@@ -39,6 +47,12 @@ function ProgressBar({ value, max, color = 'amber', label }) {
       <div className="h-2 bg-stone-200 rounded-full overflow-hidden">
         <div className={`h-full rounded-full transition-all ${bars[color]}`} style={{ width: `${pct}%` }} />
       </div>
+      {hint && value < max && (
+        <p className="text-xs text-stone-400 mt-1">
+          {hint}
+          {onHint && <> <button type="button" onClick={onHint} className="underline font-semibold hover:text-stone-600">Voir la liste</button></>}
+        </p>
+      )}
     </div>
   )
 }
@@ -64,6 +78,47 @@ function fmtNum(n) {
   return n != null ? Number(n).toLocaleString('fr') : '—'
 }
 
+const TABS = [
+  ['catalogue', 'Catalogue'],
+  ['taches', 'Tâches'],
+  ['explorer', 'Explorer'],
+  ['membres', 'Membres'],
+  ['communaute', 'Communauté'],
+  ['mappings', 'Mappings'],
+]
+
+/* ── Onglets : l'onglet courant vit dans l'URL (?onglet=), donc se partage et survit à un rechargement ── */
+function Tabs({ current, onChange }) {
+  const move = (event, index) => {
+    const step = { ArrowRight: 1, ArrowLeft: -1 }[event.key]
+    if (!step) return
+    event.preventDefault()
+    const next = TABS[(index + step + TABS.length) % TABS.length][0]
+    onChange(next)
+    document.getElementById(`onglet-${next}`)?.focus()
+  }
+  return (
+    <div role="tablist" aria-label="Sections du tableau de bord" className="tab-list">
+      {TABS.map(([id, label], index) => (
+        <button
+          key={id}
+          type="button"
+          role="tab"
+          id={`onglet-${id}`}
+          aria-selected={current === id}
+          aria-controls="panneau-admin"
+          tabIndex={current === id ? 0 : -1}
+          onClick={() => onChange(id)}
+          onKeyDown={event => move(event, index)}
+          className="tab"
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 /* ── Page principale ─────────────────────────────────────────────────── */
 export default function AdminDashboardPage() {
   const { user }         = useAuth()
@@ -71,6 +126,17 @@ export default function AdminDashboardPage() {
   const [stats, setStats] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError]     = useState(null)
+  const [explorerFilter, setExplorerFilter] = useState('pending')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const requested = searchParams.get('onglet')
+  const tab = TABS.some(([id]) => id === requested) ? requested : 'catalogue'
+  const selectTab = (id) => setSearchParams(id === 'catalogue' ? {} : { onglet: id }, { replace: true })
+
+  // Les cartes du catalogue ouvrent l'explorateur sur le filtre correspondant.
+  const explore = (filter) => {
+    setExplorerFilter(filter)
+    selectTab('explorer')
+  }
 
   useEffect(() => {
     if (!user?.isAdmin) { navigate('/'); return }
@@ -122,6 +188,18 @@ export default function AdminDashboardPage() {
         </Link>
       </div>
 
+      <Tabs current={tab} onChange={selectTab} />
+
+      <div id="panneau-admin" role="tabpanel" aria-labelledby={`onglet-${tab}`} className="space-y-6">
+
+      {tab === 'taches' && (
+      <Section title="Tâches d'import et de synchronisation" icon="📥">
+        <JobsPanel />
+      </Section>
+
+      )}
+
+      {tab === 'catalogue' && (<>
       {/* ── Jeux ─────────────────────────────────────────────────────── */}
       <Section title="Catalogue de jeux (jeux de base)" icon="🎲">
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
@@ -130,9 +208,11 @@ export default function AdminDashboardPage() {
             sub={g.total > 0 ? `${Math.round(g.enriched / g.total * 100)}%` : null} />
           <StatCard label="Stubs CSV (en attente)" value={fmtNum(g.pending)} icon="⏳"
             color={Number(g.pending) > 0 ? 'orange' : 'green'}
-            sub={Number(g.pending) > 0 ? 'À enrichir via enrich-pending' : 'Tout est enrichi'} />
+            sub={Number(g.pending) > 0 ? 'À enrichir via enrich-pending · voir la liste' : 'Tout est enrichi'}
+            onClick={() => explore('pending')} />
           <StatCard label="À resyncer"    value={fmtNum(g.stale_count)} icon="🔄" color={g.stale_count > 500 ? 'orange' : 'green'}
-            sub={g.stale_count > 0 ? 'last_synced_at > 30 j' : 'Tout est à jour'} />
+            sub={g.stale_count > 0 ? 'last_synced_at > 30 j · voir la liste' : 'Tout est à jour'}
+            onClick={() => explore('stale')} />
         </div>
 
         <div className="space-y-3 mb-5">
@@ -140,21 +220,28 @@ export default function AdminDashboardPage() {
             label="Enrichis (source = bgg_api)"
             value={Number(g.enriched)} max={Number(g.total)}
             color="green"
+            hint="Reste : stubs CSV, enrichis par la tâche enrich-pending (planifiée) ; rien à faire à la main."
           />
           <ProgressBar
-            label="Avec mécaniques BGG mappées"
+            label="Avec mécaniques BGG"
             value={Number(g.total) - Number(g.no_mechanics)} max={Number(g.total)}
             color="amber"
+            hint="Ce n'est pas le mapping Engelstein : un jeu compte dès qu'il a des mécaniques. Les stubs CSV n'en ont pas avant leur enrichissement ; un jeu déjà enrichi sans mécaniques n'en a pas sur BGG."
+            onHint={() => explore('no_mechanics')}
           />
           <ProgressBar
             label="Avec image"
             value={Number(g.total) - Number(g.no_image)} max={Number(g.total)}
             color="blue"
+            hint="Jeux enrichis sans image sur BGG, ou stubs pas encore enrichis."
+            onHint={() => explore('no_image')}
           />
           <ProgressBar
             label="Avec description"
             value={Number(g.total) - Number(g.no_description)} max={Number(g.total)}
             color="violet"
+            hint="Jeux enrichis sans description sur BGG, ou stubs pas encore enrichis."
+            onHint={() => explore('no_description')}
           />
         </div>
 
@@ -215,13 +302,32 @@ export default function AdminDashboardPage() {
           <div className="bg-orange-50 border border-orange-200 rounded-xl p-3 text-xs text-orange-700 flex items-start gap-2">
             <span className="text-base leading-none flex-shrink-0">⚠️</span>
             <span>
-              <strong>{fmtNum(ex.unlinked)} extensions</strong> n'ont pas de lien vers leur jeu de base.
+              <strong>{fmtNum(ex.unlinked)} extensions</strong> n'ont pas de lien vers leur jeu de base.{' '}
+              <button type="button" onClick={() => explore('unlinked_expansions')} className="underline font-semibold">Voir la liste</button>.
               Relancer : <code className="bg-orange-100 px-1 rounded font-mono">app:bgg:relink-expansions</code>
             </span>
           </div>
         )}
       </Section>
 
+      </>)}
+
+      {tab === 'explorer' && (
+      <>
+      {/* ── Explorateur du catalogue ─────────────────────────────────── */}
+      <Section title="Explorer le catalogue" icon="🔎">
+        <GamesPanel filter={explorerFilter} onFilter={setExplorerFilter} />
+      </Section>
+      </>
+      )}
+
+      {tab === 'membres' && (
+        <Section title="Membres et invitations" icon="🎟️">
+          <AdminMembers />
+        </Section>
+      )}
+
+      {tab === 'communaute' && (<>
       {/* ── Utilisateurs ─────────────────────────────────────────────── */}
       <Section title="Utilisateurs" icon="👥">
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
@@ -263,7 +369,10 @@ export default function AdminDashboardPage() {
         </div>
       </Section>
 
+      </>)}
+
       {/* ── Mappings mécaniques & thématiques ────────────────────────── */}
+      {tab === 'mappings' && (
       <Section title="Mappings" icon="⚙️">
 
         {/* Mécaniques */}
@@ -298,7 +407,9 @@ export default function AdminDashboardPage() {
         </div>
 
       </Section>
+      )}
 
+      </div>
     </div>
   )
 }

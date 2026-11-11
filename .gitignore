@@ -27,6 +27,7 @@ app/vendor/
 # AssetMapper et le bundle Tailwind. Se supprime sans risque, se regenere au
 # deploiement.
 app/public/assets/
+app/public/bundles/
 frontend/node_modules/
 frontend/dist/
 # macOS

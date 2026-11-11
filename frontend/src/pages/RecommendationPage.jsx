@@ -1,53 +1,38 @@
-import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { useState, useEffect, useId, useRef } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import { getRecommendations, getUserPreferences, getThemeMappings } from '../api'
 import GameCard from '../components/GameCard'
 import { useAuth } from '../context/AuthContext'
-import { ENGINES, SUPPORT_FAMILIES, EXTRA_FAMILIES, familyLabel, familyColor, EXTRA_COLORS } from '../utils/engelstein'
-
-const ENGINE_ICONS = {
-  worker_placement: '🏗️', deck_building: '🃏', engine_building: '⚙️',
-  area_control: '🗺️', hand_management: '✋', auction: '🔨',
-}
-const SUPPORT_ICONS = {
-  card_play: '🂠', spatial_placement: '🧩', movement: '🚶',
-  resource_management: '💰', resolution: '🎲', uncertainty: '🎭',
-  cooperation: '🤝', scoring: '🏆',
-}
-const EXTRA_ICONS = { solo: '🧍', real_time: '⏰', dexterity: '🤸', legacy: '📖' }
+import { ENGINES, SUPPORT_FAMILIES, EXTRA_FAMILIES, familyLabel } from '../utils/engelstein'
 
 /* ── Chip sélectionnable ─────────────────────────────────────────────── */
-function Chip({ active, onClick, icon, label, colorClass }) {
+function Chip({ active, onClick, icon, label, small = false }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
-        active
-          ? (colorClass || 'bg-amber-500 text-white border-amber-500')
-          : 'bg-stone-50 text-stone-600 border-stone-200 hover:bg-stone-100'
-      }`}
-    >
-      {icon && <span>{icon}</span>}
-      <span>{label}</span>
+    <button type="button" onClick={onClick} aria-pressed={active} className={small ? 'chip chip-sm' : 'chip !min-h-11 text-sm'}>
+      {small && <span aria-hidden="true" className="mr-1 inline-block w-3 text-center">{active ? '✓' : ''}</span>}
+      {icon && <span aria-hidden="true" className="mr-1.5">{icon}</span>}
+      {label}
     </button>
   )
 }
 
-/* ── Section filtres (collapsible) ───────────────────────────────────── */
+/* ── Section filtres (repliable) ─────────────────────────────────────── */
 function FilterSection({ title, children, defaultOpen = true }) {
   const [open, setOpen] = useState(defaultOpen)
+  const id = useId()
   return (
-    <div className="border-b border-stone-100 pb-4">
+    <div className="border-b-2 border-ink/15 pb-4">
       <button
         type="button"
         onClick={() => setOpen(v => !v)}
-        className="flex items-center justify-between w-full text-xs font-semibold text-stone-500 uppercase tracking-wide mb-2"
+        aria-expanded={open}
+        aria-controls={id}
+        className="mb-1 flex min-h-11 w-full items-center justify-between text-left font-bold"
       >
         <span>{title}</span>
-        <span className="text-stone-300">{open ? '▲' : '▼'}</span>
+        <span aria-hidden="true" className="text-stone-600">{open ? '−' : '+'}</span>
       </button>
-      {open && children}
+      <div id={id} hidden={!open}>{children}</div>
     </div>
   )
 }
@@ -56,163 +41,134 @@ function FilterSection({ title, children, defaultOpen = true }) {
 function ResultsGrid({ results, loading, error }) {
   const [sub, setSub] = useState('base')
 
-  const base = results.filter(r => !r.game.isExpansion)
-  const exps  = results.filter(r =>  r.game.isExpansion)
+  const base = (results ?? []).filter(r => !r.game.isExpansion)
+  const exps  = (results ?? []).filter(r =>  r.game.isExpansion)
   const items = sub === 'ext' ? exps : base
 
-  if (loading) return (
-    <div className="flex items-center justify-center h-32 gap-2 text-stone-400">
-      <div className="w-4 h-4 border-2 border-stone-200 border-t-amber-400 rounded-full animate-spin" />
-      <span className="text-sm">Chargement…</span>
-    </div>
+  // Au premier chargement seulement : ensuite les anciens résultats restent affichés pendant l'actualisation.
+  if (loading && results === null) return (
+    <p role="status" className="flex h-32 items-center justify-center gap-3 text-stone-600">
+      <span className="h-5 w-5 animate-spin rounded-full border-[3px] border-stone-300 border-t-brand-red" aria-hidden="true" />
+      Chargement…
+    </p>
   )
 
-  if (error) return (
-    <div className="text-center py-8 text-stone-400 text-sm">
-      <div className="text-2xl mb-2">😕</div>{error}
-    </div>
-  )
+  if (error) return <p role="alert" className="panel border-brand-red bg-amber-100 p-4 font-bold">{error}</p>
 
   return (
-    <div>
-      {/* Sous-onglets toujours affichés */}
-      <div className="flex gap-2 mb-4">
+    <div aria-busy={loading} className={loading ? 'opacity-60 transition-opacity' : 'transition-opacity'}>
+      <div role="group" aria-label="Type de fiches" className="mb-4 flex flex-wrap gap-1.5">
         {[
-          { key: 'base', label: '🎲 Jeux de base', count: base.length },
-          { key: 'ext',  label: '➕ Extensions',   count: exps.length },
+          { key: 'base', label: 'Jeux de base', count: base.length },
+          { key: 'ext',  label: 'Extensions',   count: exps.length },
         ].map(t => (
           <button
             key={t.key}
+            type="button"
+            aria-pressed={sub === t.key}
             onClick={() => setSub(t.key)}
             disabled={t.count === 0}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all disabled:opacity-40 disabled:cursor-default ${
-              sub === t.key
-                ? 'bg-amber-500 text-white border-amber-500'
-                : 'bg-white text-stone-600 border-stone-200 hover:bg-stone-50'
-            }`}
+            className="chip chip-sm disabled:cursor-default disabled:opacity-40"
           >
             {t.label}
-            <span className={`px-1.5 py-0.5 rounded-full font-bold text-[10px] ${sub === t.key ? 'bg-white/30 text-white' : 'bg-stone-100 text-stone-500'}`}>
-              {t.count}
-            </span>
+            <span className="ml-2 text-sm opacity-80">{t.count}</span>
           </button>
         ))}
       </div>
 
       {items.length === 0 ? (
-        <div className="text-center py-10 text-stone-400">
-          <div className="text-3xl mb-2">{sub === 'ext' ? '🧩' : '📭'}</div>
-          <p className="text-sm">
-            {sub === 'ext'
-              ? 'Aucune extension ne correspond à ces critères.'
-              : 'Aucun jeu de base ne correspond exactement.'}
-          </p>
-        </div>
+        <p className="panel mx-auto max-w-xl p-6 text-center text-stone-700">
+          {sub === 'ext'
+            ? 'Aucune extension ne correspond à ces critères.'
+            : 'Aucun jeu de base ne correspond exactement.'}
+        </p>
       ) : (
         <>
-          <p className="text-xs text-stone-400 mb-3">{items.length} jeu{items.length > 1 ? 'x' : ''}</p>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+          <p className="mb-3 text-stone-600" aria-live="polite">{items.length} jeu{items.length > 1 ? 'x' : ''}</p>
+          <ul className="m-0 grid list-none grid-cols-2 gap-4 p-0 sm:grid-cols-3 sm:gap-5 xl:grid-cols-4">
             {items.map(({ game, reason }, i) => (
-              <GameCard key={game.id} game={game} reason={reason} rank={i + 1} />
+              <li key={game.id}><GameCard game={game} reason={reason} rank={i + 1} /></li>
             ))}
-          </div>
+          </ul>
         </>
       )}
     </div>
   )
 }
 
-/* ── Panneau résultats ───────────────────────────────────────────────── */
-function ResultsPanel({
-  collectionResults, collectionLoading, collectionError,
-  discoverResults,   discoverLoading,   discoverError,
-  searched,
-}) {
-  const [activeTab, setActiveTab] = useState('collection')
+/* ── Panneau résultats : trois périmètres, chacun avec son compte ───── */
+const SCOPE_TABS = [
+  { key: 'collection', label: 'Dans ma ludothèque' },
+  { key: 'library',    label: 'À l’association' },
+  { key: 'discover',   label: 'Tout le catalogue' },
+]
 
-  // Auto-sélectionner l'onglet le plus fourni une fois les deux chargés
-  useEffect(() => {
-    if (!collectionLoading && !discoverLoading && collectionResults && discoverResults) {
-      if (discoverResults.length > collectionResults.length) setActiveTab('discover')
-    }
-  }, [collectionLoading, discoverLoading, collectionResults, discoverResults])
-
-  if (!searched) return (
-    <div className="flex flex-col items-center justify-center h-64 text-stone-300 gap-3">
-      <div className="text-6xl">🎲</div>
-      <p className="text-sm">Renseignez vos critères et lancez la recherche</p>
-    </div>
-  )
-
-  const colCount = collectionResults?.length ?? '…'
-  const disCount = discoverResults?.length ?? '…'
-
+function ResultsPanel({ results, activeTab, onTabChange }) {
   return (
     <div>
-      {/* Onglets principaux collection / découverte */}
-      <div className="flex gap-1 border-b border-stone-200 mb-5">
-        {[
-          { key: 'collection', label: '📚 Ma collection', count: colCount },
-          { key: 'discover',   label: '🔭 À découvrir',   count: disCount },
-        ].map(tab => (
+      <div role="tablist" aria-label="Où chercher" className="tab-list mb-5">
+        {SCOPE_TABS.map(tab => (
           <button
             key={tab.key}
-            onClick={() => setActiveTab(tab.key)}
-            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors -mb-px ${
-              activeTab === tab.key
-                ? 'border-amber-500 text-amber-700'
-                : 'border-transparent text-stone-500 hover:text-stone-700'
-            }`}
+            type="button"
+            role="tab"
+            id={`reco-${tab.key}`}
+            aria-selected={activeTab === tab.key}
+            aria-controls="reco-panneau"
+            onClick={() => onTabChange(tab.key)}
+            className="tab"
           >
             {tab.label}
-            <span className={`text-xs px-1.5 py-0.5 rounded-full font-bold ${
-              activeTab === tab.key ? 'bg-amber-100 text-amber-700' : 'bg-stone-100 text-stone-500'
-            }`}>{tab.count}</span>
+            <span className="ml-2 text-sm opacity-80">{results[tab.key].data?.length ?? '…'}</span>
           </button>
         ))}
       </div>
 
-      {activeTab === 'collection' ? (
-        <ResultsGrid
-          results={collectionResults ?? []}
-          loading={collectionLoading}
-          error={collectionError}
-        />
-      ) : (
-        <ResultsGrid
-          results={discoverResults ?? []}
-          loading={discoverLoading}
-          error={discoverError}
-        />
-      )}
+      <div id="reco-panneau" role="tabpanel" aria-labelledby={`reco-${activeTab}`}>
+        <ResultsGrid results={results[activeTab].data} loading={results[activeTab].loading} error={results[activeTab].error} />
+      </div>
     </div>
   )
 }
 
+const EMPTY_RESULTS = Object.fromEntries(SCOPE_TABS.map(t => [t.key, { data: null, loading: false, error: null }]))
+
 /* ── Page principale ─────────────────────────────────────────────────── */
 export default function RecommendationPage() {
   const { user } = useAuth()
+  // L'accueil envoie `?joueurs=3&duree=60` : la recherche part d'elle-même avec ces valeurs.
+  const [searchParams] = useSearchParams()
+  const fromHome = searchParams.has('joueurs')
+  const positive = (key, fallback) => {
+    const value = Number(searchParams.get(key))
+    return Number.isInteger(value) && value > 0 ? value : fallback
+  }
 
-  const [players,            setPlayers]            = useState(4)
-  const [maxTime,            setMaxTime]            = useState(60)
+  const [players,            setPlayers]            = useState(() => positive('joueurs', 4))
+  const [maxTime,            setMaxTime]            = useState(() => positive('duree', 60))
   const [selectedFamilies,   setSelectedFamilies]   = useState([])
   const [selectedCategories, setSelectedCategories] = useState([])
-  const [collectionResults,  setCollectionResults]  = useState(null)
-  const [discoverResults,    setDiscoverResults]    = useState(null)
-  const [colLoading,         setColLoading]         = useState(false)
-  const [disLoading,         setDisLoading]         = useState(false)
-  const [colError,           setColError]           = useState(null)
-  const [disError,           setDisError]           = useState(null)
-  const [searched,           setSearched]           = useState(false)
+  const [results,            setResults]            = useState(EMPTY_RESULTS)
+  const [activeTab,          setActiveTab]          = useState('collection')
+  const [ready,              setReady]              = useState(false)
   const [filtersOpen,        setFiltersOpen]        = useState(false)
-  const [userPrefs,          setUserPrefs]          = useState(null)
   const [themeGroups,        setThemeGroups]        = useState({ themes: [], types: [] })
   // Map label → liste de bggCategories (pour l'expansion lors de la soumission)
   const [themeLabelToCats,   setThemeLabelToCats]   = useState({})
 
   // Charger les préférences et les thèmes admin
   useEffect(() => {
-    if (user) getUserPreferences().then(setUserPrefs).catch(() => {})
+    if (user) {
+      getUserPreferences().then(prefs => {
+        // Point de départ : la table enregistrée (sauf si l'adresse en porte une) et les styles favoris, goûts déclarés d'abord.
+        if (prefs?.table && !fromHome) {
+          setPlayers(prefs.table.players)
+          setMaxTime(prefs.table.maxTime)
+        }
+        const favorites = [...new Set([...(prefs?.declaredFamilies ?? []), ...(prefs?.topEngines ?? [])])]
+        setSelectedFamilies(favorites)
+      }).catch(() => {}).finally(() => setReady(true))
+    }
     getThemeMappings().then(mappings => {
       // Construire label → [bggCategories] + deux listes triées
       const labelMap   = {}   // label → { group, emoji, bggCategories[] }
@@ -239,105 +195,85 @@ export default function RecommendationPage() {
       for (const [label, data] of Object.entries(labelMap)) catMap[label] = data.bggCategories
       setThemeLabelToCats(catMap)
     }).catch(() => {})
-  }, [user])
+  }, [user, fromHome])
 
   const toggle    = (key)   => setSelectedFamilies(prev   => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key])
   const toggleCat = (label) => setSelectedCategories(prev => prev.includes(label) ? prev.filter(l => l !== label) : [...prev, label])
   const clearAll  = () => { setSelectedFamilies([]); setSelectedCategories([]) }
 
-  const handleSubmit = (e) => {
-    e?.preventDefault()
-    // Expandre les labels sélectionnés en bggCategories concrètes
+  // Résultats en direct : tout changement de critère relance les trois recherches (légère attente pour le curseur de durée).
+  const firstLoad = useRef(true)
+  useEffect(() => {
+    if (!user || !ready) return
+    let current = true
     const expandedCats = selectedCategories.flatMap(label => themeLabelToCats[label] ?? [])
     const params = { players, maxTime, families: selectedFamilies, categories: expandedCats }
 
-    // Lancer les deux appels en parallèle, indépendamment
-    setSearched(true)
-    setCollectionResults(null)
-    setDiscoverResults(null)
-    setColError(null)
-    setDisError(null)
+    const timer = setTimeout(() => {
+      const settled = {}
+      SCOPE_TABS.forEach(({ key }) => {
+        setResults(prev => ({ ...prev, [key]: { ...prev[key], loading: true, error: null } }))
+        getRecommendations({ ...params, scope: key })
+          .then(data => { settled[key] = data; if (current) setResults(prev => ({ ...prev, [key]: { data, loading: false, error: null } })) })
+          .catch(err => { settled[key] = []; if (current) setResults(prev => ({ ...prev, [key]: { data: prev[key].data, loading: false, error: err.message || 'Erreur de chargement' } })) })
+          .finally(() => {
+            // À la première arrivée, on ouvre le premier onglet qui a quelque chose à montrer.
+            if (!current || !firstLoad.current || Object.keys(settled).length < SCOPE_TABS.length) return
+            firstLoad.current = false
+            const first = SCOPE_TABS.find(t => settled[t.key]?.length > 0)
+            if (first) setActiveTab(first.key)
+          })
+      })
+    }, 250)
 
-    setColLoading(true)
-    getRecommendations({ ...params, scope: 'collection' })
-      .then(setCollectionResults)
-      .catch(err => setColError(err.message || 'Erreur collection'))
-      .finally(() => setColLoading(false))
-
-    setDisLoading(true)
-    getRecommendations({ ...params, scope: 'discover' })
-      .then(setDiscoverResults)
-      .catch(err => setDisError(err.message || 'Erreur découverte'))
-      .finally(() => setDisLoading(false))
-  }
+    return () => { current = false; clearTimeout(timer) }
+  }, [user, ready, players, maxTime, selectedFamilies, selectedCategories, themeLabelToCats])
 
   if (!user) return (
-    <div className="max-w-6xl mx-auto px-4 py-16 text-center text-stone-500">
-      <div className="text-5xl mb-4">🔒</div>
-      <p className="font-semibold text-lg text-stone-800 mb-2">Connexion requise</p>
-      <p className="text-sm mb-6">Les recommandations sont personnalisées depuis votre collection BGG.</p>
-      <Link to="/connexion" className="bg-amber-500 hover:bg-amber-600 text-white font-bold px-6 py-3 rounded-xl">Se connecter</Link>
+    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-10">
+      <section className="panel mx-auto flex max-w-xl flex-col items-center gap-3 p-8 text-center">
+        <img src="/edj-mascotte.png" alt="" width="120" height="133" className="h-28 w-auto" />
+        <h1 className="text-4xl">Connexion requise</h1>
+        <p className="text-stone-600">Les recommandations tiennent compte de votre ludothèque et de vos goûts.</p>
+        <Link to="/connexion" className="btn btn-primary">Se connecter</Link>
+      </section>
     </div>
   )
 
   const activeFiltersCount = selectedFamilies.length + selectedCategories.length
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-8">
+    <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-10 lg:py-8">
 
-      {/* Header */}
       <div className="mb-6">
-        <h2 className="text-3xl font-black text-stone-900">Ce soir on joue à…</h2>
-        <p className="text-stone-400 text-sm mt-1">Recommandations personnalisées depuis votre collection BGG</p>
+        <h1 className="text-4xl leading-tight sm:text-5xl">À quoi on joue…</h1>
+        <p className="mt-1 text-lg text-stone-600">Selon vos styles favoris et votre table : les résultats se mettent à jour à chaque changement.</p>
       </div>
 
-      <form onSubmit={handleSubmit}>
-        <div className="flex gap-6 items-start">
+      <div>
+        <div className="flex flex-col lg:flex-row gap-6 lg:items-start">
 
           {/* ── Panneau filtres (sidebar) ─────────────────────────────── */}
           <aside className={`
-            w-72 flex-shrink-0 bg-white rounded-2xl border border-stone-200 shadow-sm p-5 space-y-4
+            w-full lg:w-72 flex-shrink-0 panel p-5 space-y-4
             ${filtersOpen ? 'block' : 'hidden lg:block'}
           `}>
             <div className="flex items-center justify-between">
-              <h3 className="font-bold text-stone-800">Filtres</h3>
+              <h2 className="text-2xl">Filtres</h2>
               {activeFiltersCount > 0 && (
-                <button type="button" onClick={clearAll} className="text-xs text-stone-400 hover:text-red-500 hover:underline">
+                <button type="button" onClick={clearAll} className="inline-flex min-h-11 items-center font-bold text-brand-blue underline underline-offset-4">
                   Réinitialiser ({activeFiltersCount})
                 </button>
               )}
             </div>
 
-            {/* Suggestions issues des préférences */}
-            {userPrefs?.topEngines?.length > 0 && (
-              <div className="bg-amber-50 rounded-xl p-3">
-                <p className="text-xs font-semibold text-amber-700 mb-2">✨ Vos styles favoris</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {userPrefs.topEngines.map(key => (
-                    <button
-                      key={key}
-                      type="button"
-                      onClick={() => toggle(key)}
-                      className={`text-xs px-2.5 py-1 rounded-full border font-medium transition-all ${
-                        selectedFamilies.includes(key) ? familyColor(key) : 'bg-white border-amber-200 text-amber-700 hover:bg-amber-100'
-                      }`}
-                    >
-                      {familyLabel(key)}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
             {/* Joueurs */}
             <FilterSection title="Nombre de joueurs">
-              <div className="flex flex-wrap gap-1.5">
+              <div className="flex flex-wrap gap-2">
                 {[1, 2, 3, 4, 5, 6, 7, 8].map(n => (
                   <button
-                    key={n} type="button" onClick={() => setPlayers(n)}
-                    className={`w-9 h-9 rounded-lg font-bold text-sm transition-all ${
-                      players === n ? 'bg-amber-500 text-white shadow' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
-                    }`}
+                    key={n} type="button" onClick={() => setPlayers(n)} aria-pressed={players === n}
+                    className="chip min-w-11 justify-center !px-0"
                   >{n}</button>
                 ))}
               </div>
@@ -345,32 +281,30 @@ export default function RecommendationPage() {
 
             {/* Durée */}
             <FilterSection title="Durée maximum">
-              <div className="text-center mb-2">
-                <span className="text-lg font-black text-amber-600">
+              <div className="mb-2 text-center">
+                <span className="font-display text-3xl">
                   {maxTime < 60 ? `${maxTime} min` : `${Math.floor(maxTime / 60)}h${maxTime % 60 ? maxTime % 60 + 'm' : ''}`}
                 </span>
               </div>
               <input
-                type="range" min={15} max={240} step={15} value={maxTime}
+                type="range" min={15} max={240} step={15} value={maxTime} aria-label="Durée maximum, en minutes"
                 onChange={e => setMaxTime(Number(e.target.value))}
-                className="w-full accent-amber-500"
+                className="h-11 w-full accent-brand-red"
               />
-              <div className="flex justify-between text-xs text-stone-300 mt-1">
+              <div className="mt-1 flex justify-between text-sm text-stone-600">
                 <span>15m</span><span>1h</span><span>2h</span><span>3h</span><span>4h</span>
               </div>
             </FilterSection>
 
             {/* Moteurs Engelstein */}
-            <FilterSection title="Style / Moteur" defaultOpen={false}>
+            <FilterSection title="Style / Moteur">
               <div className="flex flex-wrap gap-1.5">
                 {Object.keys(ENGINES).map(key => (
                   <Chip
                     key={key}
                     active={selectedFamilies.includes(key)}
                     onClick={() => toggle(key)}
-                    icon={ENGINE_ICONS[key]}
                     label={familyLabel(key)}
-                    colorClass={selectedFamilies.includes(key) ? familyColor(key) : null}
                   />
                 ))}
               </div>
@@ -384,9 +318,7 @@ export default function RecommendationPage() {
                     key={key}
                     active={selectedFamilies.includes(key)}
                     onClick={() => toggle(key)}
-                    icon={SUPPORT_ICONS[key]}
                     label={familyLabel(key)}
-                    colorClass={selectedFamilies.includes(key) ? 'bg-stone-700 text-white border-stone-700' : null}
                   />
                 ))}
               </div>
@@ -400,9 +332,7 @@ export default function RecommendationPage() {
                     key={key}
                     active={selectedFamilies.includes(key)}
                     onClick={() => toggle(key)}
-                    icon={EXTRA_ICONS[key]}
                     label={familyLabel(key)}
-                    colorClass={selectedFamilies.includes(key) ? (EXTRA_COLORS?.[key] || 'bg-stone-700 text-white border-stone-700') : null}
                   />
                 ))}
               </div>
@@ -419,7 +349,6 @@ export default function RecommendationPage() {
                       onClick={() => toggleCat(item.label)}
                       icon={item.emoji}
                       label={item.label}
-                      colorClass={selectedCategories.includes(item.label) ? 'bg-amber-500 text-white border-amber-500' : null}
                     />
                   ))}
                 </div>
@@ -437,55 +366,33 @@ export default function RecommendationPage() {
                       onClick={() => toggleCat(item.label)}
                       icon={item.emoji}
                       label={item.label}
-                      colorClass={selectedCategories.includes(item.label) ? 'bg-blue-500 text-white border-blue-500' : null}
                     />
                   ))}
                 </div>
               </FilterSection>
             )}
-
-            {/* Bouton lancer */}
-            <button
-              type="submit"
-              disabled={colLoading || disLoading}
-              className="w-full bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-white font-black py-3.5 rounded-xl text-base transition-all shadow-sm"
-            >
-              {(colLoading || disLoading) ? 'Recherche…' : '🎲 Trouver des jeux'}
-            </button>
           </aside>
 
           {/* ── Bouton mobile toggle filtres ─────────────────────────── */}
-          <div className="lg:hidden w-full">
+          <div className="order-first lg:hidden w-full">
             <button
               type="button"
               onClick={() => setFiltersOpen(v => !v)}
-              className="w-full flex items-center justify-between px-4 py-3 bg-white rounded-xl border border-stone-200 shadow-sm text-sm font-semibold text-stone-700 mb-4"
+              aria-expanded={filtersOpen}
+              className="w-full min-h-12 flex items-center justify-between px-4 panel text-base font-bold mb-0"
             >
-              <span>🎛️ Filtres {activeFiltersCount > 0 && `(${activeFiltersCount})`}</span>
-              <span className="text-stone-400">{filtersOpen ? '▲' : '▼'}</span>
+              <span>Filtres {activeFiltersCount > 0 && `(${activeFiltersCount})`}</span>
+              <span aria-hidden="true">{filtersOpen ? '−' : '+'}</span>
             </button>
-            {filtersOpen && (
-              <div className="mb-4">
-                {/* Les filtres s'affichent au-dessus (sidebar réutilisée) */}
-              </div>
-            )}
           </div>
 
           {/* ── Zone résultats ────────────────────────────────────────── */}
           <div className="flex-1 min-w-0">
-            <ResultsPanel
-              collectionResults={collectionResults}
-              collectionLoading={colLoading}
-              collectionError={colError}
-              discoverResults={discoverResults}
-              discoverLoading={disLoading}
-              discoverError={disError}
-              searched={searched}
-            />
+            <ResultsPanel results={results} activeTab={activeTab} onTabChange={setActiveTab} />
           </div>
 
         </div>
-      </form>
+      </div>
     </div>
   )
 }

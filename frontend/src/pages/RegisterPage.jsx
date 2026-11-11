@@ -1,16 +1,23 @@
-import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { register as apiRegister } from '../api'
-import { useAuth } from '../context/AuthContext'
+import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
+import { getRegistrationConfig, register as apiRegister } from '../api'
+import { AuthCard, ErrorMessage, Field, PasswordField } from '../components/forms'
+import ResendVerification from '../components/ResendVerification'
 
 export default function RegisterPage() {
-  const { login } = useAuth()
-  const navigate = useNavigate()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
+  const [code, setCode] = useState('')
+  const [sent, setSent] = useState(false)
+  const [requiresCode, setRequiresCode] = useState(false)
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(false)
+
+  // Le formulaire réclame le code seulement si l'inscription l'exige (staging, production).
+  useEffect(() => {
+    getRegistrationConfig().then(config => setRequiresCode(Boolean(config?.requiresCode))).catch(() => {})
+  }, [])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -23,9 +30,9 @@ export default function RegisterPage() {
 
     setLoading(true)
     try {
-      const data = await apiRegister(email, password)
-      login(data.token, data.user)
-      navigate('/', { replace: true })
+      // Pas de session : l'adresse doit d'abord être confirmée par le lien envoyé.
+      await apiRegister(email, password, code.trim())
+      setSent(true)
     } catch (err) {
       setError(err.message)
     } finally {
@@ -33,76 +40,45 @@ export default function RegisterPage() {
     }
   }
 
-  return (
-    <div className="min-h-[80vh] flex items-center justify-center px-4">
-      <div className="w-full max-w-sm">
-        <h1 className="text-3xl font-black text-stone-900 mb-2">Créer un compte</h1>
-        <p className="text-stone-500 text-sm mb-8">
-          Déjà un compte ?{' '}
-          <Link to="/connexion" className="text-amber-600 hover:underline font-medium">
-            Se connecter
-          </Link>
+  if (sent) {
+    return (
+      <AuthCard
+        title="Vérifiez vos e-mails"
+        footer={<Link to="/connexion" className="inline-flex min-h-11 items-center px-1 font-bold text-brand-blue underline underline-offset-4">Retour à la connexion</Link>}
+      >
+        <p role="status" className="leading-relaxed">
+          Compte créé. Un e-mail de confirmation vient de partir pour <strong className="break-all">{email}</strong> :
+          ouvrez le lien qu'il contient pour activer votre compte. Il est valable sept jours.
         </p>
+        <ResendVerification email={email} />
+      </AuthCard>
+    )
+  }
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-semibold text-stone-700 mb-1">E-mail</label>
-            <input
-              type="email"
-              autoComplete="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-amber-400 text-sm"
-              placeholder="you@example.com"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-semibold text-stone-700 mb-1">
-              Mot de passe
-              <span className="font-normal text-stone-400 ml-1">(8 caractères min.)</span>
-            </label>
-            <input
-              type="password"
-              autoComplete="new-password"
-              required
-              minLength={8}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-amber-400 text-sm"
-              placeholder="••••••••"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-semibold text-stone-700 mb-1">Confirmer le mot de passe</label>
-            <input
-              type="password"
-              autoComplete="new-password"
-              required
-              value={confirm}
-              onChange={(e) => setConfirm(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-amber-400 text-sm"
-              placeholder="••••••••"
-            />
-          </div>
-
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl p-3 text-sm">
-              {error}
-            </div>
-          )}
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-3 bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-white font-bold rounded-xl transition-colors"
-          >
-            {loading ? 'Création…' : 'Créer mon compte'}
-          </button>
-        </form>
-      </div>
-    </div>
+  return (
+    <AuthCard
+      title="Créer un compte"
+      footer={<>Déjà un compte ? <Link to="/connexion" className="inline-flex min-h-11 items-center px-1 font-bold text-brand-blue underline underline-offset-4">Se connecter</Link></>}
+    >
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <Field label="E-mail" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+        <Field
+          label="Code d'invitation"
+          hint={requiresCode ? '(donné par l\'association)' : '(facultatif)'}
+          type="text"
+          autoComplete="off"
+          autoCapitalize="characters"
+          required={requiresCode}
+          value={code}
+          onChange={(e) => setCode(e.target.value)}
+        />
+        <PasswordField label="Mot de passe" hint="(8 caractères minimum)" autoComplete="new-password" required minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} />
+        <PasswordField label="Confirmer le mot de passe" autoComplete="new-password" required value={confirm} onChange={(e) => setConfirm(e.target.value)} />
+        <ErrorMessage>{error}</ErrorMessage>
+        <button type="submit" disabled={loading} className="btn btn-primary w-full">
+          {loading ? 'Création…' : 'Créer mon compte'}
+        </button>
+      </form>
+    </AuthCard>
   )
 }

@@ -1,11 +1,11 @@
 export default function LegalPage({ title, updated, children }) {
   return (
-    <div className="max-w-3xl mx-auto px-4 py-8 space-y-6">
+    <div className="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-6 sm:px-6 lg:py-8">
       <header>
-        <h1 className="text-2xl font-black text-stone-900">{title}</h1>
-        {updated && <p className="text-xs text-stone-400 mt-1">Dernière mise à jour : {updated}</p>}
+        <h1 className="text-4xl leading-tight sm:text-5xl">{title}</h1>
+        {updated && <p className="mt-1 text-stone-600">Dernière mise à jour : {updated}</p>}
       </header>
-      <div className="bg-white rounded-2xl border border-stone-200 shadow-sm p-6 space-y-5 text-sm leading-relaxed text-stone-700">
+      <div className="panel flex flex-col gap-6 p-5 leading-relaxed text-stone-800 sm:p-8">
         {children}
       </div>
     </div>
@@ -14,8 +14,8 @@ export default function LegalPage({ title, updated, children }) {
 
 export function LegalSection({ title, children }) {
   return (
-    <section className="space-y-2">
-      <h2 className="text-base font-bold text-stone-900">{title}</h2>
+    <section className="flex flex-col gap-2">
+      <h2 className="text-2xl">{title}</h2>
       {children}
     </section>
   )

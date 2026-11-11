@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { getGame, createSession, getSimilarGames } from '../api'
-import GameCard from '../components/GameCard'
-import { familyLabel, familyColor, isEngine, isExtra, SUPPORT_COLOR } from '../utils/engelstein'
+import GameCard, { coverColor, initials } from '../components/GameCard'
+import { familyLabel, familyColor, isEngine, isExtra } from '../utils/engelstein'
 import { groupCategories } from '../utils/categories'
+import { frenchEditionLabel, gameImage, originalEditionLabel } from '../utils/game'
 
 /* ── Complexité visuelle ─────────────────────────────────────────────── */
 function ComplexityBar({ value }) {
@@ -20,29 +21,6 @@ function ComplexityBar({ value }) {
         <span>{value.toFixed(1)}/5</span>
         <span className="font-medium text-stone-600">{label}</span>
       </div>
-    </div>
-  )
-}
-
-/* ── Bloc mécanique ──────────────────────────────────────────────────── */
-function MechanicBlock({ familyKey, bggMechanics, primary }) {
-  const colorClass = primary ? familyColor(familyKey) : SUPPORT_COLOR
-  const dotColor = familyColor(familyKey).includes('amber') ? 'bg-amber-500' : familyColor(familyKey).includes('pink') ? 'bg-pink-500' : familyColor(familyKey).includes('teal') ? 'bg-teal-500' : familyColor(familyKey).includes('red') ? 'bg-red-500' : familyColor(familyKey).includes('violet') ? 'bg-violet-500' : 'bg-lime-500'
-  return (
-    <div className={`rounded-xl border p-3 ${primary ? colorClass : 'border-stone-200 bg-stone-50'}`}>
-      <div className="flex items-center gap-2 mb-2">
-        {primary && <span className={`w-2 h-2 rounded-full flex-shrink-0 ${dotColor}`} />}
-        <span className={`text-sm font-semibold ${primary ? '' : 'text-stone-600'}`}>
-          {familyLabel(familyKey)}
-        </span>
-      </div>
-      {bggMechanics?.length > 0 && (
-        <div className="flex flex-wrap gap-1">
-          {bggMechanics.map(m => (
-            <span key={m} className="text-xs bg-white/60 border border-current/10 px-2 py-0.5 rounded-full text-current/70">{m}</span>
-          ))}
-        </div>
-      )}
     </div>
   )
 }
@@ -69,7 +47,9 @@ function GameRow({ g, currentId }) {
         <div className="flex items-center gap-1.5 flex-wrap">
           <span className="text-sm font-semibold text-stone-800 truncate">{g.name}</span>
           {isCurrent && <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-medium flex-shrink-0">Cette extension</span>}
-          {g.owned && !isCurrent && <span className="text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full font-medium flex-shrink-0">✓ possédée</span>}
+          {g.owned && !isCurrent && <span className="text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full font-medium flex-shrink-0">✓ Vous l’avez</span>}
+          {!g.owned && !isCurrent && g.inAssociation && <span className="text-[10px] bg-sky-100 text-sky-800 px-1.5 py-0.5 rounded-full font-medium flex-shrink-0">À l’association</span>}
+          {!g.owned && !isCurrent && !g.inAssociation && g.withMember && <span className="text-[10px] bg-sky-100 text-sky-800 px-1.5 py-0.5 rounded-full font-medium flex-shrink-0">Chez un membre</span>}
           {g.isExpansion && !isCurrent && <span className="text-[10px] bg-stone-100 text-stone-500 px-1.5 py-0.5 rounded-full font-medium flex-shrink-0">Extension</span>}
         </div>
         {g.yearPublished && <span className="text-xs text-stone-400">{g.yearPublished}</span>}
@@ -87,57 +67,69 @@ const SHOPS = [
   {
     key: 'crique',
     label: 'La Crique',
-    emoji: '🏪',
     url: (name) => `https://www.crique-aux-jeux.fr/recherche?controller=search&s=${encodeURIComponent(name)}`,
-    color: 'bg-sky-50 text-sky-700 border-sky-200 hover:bg-sky-100',
   },
   {
     key: 'ludipassion',
     label: 'Ludipassion',
-    emoji: '🎮',
     url: (name) => `https://ludipassion.fr/search?q=${encodeURIComponent(name)}`,
-    color: 'bg-violet-50 text-violet-700 border-violet-200 hover:bg-violet-100',
   },
   {
     key: 'passtemps',
     label: 'Le Passe Temps',
-    emoji: '⏳',
     url: (name) => `https://www.le-passe-temps.com/recherche?controller=search&s=${encodeURIComponent(name)}`,
-    color: 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100',
   },
   {
     key: 'philibert',
     label: 'Philibert',
-    emoji: '📦',
     url: (name) => `https://www.philibertnet.com/fr/recherche?search_query=${encodeURIComponent(name)}`,
-    color: 'bg-orange-50 text-orange-700 border-orange-200 hover:bg-orange-100',
   },
 ]
 
 function ShopButtons({ gameName }) {
-  const searchName = gameName
   return (
-    <div>
-      <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-2">🛒 Acheter ce jeu</p>
-      <div className="flex flex-wrap gap-2">
-        {SHOPS.map(shop => (
-          <a
-            key={shop.key}
-            href={shop.url(searchName)}
-            target="_blank"
-            rel="noopener noreferrer"
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold transition-colors ${shop.color}`}
-          >
-            <span>{shop.emoji}</span>
-            <span>{shop.label}</span>
-          </a>
-        ))}
+    <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
+      <span className="text-xs font-bold text-stone-600">Acheter</span>
+      {SHOPS.map(shop => (
         <a
-          href={`https://boardgamegeek.com/boardgame/${''}`}
-          className="hidden"
-        />
-      </div>
+          key={shop.key}
+          href={shop.url(gameName)}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="chip chip-sm"
+        >
+          {shop.label}
+        </a>
+      ))}
     </div>
+  )
+}
+
+/* ── Extensions : les connues d'abord, les confidentielles (< 50 votes, ni à nous ni prêtables) repliées ── */
+function ExpansionsPanel({ expansions }) {
+  const [showAll, setShowAll] = useState(false)
+  const known  = expansions.filter(e => e.owned || e.inAssociation || e.withMember || (e.usersRated ?? 0) >= 50)
+  const hidden = expansions.filter(e => !known.includes(e))
+  const shown  = showAll ? [...known, ...hidden] : known
+
+  return (
+    <section aria-labelledby="titre-extensions" className="panel p-4">
+      <h2 id="titre-extensions" className="mb-1 text-xl">
+        Extensions <span className="text-base font-normal text-stone-600">({shown.length})</span>
+      </h2>
+      <p className="mb-3 mt-0 text-xs text-stone-600">Les vôtres d’abord, puis celles que l’association ou un membre peut prêter, puis les mieux notées.</p>
+      <div className="space-y-2">
+        {shown.map(exp => (
+          <GameRow key={exp.id} g={exp} currentId={null} />
+        ))}
+      </div>
+      {hidden.length > 0 && (
+        <button type="button" onClick={() => setShowAll(v => !v)} aria-expanded={showAll}
+          className="mt-2 inline-flex min-h-11 items-center text-sm font-bold text-brand-blue underline underline-offset-4">
+          {showAll ? 'Masquer les extensions peu notées' : `Voir les ${hidden.length} autre${hidden.length > 1 ? 's' : ''} (peu de votes)`}
+        </button>
+      )}
+    </section>
   )
 }
 
@@ -149,6 +141,7 @@ export default function GameDetailPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [descExpanded,  setDescExpanded]  = useState(false)
+  const [showOriginal,  setShowOriginal]  = useState(false)
   const [similarGames,  setSimilarGames]  = useState(null)
   const [similarLimit,  setSimilarLimit]  = useState(5)
   const [similarLoading, setSimilarLoading] = useState(false)
@@ -237,26 +230,32 @@ export default function GameDetailPage() {
   // game.name = nom d'affichage FR si dispo, sinon EN original
   // game.nameOriginal = nom BGG anglais original
   const displayName = game.name
+  const image       = gameImage(game)
+  const editionFr   = frenchEditionLabel(game)
+  const origine     = originalEditionLabel(game)
+  // La traduction automatique de la description, quand elle existe, passe devant l'original anglais.
+  const translated      = Boolean(game.descriptionFr) && !showOriginal
+  const descriptionText = (translated ? game.descriptionFr : game.description) ?? ''
   const hasFrName   = game.nameOriginal && game.nameOriginal !== game.name
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-6 space-y-5">
 
       {/* Nav */}
-      <button onClick={() => navigate(-1)} className="text-sm text-stone-400 hover:text-stone-600 flex items-center gap-1">
-        ← Retour
+      <button type="button" onClick={() => navigate(-1)} className="inline-flex min-h-11 items-center gap-2 font-bold hover:underline underline-offset-4">
+        <span aria-hidden="true">←</span> Retour
       </button>
 
       {/* ── Hero : image gauche + infos droite ────────────────────────── */}
-      <div className="bg-white rounded-2xl border border-stone-200 shadow-sm overflow-hidden">
+      <div className="panel overflow-hidden shadow-token-lg">
         <div className="flex flex-col sm:flex-row gap-0">
 
           {/* Image */}
-          <div className="sm:w-64 lg:w-80 flex-shrink-0 bg-stone-100">
-            {game.imageUrl ? (
-              <img src={game.imageUrl} alt={game.name} className="w-full h-64 sm:h-full object-cover" />
+          <div className={`sm:w-64 lg:w-80 flex-shrink-0 border-b-[3px] sm:border-b-0 sm:border-r-[3px] border-ink ${image ? 'bg-cream' : coverColor(game)}`}>
+            {image ? (
+              <img src={image} alt="" className="w-full h-64 sm:h-full object-cover" />
             ) : (
-              <div className="w-full h-64 sm:h-full flex items-center justify-center text-6xl text-stone-300">🎲</div>
+              <div className="grid h-64 w-full place-items-center font-display text-7xl sm:h-full" aria-hidden="true">{initials(game.name)}</div>
             )}
           </div>
 
@@ -267,98 +266,86 @@ export default function GameDetailPage() {
             <div>
               <div className="flex items-start gap-2 flex-wrap mb-1">
                 {hasFrName && (
-                  <span className="text-xs bg-blue-50 text-blue-600 border border-blue-200 px-2 py-0.5 rounded-full font-medium flex-shrink-0">
-                    🇫🇷 Titre FR
-                  </span>
+                  <span className="badge bg-board">Titre français</span>
                 )}
                 {game.isExpansion && (
-                  <span className="text-xs bg-stone-100 text-stone-500 border border-stone-200 px-2 py-0.5 rounded-full font-medium flex-shrink-0">
-                    Extension
-                  </span>
+                  <span className="badge bg-cream">Extension</span>
                 )}
               </div>
-              <h1 className="text-2xl font-black text-stone-900 leading-tight">{displayName}</h1>
+              <h1 className="text-4xl leading-[1.05] sm:text-5xl">{displayName}</h1>
               {hasFrName && (
-                <p className="text-sm text-stone-400 mt-0.5">{game.nameOriginal}</p>
+                <p className="text-sm text-stone-500 mt-0.5">{game.nameOriginal}</p>
               )}
-              {game.yearPublished && (
-                <p className="text-stone-400 text-sm mt-0.5">{game.yearPublished}</p>
+              {origine && (
+                <p className="mt-0.5 text-sm text-stone-600">Édition d'origine : <strong className="text-ink">{origine}</strong></p>
+              )}
+              {editionFr && (
+                <p className="mt-0.5 text-sm text-stone-600">Édition française : <strong className="text-ink">{editionFr}</strong></p>
               )}
             </div>
 
             {/* Notes */}
             <div className="flex gap-3 flex-wrap">
               {game.bggUserRating != null && (
-                <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-2.5 text-center min-w-[72px]">
-                  <div className="text-2xl font-black text-emerald-600">{game.bggUserRating}</div>
-                  <div className="text-xs text-emerald-500">ma note /10</div>
+                <div className="rounded-xl border-[3px] border-ink bg-brand-green px-4 py-2.5 text-center text-paper min-w-[72px]">
+                  <div className="font-display text-3xl leading-none">{game.bggUserRating}</div>
+                  <div className="text-xs font-bold">ma note /10</div>
                 </div>
               )}
               {game.ratingBgg != null && (
-                <div className="bg-amber-50 rounded-xl px-4 py-2.5 text-center min-w-[72px]">
-                  <div className="text-2xl font-black text-amber-600">{game.ratingBgg.toFixed(1)}</div>
-                  <div className="text-xs text-stone-400">note BGG /10</div>
+                <div className="rounded-xl border-[3px] border-ink bg-brand-yellow px-4 py-2.5 text-center min-w-[72px]">
+                  <div className="font-display text-3xl leading-none">{game.ratingBgg.toFixed(1)}</div>
+                  <div className="text-xs font-bold">note BGG /10</div>
                   {game.usersRated != null && (
-                    <div className="text-xs text-stone-300">{game.usersRated.toLocaleString('fr')} votes</div>
+                    <div className="text-xs text-stone-700">{game.usersRated.toLocaleString('fr')} votes</div>
                   )}
                 </div>
               )}
             </div>
 
-            {/* Stats en 4 colonnes */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              <div className="bg-stone-50 rounded-xl px-3 py-2.5 text-center">
-                <div className="text-lg">👥</div>
-                <div className="text-xs text-stone-400 leading-none mt-0.5">Joueurs</div>
-                <div className="text-sm font-bold text-stone-800 mt-0.5">{playerRange}</div>
+            {/* Faits clés */}
+            <dl className="m-0 flex flex-wrap gap-3">
+              <div className="min-w-28 rounded-xl border-[3px] border-ink bg-cream px-4 py-2.5">
+                <dt className="text-xs font-bold uppercase text-stone-600">Joueurs</dt>
+                <dd className="m-0 font-display text-2xl leading-tight">{playerRange}</dd>
               </div>
               {game.playingTime > 0 && (
-                <div className="bg-stone-50 rounded-xl px-3 py-2.5 text-center">
-                  <div className="text-lg">⏱</div>
-                  <div className="text-xs text-stone-400 leading-none mt-0.5">Durée</div>
-                  <div className="text-sm font-bold text-stone-800 mt-0.5">
+                <div className="min-w-28 rounded-xl border-[3px] border-ink bg-cream px-4 py-2.5">
+                  <dt className="text-xs font-bold uppercase text-stone-600">Durée</dt>
+                  <dd className="m-0 font-display text-2xl leading-tight">
                     {game.playingTime < 60
                       ? `${game.playingTime} min`
-                      : `${Math.floor(game.playingTime / 60)}h${game.playingTime % 60 ? game.playingTime % 60 + 'm' : ''}`
+                      : `${Math.floor(game.playingTime / 60)} h${game.playingTime % 60 ? ' ' + game.playingTime % 60 : ''}`
                     }
-                  </div>
+                  </dd>
                 </div>
               )}
               {game.minAge != null && game.minAge > 0 && (
-                <div className="bg-stone-50 rounded-xl px-3 py-2.5 text-center">
-                  <div className="text-lg">🎂</div>
-                  <div className="text-xs text-stone-400 leading-none mt-0.5">Âge min.</div>
-                  <div className="text-sm font-bold text-stone-800 mt-0.5">{game.minAge}+</div>
+                <div className="min-w-28 rounded-xl border-[3px] border-ink bg-cream px-4 py-2.5">
+                  <dt className="text-xs font-bold uppercase text-stone-600">Âge</dt>
+                  <dd className="m-0 font-display text-2xl leading-tight">{game.minAge} ans +</dd>
                 </div>
               )}
               {game.complexity > 0 && (
-                <div className="bg-stone-50 rounded-xl px-3 py-2.5 col-span-2 sm:col-span-1">
-                  <div className="text-lg text-center">🧠</div>
-                  <div className="text-xs text-stone-400 leading-none text-center mt-0.5">Complexité</div>
-                  <div className="mt-1.5">
-                    <ComplexityBar value={game.complexity} />
-                  </div>
+                <div className="min-w-44 flex-1 rounded-xl border-[3px] border-ink bg-cream px-4 py-2.5">
+                  <dt className="mb-1.5 text-xs font-bold uppercase text-stone-600">Complexité</dt>
+                  <dd className="m-0"><ComplexityBar value={game.complexity} /></dd>
                 </div>
               )}
-            </div>
+            </dl>
 
             {/* Bouton Enregistrer une partie */}
             <div className="mt-auto pt-2 border-t border-stone-100">
               {sessionDone ? (
-                <div className="flex items-center gap-2 text-emerald-600 text-sm font-semibold">
-                  <span>✅</span>
-                  <span>Partie enregistrée !</span>
-                  <button onClick={openSessionForm} className="ml-auto text-xs text-stone-400 hover:text-amber-600 hover:underline">
+                <div role="status" className="flex items-center gap-3 font-bold text-brand-green">
+                  <span>Partie enregistrée</span>
+                  <button type="button" onClick={openSessionForm} className="ml-auto inline-flex min-h-11 items-center text-brand-blue underline underline-offset-4">
                     + Une autre
                   </button>
                 </div>
               ) : (
-                <button
-                  onClick={openSessionForm}
-                  className="w-full flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-600 active:scale-[.98] text-white font-bold py-3 rounded-xl transition-all shadow-sm"
-                >
-                  <span className="text-lg">📊</span>
-                  <span>Enregistrer une partie</span>
+                <button type="button" onClick={openSessionForm} className="btn btn-primary w-full sm:w-auto sm:px-8">
+                  Enregistrer une partie
                 </button>
               )}
             </div>
@@ -368,149 +355,106 @@ export default function GameDetailPage() {
 
       {/* ── Description ──────────────────────────────────────────────────── */}
       {game.description && (
-        <div className="bg-white rounded-2xl border border-stone-200 shadow-sm p-5">
-          <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-3">Description</p>
+        <div className="panel p-5">
+          <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1">
+            <p className="m-0 text-xs font-semibold text-stone-400 uppercase tracking-wide">Description</p>
+            {translated && <span className="badge bg-cream">Traduction automatique</span>}
+          </div>
           <div className="relative">
-            <p className={`text-stone-600 text-sm leading-relaxed ${descExpanded ? '' : 'line-clamp-4'}`}>
-              {game.description}
+            <p lang={translated ? 'fr' : 'en'} className={`text-stone-600 text-sm leading-relaxed whitespace-pre-line ${descExpanded ? '' : 'line-clamp-4'}`}>
+              {descriptionText}
             </p>
-            {!descExpanded && game.description.length > 300 && (
-              <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-white to-transparent" />
+            {!descExpanded && descriptionText.length > 300 && (
+              <div className="absolute bottom-0 left-0 right-0 h-8 bg-linear-to-t from-paper to-transparent" />
             )}
           </div>
-          {game.description.length > 300 && (
-            <button onClick={() => setDescExpanded(v => !v)} className="mt-2 text-xs text-amber-600 hover:underline font-medium">
-              {descExpanded ? 'Voir moins ↑' : 'Lire la suite ↓'}
-            </button>
+          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1">
+            {descriptionText.length > 300 && (
+              <button type="button" onClick={() => setDescExpanded(v => !v)} className="inline-flex min-h-11 items-center text-xs text-amber-600 hover:underline font-medium">
+                {descExpanded ? 'Voir moins ↑' : 'Lire la suite ↓'}
+              </button>
+            )}
+            {game.descriptionFr && game.descriptionFr !== game.description && (
+              <button type="button" onClick={() => setShowOriginal(v => !v)} className="inline-flex min-h-11 items-center text-xs text-brand-blue underline underline-offset-4 font-medium">
+                {showOriginal ? 'Lire la traduction française' : 'Lire l’original (anglais)'}
+              </button>
+            )}
+          </div>
+          {!game.descriptionFr && game.descriptionFrPending && (
+            <p role="status" className="m-0 mt-1 text-xs text-stone-500">Description en anglais : sa traduction française est en préparation.</p>
           )}
         </div>
       )}
 
-      {/* ── Boutiques + lien BGG ─────────────────────────────────────────── */}
-      <div className="bg-white rounded-2xl border border-stone-200 shadow-sm p-5 space-y-4">
-        <ShopButtons gameName={game.name} />
-        <div className="pt-3 border-t border-stone-100">
-          <a
-            href={`https://boardgamegeek.com/${game.bggType === 'boardgameexpansion' ? 'boardgameexpansion' : 'boardgame'}/${game.bggId}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-2 text-sm text-stone-500 hover:text-stone-700 hover:underline"
-          >
-            <img src="https://cf.geekdo-images.com/static/img/favicon2.ico" alt="" className="w-4 h-4 rounded" />
-            Voir la fiche sur BoardGameGeek
-            {game.bggRank && <span className="text-xs text-stone-400">· Rang #{game.bggRank.toLocaleString('fr')}</span>}
-          </a>
-        </div>
-      </div>
+      {/* ── Fiche technique : tout ce qui relève du classement du site, en bref ─ */}
+      {(() => {
+        const { themes, types, other } = groupCategories(game.categories ?? [])
+        const rows = [
+          { label: hasEngines ? 'Moteur' : 'Style', keys: primaryKeys, tone: 'engine' },
+          { label: 'Support', keys: supportKeys },
+          { label: 'Traits', keys: extraKeys },
+        ].filter(r => r.keys.length > 0)
+        const pills = [
+          { label: 'Thèmes', items: themes.map(t => `${t.emoji ? t.emoji + ' ' : ''}${t.label}`) },
+          { label: 'Type', items: types.map(t => `${t.emoji ? t.emoji + ' ' : ''}${t.label}`) },
+          { label: 'Autres', items: other.map(o => o.name) },
+        ].filter(r => r.items.length > 0)
+        const detailFamilies = Object.entries(byFamily).filter(([, list]) => list?.length > 0)
+        if (rows.length === 0 && pills.length === 0 && detailFamilies.length === 0 && unmappedBgg.length === 0) return null
 
-      {/* ── Mécaniques Engelstein ─────────────────────────────────────────── */}
-      {(primaryFamilies.length > 0 || supportKeys.length > 0) && (
-        <div className="bg-white rounded-2xl border border-stone-200 shadow-sm p-5 space-y-4">
-          {primaryFamilies.length > 0 && (
-            <div>
-              <div className="flex items-center gap-2 mb-3">
-                <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide">
-                  {hasEngines ? `Moteur${primaryFamilies.length > 1 ? 's' : ''} principal${primaryFamilies.length > 1 ? 'aux' : ''}` : 'Style principal'}
-                </p>
-                {game.primaryEngine && <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">validé</span>}
-                <span className="text-xs text-stone-300 ml-auto">{hasEngines ? 'moteur Engelstein' : 'familles dominantes'}</span>
-              </div>
-              <div className="grid grid-cols-1 gap-2">
-                {primaryFamilies.map(({ family, isEngine: eng }) => (
-                  <MechanicBlock key={family} familyKey={family} bggMechanics={byFamily[family]} primary={eng} />
-                ))}
-              </div>
-              {!hasEngines && (
-                <p className="text-xs text-stone-400 mt-2 italic">Aucun moteur Engelstein identifié — familles les plus représentées affichées.</p>
-              )}
-            </div>
-          )}
-          {supportKeys.length > 0 && (
-            <div>
-              <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-3">Mécaniques de support</p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {supportKeys.map(key => (
-                  <MechanicBlock key={key} familyKey={key} bggMechanics={byFamily[key]} primary={false} />
-                ))}
-              </div>
-            </div>
-          )}
-          {extraKeys.length > 0 && (
-            <div>
-              <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-2">Caractéristiques</p>
-              <div className="flex flex-wrap gap-2">
-                {extraKeys.map(key => (
-                  <span key={key} className={`text-xs font-medium px-3 py-1.5 rounded-full border ${familyColor(key)}`}>{familyLabel(key)}</span>
-                ))}
-              </div>
-            </div>
-          )}
-          {unmappedBgg.length > 0 && (
-            <div>
-              <p className="text-xs font-semibold text-stone-300 uppercase tracking-wide mb-2">Autres mécaniques BGG</p>
-              <div className="flex flex-wrap gap-1.5">
-                {unmappedBgg.map(m => (
-                  <span key={m} className="text-xs bg-stone-100 text-stone-400 px-2.5 py-1 rounded-full">{m}</span>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ── Thèmes, types, catégories BGG ───────────────────────────────── */}
-      {(game.categories?.length > 0 || game.mechanics?.length > 0) && (
-        <div className="bg-white rounded-2xl border border-stone-200 shadow-sm p-5 space-y-4">
-          {game.categories?.length > 0 && (() => {
-            const { themes, types, other } = groupCategories(game.categories)
-            return (
-              <div className="space-y-3">
-                {themes.length > 0 && (
-                  <div>
-                    <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-2">🌍 Thèmes</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {themes.map(({ name, label, emoji }) => (
-                        <span key={name} className="text-xs bg-amber-50 text-amber-800 border border-amber-200 px-2.5 py-1 rounded-full flex items-center gap-1">
-                          <span>{emoji}</span><span>{label}</span>
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {types.length > 0 && (
-                  <div>
-                    <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-2">🎯 Type de jeu</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {types.map(({ name, label, emoji }) => (
-                        <span key={name} className="text-xs bg-blue-50 text-blue-800 border border-blue-200 px-2.5 py-1 rounded-full flex items-center gap-1">
-                          <span>{emoji}</span><span>{label}</span>
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {other.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5">
-                    {other.map(({ name }) => (
-                      <span key={name} className="text-xs bg-stone-50 text-stone-500 border border-stone-200 px-2.5 py-1 rounded-full">{name}</span>
+        return (
+          <section aria-labelledby="titre-technique" className="panel p-4">
+            <h2 id="titre-technique" className="mb-2 text-xl">Fiche technique</h2>
+            <dl className="m-0 grid gap-y-1.5 text-xs sm:grid-cols-[5.5rem_1fr]">
+              {rows.map(({ label, keys }) => (
+                <div key={label} className="contents">
+                  <dt className="pt-0.5 font-bold uppercase text-stone-600">{label}</dt>
+                  <dd className="m-0 flex flex-wrap gap-1">
+                    {keys.map(key => (
+                      <span key={key} className={`rounded-full border px-2 py-0.5 font-medium ${familyColor(key)}`}>{familyLabel(key)}</span>
                     ))}
-                  </div>
-                )}
-              </div>
-            )
-          })()}
-          {game.mechanics?.length > 0 && (
-            <div>
-              <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-2">Mécaniques BGG (brut)</p>
-              <div className="flex flex-wrap gap-1.5">
-                {game.mechanics.map(m => (
-                  <span key={m} className="text-xs bg-stone-100 text-stone-600 border border-stone-200 px-2.5 py-1 rounded-full">{m}</span>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
+                  </dd>
+                </div>
+              ))}
+              {pills.map(({ label, items }) => (
+                <div key={label} className="contents">
+                  <dt className="pt-0.5 font-bold uppercase text-stone-600">{label}</dt>
+                  <dd className="m-0 flex flex-wrap gap-1">
+                    {items.map(item => (
+                      <span key={item} className="rounded-full border border-ink/30 bg-cream px-2 py-0.5">{item}</span>
+                    ))}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+
+            {(detailFamilies.length > 0 || unmappedBgg.length > 0) && (
+              <details className="mt-2 text-xs">
+                <summary className="inline-flex min-h-8 cursor-pointer items-center font-bold text-brand-blue underline underline-offset-4">Détail des mécaniques BGG</summary>
+                <ul className="m-0 mt-1 list-none space-y-1 p-0 text-stone-700">
+                  {detailFamilies.map(([key, list]) => (
+                    <li key={key}><strong>{familyLabel(key)}</strong> : {list.join(', ')}</li>
+                  ))}
+                  {unmappedBgg.length > 0 && <li><strong>Autres</strong> : {unmappedBgg.join(', ')}</li>}
+                </ul>
+              </details>
+            )}
+          </section>
+        )
+      })()}
+
+      {/* ── Achat et fiche BGG, sur une ligne ─────────────────────────────── */}
+      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 px-1">
+        <ShopButtons gameName={game.name} />
+        <a
+          href={`https://boardgamegeek.com/${game.bggType === 'boardgameexpansion' ? 'boardgameexpansion' : 'boardgame'}/${game.bggId}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex min-h-8 items-center gap-1.5 text-xs font-bold text-brand-blue underline underline-offset-4"
+        >
+          Fiche BoardGameGeek{game.bggRank ? ` · rang #${game.bggRank.toLocaleString('fr')}` : ''}
+        </a>
+      </div>
 
       {/* ── Jeu de base (quand on consulte une extension) ─────────────────── */}
       {game.isExpansion && game.baseGames?.length > 0 && (
@@ -538,28 +482,13 @@ export default function GameDetailPage() {
         </div>
       )}
 
-      {/* ── Extensions d'un jeu de base ──────────────────────────────────── */}
-      {!game.isExpansion && game.expansions?.length > 0 && (() => {
-        const visibleExps = game.expansions.filter(e => e.owned || (e.usersRated ?? 0) >= 50)
-        if (visibleExps.length === 0) return null
-        return (
-          <div className="bg-white rounded-2xl border border-stone-200 shadow-sm p-5">
-            <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-3">
-              ➕ Extensions ({visibleExps.length}{game.expansions.length > visibleExps.length ? ` sur ${game.expansions.length}` : ''})
-            </p>
-            <div className="space-y-2">
-              {visibleExps.map(exp => (
-                <GameRow key={exp.id} g={exp} currentId={null} />
-              ))}
-            </div>
-          </div>
-        )
-      })()}
+      {/* ── Extensions d'un jeu de base : les vôtres, celles qu'on peut emprunter, puis les mieux notées ── */}
+      {!game.isExpansion && game.expansions?.length > 0 && <ExpansionsPanel expansions={game.expansions} />}
 
       {/* ── Jeux similaires ──────────────────────────────────────────────── */}
       {/* L'API /similar retourne des objets plats : { ...game, similarity, reason } */}
       {(similarGames?.length > 0 || similarLoading) && (
-        <div className="bg-white rounded-2xl border border-stone-200 shadow-sm p-5">
+        <div className="panel p-5">
           <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-4">🎯 Jeux similaires</p>
 
           {similarLoading && similarGames === null ? (

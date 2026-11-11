@@ -27,11 +27,14 @@ final class BggApiServiceTest extends TestCase
             </ratings></statistics>
             <versions>
               <item><yearpublished value="2010"/><canonicalname value="Catane (2010)"/>
-                <link type="language" id="2184" value="French"/></item>
+                <image>//cf.geekdo-images.com/boite-2010.jpg</image>
+                <link type="language" id="2184" value="French"/><link type="boardgamepublisher" id="1" value="Ancien Éditeur"/></item>
               <item><yearpublished value="2015"/><canonicalname value="Catane  (2015) l\'édition"/>
-                <link type="language" id="2184" value="French"/></item>
+                <link type="language" id="2184" value="French"/>
+                <link type="boardgamepublisher" id="2" value="Filosofia"/><link type="boardgamepublisher" id="3" value="L\'Atelier   Jeux"/></item>
               <item><yearpublished value="2020"/><canonicalname value="Catan Multi"/>
-                <link type="language" id="2184" value="French"/><link type="language" id="2000" value="English"/></item>
+                <image>https://cf.geekdo-images.com/multi.jpg</image>
+                <link type="language" id="2184" value="French"/><link type="language" id="2000" value="English"/><link type="boardgamepublisher" id="4" value="Multi"/></item>
             </versions>
           </item>
         </items>
@@ -52,6 +55,89 @@ final class BggApiServiceTest extends TestCase
         self::assertSame('Catan', $games[0]['name']);
     }
 
+    public function testLEditionFrancaiseDonneEditeurEtAnneeDeLEditionRetenue(): void
+    {
+        $game = $this->service(new MockResponse(self::THING))->fetchGamesDetails(['13'])[0];
+
+        // Trois titres distincts à égalité (une seule édition chacun) : la plus récente, 2015, l'emporte ;
+        // l'édition multilingue de 2020 est écartée, tout comme son image.
+        self::assertSame("Catane (2015) l'édition", $game['editionFr']['title']);
+        self::assertSame(2015, $game['editionFr']['year']);
+        self::assertSame("Filosofia, L'Atelier Jeux", $game['editionFr']['publisher']);
+        // Aucune édition de ce titre n'a d'image : on n'emprunte pas la boîte d'un autre titre.
+        self::assertNull($game['editionFr']['imageUrl']);
+    }
+
+    public function testLEditionRetenueEstCelleDuTitreLePlusRepanduEtNonLaPlusRecente(): void
+    {
+        $xml = <<<'XML'
+            <items><item type="boardgame" id="1"><name type="primary" value="Azul"/>
+              <versions>
+                <item><yearpublished value="2017"/><canonicalname value="Azul"/><image>//cf.geekdo-images.com/azul-2017.jpg</image>
+                  <link type="language" id="1" value="French"/><link type="boardgamepublisher" id="1" value="Plan B Games"/></item>
+                <item><yearpublished value="2023"/><canonicalname value="Azul Mini"/>
+                  <link type="language" id="1" value="French"/><link type="boardgamepublisher" id="2" value="Mini Éditeur"/></item>
+                <item><yearpublished value="2018"/><canonicalname value="azul"/><image>//cf.geekdo-images.com/azul-2018.jpg</image>
+                  <link type="language" id="1" value="French"/><link type="boardgamepublisher" id="3" value="Next Move Games"/></item>
+              </versions>
+            </item></items>
+            XML;
+
+        $game = $this->service(new MockResponse($xml))->fetchGamesDetails(['1'])[0];
+
+        // « Azul » (deux éditions, casse ignorée) bat « Azul Mini » (une, plus récente) ; 2018 est la plus récente des deux.
+        self::assertSame('azul', $game['nameFr']);
+        self::assertSame(2018, $game['editionFr']['year']);
+        self::assertSame('Next Move Games', $game['editionFr']['publisher']);
+        self::assertSame('https://cf.geekdo-images.com/azul-2018.jpg', $game['editionFr']['imageUrl']);
+    }
+
+    public function testLEditeurDOrigineEstLePremierEditeurCiteSurLaFicheDuJeu(): void
+    {
+        $xml = '<items><item type="boardgame" id="1"><name type="primary" value="Catan"/><yearpublished value="1995"/>'
+            . '<link type="boardgamepublisher" id="1" value="KOSMOS"/><link type="boardgamepublisher" id="2" value="999 Games"/>'
+            . '<versions><item><yearpublished value="1995"/><canonicalname value="Catan"/>'
+            . '<link type="boardgamepublisher" id="3" value="Competo / Marektoy"/></item></versions></item></items>';
+
+        // L'édition de 1995 citée en premier est une édition scandinave : la fiche du jeu fait foi.
+        self::assertSame('KOSMOS', $this->service(new MockResponse($xml))->fetchGamesDetails(['1'])[0]['publisherOriginal']);
+    }
+
+    public function testSansEditeurSurLaFicheLEditeurDOrigineVientDesEditions(): void
+    {
+        $game = $this->service(new MockResponse(self::THING))->fetchGamesDetails(['13'])[0];
+
+        // Le jeu date de 1995 mais aucune édition n'est de 1995 : la plus ancienne (2010) donne l'éditeur.
+        self::assertSame('Ancien Éditeur', $game['publisherOriginal']);
+    }
+
+    public function testSansEditeurSurLaFicheOnPrendLEditionDeLAnneeDuJeuToutesLanguesConfondues(): void
+    {
+        $xml = <<<'XML'
+            <items><item type="boardgame" id="1"><name type="primary" value="Azul"/><yearpublished value="2017"/>
+              <versions>
+                <item><yearpublished value="2018"/><canonicalname value="Azul"/>
+                  <link type="language" id="1" value="French"/><link type="boardgamepublisher" id="3" value="Next Move Games"/></item>
+                <item><yearpublished value="2017"/><canonicalname value="Azul"/>
+                  <link type="language" id="2" value="English"/><link type="boardgamepublisher" id="1" value="Plan B Games"/><link type="boardgamepublisher" id="2" value="Next Move Games"/></item>
+                <item><yearpublished value="2017"/><canonicalname value="Azul (2)"/>
+                  <link type="boardgamepublisher" id="4" value="Autre"/></item>
+              </versions>
+            </item></items>
+            XML;
+
+        $game = $this->service(new MockResponse($xml))->fetchGamesDetails(['1'])[0];
+
+        self::assertSame('Plan B Games, Next Move Games', $game['publisherOriginal']);
+    }
+
+    public function testSansAucunEditeurLEditeurDOrigineEstNul(): void
+    {
+        $xml = '<items><item type="boardgame" id="1"><name type="primary" value="Azul"/></item></items>';
+
+        self::assertNull($this->service(new MockResponse($xml))->fetchGamesDetails(['1'])[0]['publisherOriginal']);
+    }
+
     public function testSansEditionFrancaiseLeTitreFrancaisEstNul(): void
     {
         $xml = '<items><item type="boardgame" id="1"><name type="primary" value="Azul"/>'
@@ -60,6 +146,7 @@ final class BggApiServiceTest extends TestCase
         $games = $this->service(new MockResponse($xml))->fetchGamesDetails(['1']);
 
         self::assertNull($games[0]['nameFr']);
+        self::assertNull($games[0]['editionFr']);
     }
 
     public function testLesDonneesDeFicheSontLues(): void

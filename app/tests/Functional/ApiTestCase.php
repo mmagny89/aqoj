@@ -2,6 +2,7 @@
 
 namespace App\Tests\Functional;
 
+use Doctrine\DBAL\Connection;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 
@@ -34,8 +35,15 @@ abstract class ApiTestCase extends WebTestCase
         return json_decode($client->getResponse()->getContent() ?: 'null', true) ?? [];
     }
 
+    /**
+     * Crée un compte et le rend utilisable : l'inscription ne donne plus de session avant la confirmation
+     * de l'adresse, donc on confirme par SQL (le parcours par e-mail a ses propres tests) puis on se connecte.
+     */
     protected function register(KernelBrowser $client, string $email, string $password = 'mot-de-passe-solide'): string
     {
-        return $this->call($client, 'POST', '/api/auth/register', ['email' => $email, 'password' => $password])['token'];
+        $this->call($client, 'POST', '/api/auth/register', ['email' => $email, 'password' => $password]);
+        static::getContainer()->get(Connection::class)->executeStatement('UPDATE app_user SET email_verified_at = NOW() WHERE email = ?', [$email]);
+
+        return $this->call($client, 'POST', '/api/auth/login', ['email' => $email, 'password' => $password])['token'] ?? '';
     }
 }

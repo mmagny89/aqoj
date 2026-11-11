@@ -7,6 +7,7 @@ use App\Service\BggApiException;
 use App\Service\BggApiService;
 use App\Service\BggJobLock;
 use App\Service\GameEnrichmentService;
+use App\Service\JobRunRecorder;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\Persistence\ManagerRegistry;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -52,6 +53,7 @@ class EnrichGamesPendingCommand extends Command
         private readonly EntityManagerInterface $em,
         private readonly ManagerRegistry $doctrine,
         private readonly BggJobLock $lock,
+        private readonly JobRunRecorder $recorder,
     ) {
         parent::__construct();
     }
@@ -88,6 +90,7 @@ class EnrichGamesPendingCommand extends Command
 
         if (!$this->lock->acquire()) {
             $io->warning('Une autre tâche BGG est déjà en cours : ce passage est sauté.');
+            $this->recorder->note(['skipped' => 'verrou BGG pris']);
             return Command::SUCCESS;
         }
 
@@ -107,6 +110,7 @@ class EnrichGamesPendingCommand extends Command
             : $this->repository->findStaleForResync($limit);
 
         $total = count($bggIds);
+        $this->recorder->note(['mode' => $mode, 'limite' => $limit, 'selectionnes' => $total]);
 
         if ($total === 0) {
             $io->success('Aucun jeu à traiter.');
@@ -124,6 +128,14 @@ class EnrichGamesPendingCommand extends Command
         $batches  = array_chunk($bggIds, BggApiService::MAX_IDS);
 
         foreach ($batches as $i => $chunk) {
+            // Un administrateur a demandé l'arrêt : les lots déjà traités sont acquis, la suite attend le prochain passage.
+            if ($this->recorder->stopRequested()) {
+                $progressBar->clear();
+                $io->warning('Arrêt demandé par un administrateur.');
+                $this->recorder->note(['arret_demande' => true]);
+                break;
+            }
+
             try {
                 $games = $this->repository->findByBggIds($chunk);
                 $byBggId = [];
@@ -153,6 +165,7 @@ class EnrichGamesPendingCommand extends Command
                 // BGG indisponible ou limitant : les lots déjà traités sont acquis, la suite attend le prochain passage.
                 $progressBar->clear();
                 $io->error('Arrêt : ' . $e->getMessage());
+                $this->recorder->note(['enrichis' => $enriched, 'erreurs' => $errors, 'arret_bgg' => $e->getMessage()]);
                 return Command::FAILURE;
             } catch (\Throwable $e) {
                 $errors += count($chunk);
@@ -173,6 +186,7 @@ class EnrichGamesPendingCommand extends Command
 
         $progressBar->finish();
         $io->newLine(2);
+        $this->recorder->note(['enrichis' => $enriched, 'erreurs' => $errors]);
         $io->success(sprintf('%d jeux traités, %d erreurs sur %d.', $enriched, $errors, $total));
 
         return Command::SUCCESS;

@@ -3,13 +3,15 @@
 namespace App\Controller;
 
 use App\Entity\Game;
+use App\Repository\AssociationGameRepository;
 use App\Repository\GameRepository;
+use App\Repository\UserPreferenceRepository;
 use App\Repository\UserGameRepository;
 use App\Service\BggApiService;
 use App\Service\MechanicFamilyResolver;
 use App\Service\GameEnrichmentService;
-use App\Service\JwtService;
 use App\Service\RecommendationService;
+use App\Translation\DescriptionTranslator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -20,15 +22,15 @@ use Symfony\Contracts\Cache\ItemInterface;
 
 class GameController extends AbstractController
 {
+    use CurrentUser;
+
     #[Route('/api/library', name: 'api_library', methods: ['GET'])]
     public function library(
         Request $request,
         GameRepository $repository,
         UserGameRepository $userGameRepository,
-        JwtService $jwt,
-        EntityManagerInterface $em,
     ): JsonResponse {
-        $user = AuthController::extractUser($request, $jwt, $em);
+        $user = $this->appUser();
         if (!$user) {
             return $this->json(['error' => 'Authentification requise.'], 401);
         }
@@ -68,10 +70,8 @@ class GameController extends AbstractController
     public function recommendation(
         Request $request,
         RecommendationService $service,
-        JwtService $jwt,
-        EntityManagerInterface $em,
     ): JsonResponse {
-        $user = AuthController::extractUser($request, $jwt, $em);
+        $user = $this->appUser();
         if (!$user) {
             return $this->json(['error' => 'Authentification requise pour les recommandations.'], 401);
         }
@@ -84,9 +84,11 @@ class GameController extends AbstractController
         ];
 
         $scope   = $request->query->getString('scope', 'collection');
-        $results = $scope === 'discover'
-            ? $service->recommendDiscover($user, $criteria)
-            : $service->recommend($user, $criteria);
+        $results = match ($scope) {
+            'discover' => $service->recommendDiscover($user, $criteria),
+            'library'  => $service->recommendDiscover($user, $criteria, library: true),
+            default    => $service->recommend($user, $criteria),
+        };
 
         return $this->json(array_map(fn($r) => [
             'game'   => $r['game'],
@@ -99,15 +101,14 @@ class GameController extends AbstractController
     public function homeRecommendations(
         Request $request,
         RecommendationService $service,
-        JwtService $jwt,
-        EntityManagerInterface $em,
+        UserPreferenceRepository $prefRepository,
     ): JsonResponse {
-        $user = AuthController::extractUser($request, $jwt, $em);
+        $user = $this->appUser();
         if (!$user) {
-            return $this->json(['recommendations' => [], 'families' => []]);
+            return $this->json(['recommendations' => [], 'families' => [], 'coldStart' => false, 'declared' => [], 'table' => null]);
         }
 
-        $result = $service->recommendHomeDiscover($user);
+        $result = $service->recommendHomeDiscover($user, $request->query->getString('scope') === 'library');
 
         $serialize = fn(array $list) => array_map(
             fn($r) => ['game' => $r['game'], 'reason' => $r['reason']],
@@ -123,22 +124,42 @@ class GameController extends AbstractController
             'families' => $result['families'],
             'recent'   => $serialize($result['recent']),
             'byDecade' => $byDecade,
+            'coldStart' => $result['coldStart'],
+            'declared'  => $result['declared'],
+            'table'     => $prefRepository->find($user->getId())?->getTable(),
         ]);
+    }
+
+    #[Route('/api/games/home-tonight', name: 'api_games_home_tonight', methods: ['GET'])]
+    public function homeTonight(
+        Request $request,
+        RecommendationService $service,
+    ): JsonResponse {
+        $user = $this->appUser();
+        if (!$user) {
+            return $this->json(['easy' => [], 'popular' => []]);
+        }
+
+        $players = $request->query->getInt('players') ?: null;
+        $maxTime = $request->query->getInt('maxTime') ?: null;
+        $result  = $service->recommendTonight($user, $players, $maxTime, $request->query->getString('scope') === 'library');
+
+        $serialize = fn(array $list) => array_map(fn($r) => ['game' => $r['game'], 'reason' => $r['reason']], $list);
+
+        return $this->json(['easy' => $serialize($result['easy']), 'popular' => $serialize($result['popular'])]);
     }
 
     #[Route('/api/games/forgotten', name: 'api_games_forgotten', methods: ['GET'])]
     public function forgotten(
         Request $request,
         RecommendationService $service,
-        JwtService $jwt,
-        EntityManagerInterface $em,
     ): JsonResponse {
-        $user = AuthController::extractUser($request, $jwt, $em);
+        $user = $this->appUser();
         if (!$user) {
             return $this->json(['error' => 'Authentification requise.'], 401);
         }
 
-        $results = $service->findForgottenGems($user);
+        $results = $service->findForgottenGems($user, $request->query->getString('scope') === 'library');
 
         return $this->json(array_map(fn($r) => [
             'game'   => $r['game'],
@@ -154,7 +175,6 @@ class GameController extends AbstractController
         BggApiService $bggService,
         GameEnrichmentService $enrichment,
         CacheInterface $cache,
-        JwtService $jwt,
         EntityManagerInterface $em,
     ): JsonResponse {
         $query = trim($request->query->getString('q'));
@@ -163,9 +183,11 @@ class GameController extends AbstractController
         $category = $request->query->getString('category') ?: null;
         $engines = $request->query->all('engines');
         $page = max(1, $request->query->getInt('page', 1));
+        // `local=1` : choisir un jeu dans la base (saisie semi-automatique) ne doit jamais appeler BGG.
+        $localOnly = $request->query->getBoolean('local');
 
         // Utilisateur connecté (optionnel) — pour marquer les jeux possédés
-        $user = AuthController::extractUser($request, $jwt, $em);
+        $user = $this->appUser();
         $ownedIds = $user ? $userGameRepository->getOwnedGameIds($user) : [];
 
         /** @param Game[] $games */
@@ -183,7 +205,7 @@ class GameController extends AbstractController
 
             // Fallback BGG si résultats insuffisants. Une même recherche n'interroge BGG qu'une
             // fois par jour (résultat vide compris) ; en cas d'échec, on retente dans 10 minutes.
-            if (count($localResults) < 3 && mb_strlen($query) >= 3) {
+            if (!$localOnly && count($localResults) < 3 && mb_strlen($query) >= 3) {
                 $imported = $cache->get(
                     'bgg_search_' . md5(mb_strtolower($query)),
                     function (ItemInterface $item) use ($query, $repository, $bggService, $enrichment, $em): int {
@@ -236,13 +258,12 @@ class GameController extends AbstractController
     #[Route('/api/games/{id}', name: 'api_game_detail', methods: ['GET'])]
     public function detail(
         int $id,
-        Request $request,
         GameRepository $repository,
         UserGameRepository $userGameRepository,
         MechanicFamilyResolver $familyResolver,
         GameEnrichmentService $enrichmentService,
-        JwtService $jwt,
-        EntityManagerInterface $em,
+        DescriptionTranslator $translator,
+        AssociationGameRepository $associationGames,
     ): JsonResponse {
         $game = $repository->find($id);
 
@@ -253,7 +274,14 @@ class GameController extends AbstractController
         // Premier enrichissement d'une fiche encore vide (un essai par jour au plus) ; le resync périodique est au cron.
         $enrichmentService->enrichIfNeeded($game);
 
-        $user = AuthController::extractUser($request, $jwt, $em);
+        $user = $this->appUser();
+
+        // Un membre qui ouvre la fiche d'un jeu non encore traduit déclenche sa traduction (service local, quelques
+        // secondes au plus) ; un visiteur anonyme ne le peut pas, pour qu'aucune exploration du catalogue ne sollicite
+        // le service. Un échec laisse la description en anglais : le worker reprend le jeu plus tard.
+        if ($user !== null && $translator->needsTranslation($game) && $translator->mayAttempt($game)) {
+            $translator->translate($game, 8.0);
+        }
         $bggUserRating = null;
         if ($user) {
             $ratings = $userGameRepository->getBggUserRatings($user);
@@ -342,7 +370,29 @@ class GameController extends AbstractController
             });
         }
 
+        // Où trouver chaque extension : chez le joueur (`owned`), à l'association ou chez un autre membre.
+        $availability = $associationGames->availability(
+            array_map(fn(array $g) => (int) $g['id'], [...$expansions, ...$baseGames, ...$siblingExps]),
+            $user,
+        );
+        $withAvailability = fn(array $list): array => array_map(
+            fn(array $g) => $g + [
+                'inAssociation' => $availability[$g['id']]['association'] ?? false,
+                'withMember'    => $availability[$g['id']]['member'] ?? false,
+            ],
+            $list,
+        );
+        $expansions  = $withAvailability($expansions);
+        $baseGames   = $withAvailability($baseGames);
+        $siblingExps = $withAvailability($siblingExps);
+
+        // Recommandation des extensions : celles qu'on a déjà, puis celles qu'on peut emprunter, puis les mieux notées.
+        $access = fn(array $g): int => $g['owned'] ? 2 : (($g['inAssociation'] || $g['withMember']) ? 1 : 0);
+        usort($expansions, fn($a, $b) => [$access($b), $b['ratingBgg'] ?? 0] <=> [$access($a), $a['ratingBgg'] ?? 0]);
+
         $data = $game->jsonSerialize();
+        $data['descriptionFr']      = $game->hasFreshTranslation() ? $game->getDescriptionFr() : null;
+        $data['descriptionFrPending'] = $translator->needsTranslation($game);
         $data['bggUserRating']    = $bggUserRating;
         $data['mechanicsByFamily'] = $mechanicsByFamily;
         $data['primaryFamilies']  = $primaryFamilies;

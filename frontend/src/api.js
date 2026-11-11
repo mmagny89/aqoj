@@ -19,19 +19,45 @@ async function request(path, options = {}) {
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: 'Erreur réseau' }))
-    throw new Error(err.error || `HTTP ${res.status}`)
+    const error = new Error(err.error || `HTTP ${res.status}`)
+    // Le code machine d'une erreur (ex. email_not_verified) permet à la page de proposer la bonne suite.
+    error.code = err.code
+    throw error
   }
+  if (res.status === 204) return null
   return res.json()
 }
 
 // Auth
-export const register = (email, password) =>
-  request('/auth/register', { method: 'POST', body: JSON.stringify({ email, password }) })
+export const register = (email, password, code) =>
+  request('/auth/register', { method: 'POST', body: JSON.stringify({ email, password, ...(code ? { code } : {}) }) })
+
+// Dit si l'inscription réclame un code d'invitation
+export const getRegistrationConfig = () => request('/auth/registration')
 
 export const login = (email, password) =>
   request('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) })
 
 export const getMe = () => request('/auth/me')
+
+// Renouvelle la session en cours (jeton de 8 h), sans mot de passe
+export const refreshSession = () => request('/auth/refresh', { method: 'POST' })
+
+// Confirmation de l'adresse e-mail
+export const verifyEmail = (token) =>
+  request('/auth/verify-email', { method: 'POST', body: JSON.stringify({ token }) })
+export const resendVerification = (email) =>
+  request('/auth/resend-verification', { method: 'POST', body: JSON.stringify({ email }) })
+
+// Mot de passe oublié, réinitialisation et changement ; numéro d'adhérent
+export const forgotPassword = (email) =>
+  request('/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }) })
+export const resetPassword = (token, password) =>
+  request('/auth/reset-password', { method: 'POST', body: JSON.stringify({ token, password }) })
+export const changePassword = (currentPassword, newPassword) =>
+  request('/user/password', { method: 'PATCH', body: JSON.stringify({ currentPassword, newPassword }) })
+export const updateMemberNumber = (memberNumber) =>
+  request('/user/member-number', { method: 'PATCH', body: JSON.stringify({ memberNumber }) })
 
 // Games
 export const getGames = (params = {}) => {
@@ -42,6 +68,7 @@ export const getGames = (params = {}) => {
 export const searchGames = (params = {}) => {
   const qs = new URLSearchParams()
   if (params.q) qs.set('q', params.q)
+  if (params.local) qs.set('local', '1')
   if (params.players) qs.set('players', params.players)
   if (params.maxTime) qs.set('maxTime', params.maxTime)
   if (params.category) qs.set('category', params.category)
@@ -63,13 +90,26 @@ export const getRecommendations = (params = {}) => {
   return request('/games/recommendation?' + qs)
 }
 
-export const getForgottenGems = () => request('/games/forgotten')
+export const getForgottenGems = ({ scope } = {}) => request('/games/forgotten' + (scope === 'library' ? '?scope=library' : ''))
 
-export const getHomeRecommendations = () => request('/games/home-reco')
+export const getHomeRecommendations = ({ scope } = {}) => request('/games/home-reco' + (scope === 'library' ? '?scope=library' : ''))
+export const getTonightRecommendations = ({ players, maxTime, scope } = {}) => {
+  const qs = new URLSearchParams()
+  if (scope === 'library') qs.set('scope', scope)
+  if (players) qs.set('players', players)
+  if (maxTime) qs.set('maxTime', maxTime)
+  return request('/games/home-tonight?' + qs)
+}
 export const getSimilarGames = (id, limit = 5) => request(`/games/${id}/similar?limit=${limit}`)
 
 // Préférences utilisateur
 export const getUserPreferences = () => request('/user/preferences')
+export const analyzeMyLudo = (csv) => request('/myludo/analyze', { method: 'POST', body: JSON.stringify({ csv }) })
+export const analyzeMyLudoPlays = (csv) => request('/myludo/plays/analyze', { method: 'POST', body: JSON.stringify({ csv }) })
+export const importMyLudoPlays = (csv, mapping) => request('/myludo/plays/import', { method: 'POST', body: JSON.stringify({ csv, mapping }) })
+export const importMyLudo = (items, target = 'me') => request('/myludo/import', { method: 'POST', body: JSON.stringify({ items, target }) })
+export const saveTable = ({ players, maxTime }) => request('/user/table', { method: 'PUT', body: JSON.stringify({ players, maxTime }) })
+export const saveTaste = (families) => request('/user/taste', { method: 'PUT', body: JSON.stringify({ families }) })
 export const recomputeUserPreferences = () => request('/user/preferences/recompute', { method: 'POST' })
 
 // Library (collection personnelle)
@@ -90,8 +130,12 @@ export const deleteAccount = (password) =>
   request('/user/account', { method: 'DELETE', body: JSON.stringify({ password }) })
 
 // BGG import
-export const importBgg = (username) =>
-  request('/bgg/import', { method: 'POST', body: JSON.stringify({ username }) })
+export const importBgg = (username, target = 'me') =>
+  request('/bgg/import', { method: 'POST', body: JSON.stringify({ username, target }) })
+
+// Ludothèque de l'association (administrateurs)
+export const getAssociationGames = () => request('/admin/association/games')
+export const removeAssociationGame = (id) => request(`/admin/association/games/${id}`, { method: 'DELETE' })
 
 // Admin — Mechanic Mappings
 export const getMechanicMappings = () =>
@@ -115,6 +159,27 @@ export const getUnmappedMechanics = () =>
 export const getAdminStats = () =>
   request('/admin/stats')
 
+// Admin — journal des tâches et explorateur du catalogue
+const query = (params = {}) => {
+  const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => v != null && v !== ''))
+  return qs.toString() ? '?' + qs : ''
+}
+export const getAdminJobs = (params) => request('/admin/jobs' + query(params))
+export const stopAdminJob = (id) => request(`/admin/jobs/${id}/stop`, { method: 'POST' })
+export const killAdminJob = (id) => request(`/admin/jobs/${id}/kill`, { method: 'POST' })
+export const getAdminGameFilters = () => request('/admin/games/filters')
+export const getAdminGames = (params) => request('/admin/games' + query(params))
+export const getAdminGame = (bggId) => request(`/admin/games/${bggId}`)
+
+// Admin — comptes, rôles et codes d'invitation
+export const getAdminUsers = (params) => request('/admin/users' + query(params))
+export const updateUserRole = (id, role) =>
+  request(`/admin/users/${id}`, { method: 'PATCH', body: JSON.stringify({ role }) })
+export const getInvitations = () => request('/admin/invitations')
+export const createInvitation = (data) =>
+  request('/admin/invitations', { method: 'POST', body: JSON.stringify(data) })
+export const revokeInvitation = (id) => request(`/admin/invitations/${id}/revoke`, { method: 'POST' })
+
 // Theme mappings
 export const getThemeMappings = () => request('/theme-mappings')
 export const getUnmappedBggCategories = () => request('/admin/theme-mappings/unmapped')
@@ -126,7 +191,19 @@ export const deleteThemeMapping = (id) =>
   request(`/admin/theme-mappings/${id}`, { method: 'DELETE' }).catch(() => {})
 
 // Sessions
-export const getSessions = () => request('/sessions')
+// Filtres de Mes parties : q, source (myludo|manual), rating (liked|disliked|none), players, year ; les vides sont omis.
+const sessionQuery = (params) => {
+  const qs = new URLSearchParams()
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== '' && value !== null && value !== undefined) qs.set(key, value)
+  }
+  const text = qs.toString()
+  return text ? `?${text}` : ''
+}
+export const getSessions = ({ offset = 0, limit = 50, ...filters } = {}) => request(`/sessions${sessionQuery({ offset, limit, ...filters })}`)
+export const deleteSession = (id) => request(`/sessions/${id}`, { method: 'DELETE' })
+export const getSessionsSummary = (filters = {}) => request(`/sessions/summary${sessionQuery(filters)}`)
+export const getSessionsStats = (filters = {}) => request(`/sessions/stats${sessionQuery(filters)}`)
 
 export const createSession = (data) =>
   request('/sessions', { method: 'POST', body: JSON.stringify(data) })

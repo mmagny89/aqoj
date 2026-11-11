@@ -5,7 +5,6 @@ namespace App\Controller;
 use App\Entity\GameSession;
 use App\Repository\GameRepository;
 use App\Repository\GameSessionRepository;
-use App\Service\JwtService;
 use App\Service\UserPreferenceService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -15,30 +14,68 @@ use Symfony\Component\Routing\Attribute\Route;
 
 class SessionController extends AbstractController
 {
+    use CurrentUser;
+
     #[Route('/api/sessions', name: 'api_sessions_list', methods: ['GET'])]
     public function list(
         Request $request,
         GameSessionRepository $repository,
-        JwtService $jwt,
-        EntityManagerInterface $em,
     ): JsonResponse {
-        $user = AuthController::extractUser($request, $jwt, $em);
+        $user = $this->appUser();
         if (!$user) {
             return $this->json(['error' => 'Authentification requise.'], 401);
         }
 
-        return $this->json($repository->findByUser($user, 50));
+        $limit  = max(1, min(200, $request->query->getInt('limit', 50)));
+        $offset = max(0, $request->query->getInt('offset'));
+
+        return $this->json($repository->findByUser($user, $limit, $offset, $this->filters($request)));
+    }
+
+    /** Le bilan de toutes les parties (nombre, jeux différents, aimées), indépendant de la page affichée. */
+    #[Route('/api/sessions/summary', name: 'api_sessions_summary', methods: ['GET'])]
+    public function summary(Request $request, GameSessionRepository $repository): JsonResponse
+    {
+        $user = $this->appUser();
+        if (!$user) {
+            return $this->json(['error' => 'Authentification requise.'], 401);
+        }
+
+        return $this->json($repository->summaryForUser($user, $this->filters($request)));
+    }
+
+    /** Statistiques par jeu, par nombre de joueurs et par année, avec les mêmes filtres que la liste. */
+    #[Route('/api/sessions/stats', name: 'api_sessions_stats', methods: ['GET'])]
+    public function stats(Request $request, GameSessionRepository $repository): JsonResponse
+    {
+        $user = $this->appUser();
+        if (!$user) {
+            return $this->json(['error' => 'Authentification requise.'], 401);
+        }
+
+        return $this->json($repository->statsForUser($user, $this->filters($request)));
+    }
+
+    /** @return array{q: string, source: string, rating: string, players: int, year: int} */
+    private function filters(Request $request): array
+    {
+        return [
+            'q'       => mb_substr(trim((string) $request->query->get('q', '')), 0, 100),
+            'source'  => (string) $request->query->get('source', ''),
+            'rating'  => (string) $request->query->get('rating', ''),
+            'players' => $request->query->getInt('players'),
+            'year'    => $request->query->getInt('year'),
+        ];
     }
 
     #[Route('/api/sessions', name: 'api_sessions_create', methods: ['POST'])]
     public function create(
         Request $request,
         GameRepository $gameRepository,
-        JwtService $jwt,
         EntityManagerInterface $em,
         UserPreferenceService $prefService,
     ): JsonResponse {
-        $user = AuthController::extractUser($request, $jwt, $em);
+        $user = $this->appUser();
         if (!$user) {
             return $this->json(['error' => 'Authentification requise.'], 401);
         }
@@ -81,5 +118,39 @@ class SessionController extends AbstractController
         }
 
         return $this->json($session, 201);
+    }
+
+    /** Supprime une partie saisie par le joueur connecté. Celle d'un autre joueur répond 404, comme une partie inexistante ; une partie importée de MyLudo, 403. */
+    #[Route('/api/sessions/{id}', name: 'api_sessions_delete', requirements: ['id' => '\d+'], methods: ['DELETE'])]
+    public function delete(
+        int $id,
+        GameSessionRepository $repository,
+        EntityManagerInterface $em,
+        UserPreferenceService $prefService,
+    ): JsonResponse {
+        $user = $this->appUser();
+        if (!$user) {
+            return $this->json(['error' => 'Authentification requise.'], 401);
+        }
+
+        $session = $repository->find($id);
+        if ($session === null || $session->getUser()?->getId() !== $user->getId()) {
+            return $this->json(['error' => 'Partie introuvable.'], 404);
+        }
+
+        if ($session->isImported()) {
+            return $this->json(['error' => 'Une partie importée de MyLudo ne se supprime pas ici.'], 403);
+        }
+
+        $liked = $session->getRating() === 5;
+        $em->remove($session);
+        $em->flush();
+
+        // Une partie aimée comptait dans les styles de jeu : on les recalcule.
+        if ($liked) {
+            try { $prefService->recompute($user); } catch (\Throwable) { /* non bloquant */ }
+        }
+
+        return new JsonResponse(null, 204);
     }
 }

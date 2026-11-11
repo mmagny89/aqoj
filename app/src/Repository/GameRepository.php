@@ -10,6 +10,10 @@ use Doctrine\Persistence\ManagerRegistry;
 
 class GameRepository extends ServiceEntityRepository
 {
+    /** Jeu présent dans la ludothèque de l'association ou dans celle d'au moins un membre. */
+    public const IN_LIBRARY = '(EXISTS (SELECT 1 FROM association_game ag WHERE ag.game_id = g.id)
+        OR EXISTS (SELECT 1 FROM user_game ugl WHERE ugl.game_id = g.id))';
+
     public function __construct(ManagerRegistry $registry)
     {
         parent::__construct($registry, Game::class);
@@ -119,6 +123,7 @@ class GameRepository extends ServiceEntityRepository
      * Triés par note BGG décroissante — scoring simple côté service.
      *
      * @param string[] $familyKeys filtre dur sur mechanic_families si non vide
+     * @param bool     $library    true : seulement les jeux de la ludothèque de l'association ou d'un membre
      */
     public function findDiscoverForRecommendation(
         User $user,
@@ -130,26 +135,39 @@ class GameRepository extends ServiceEntityRepository
         ?int $maxYear = null,
         array $categoryKeys = [],
         array $excludeIds = [],
+        bool $baseGamesOnly = false,
+        ?float $maxComplexity = null,
+        ?int $minVotes = null,
+        bool $library = false,
     ): array {
         $conn = $this->getEntityManager()->getConnection();
 
-        $conditions = [
-            'g.mechanics::text != \'[]\'',          // jeux enrichis uniquement
-            'g.rating_bgg IS NOT NULL',
-            'g.rating_bgg >= 6.5',
-            // Exclure les jeux de la collection
-            'NOT EXISTS (SELECT 1 FROM user_game ug WHERE ug.game_id = g.id AND ug.user_id = ?)',
+        $conditions = [];
+        $params     = [];
+
+        if ($library) {
+            // Ludothèque de l'association et des membres : on y joue, donc la collection du joueur n'est pas exclue.
+            // Seule l'appartenance sort, jamais le propriétaire.
+            $conditions[] = self::IN_LIBRARY;
+            // Une ludothèque est petite : aucun seuil de note, de votes ni de mécaniques n'écarte un jeu qu'on peut sortir.
+            // Un filtre de familles n'y est posé que si l'appelant en passe un (choix explicite du joueur).
+            $minVotes = null;
+        } else {
+            $conditions[] = 'g.mechanics::text != \'[]\'';          // jeux enrichis uniquement
+            $conditions[] = 'g.rating_bgg IS NOT NULL';
+            $conditions[] = 'g.rating_bgg >= 6.5';
+            $conditions[] = 'NOT EXISTS (SELECT 1 FROM user_game ug WHERE ug.game_id = g.id AND ug.user_id = ?)';
             // Exclure les rééditions/versions collector de jeux déjà en collection.
             // implements_bgg_ids est un tableau jsonb de bgg_id (strings).
             // On utilise EXISTS + jsonb_array_elements_text car && n'existe pas sur jsonb.
-            "NOT EXISTS (
+            $conditions[] = "NOT EXISTS (
                 SELECT 1
                 FROM jsonb_array_elements_text(g.implements_bgg_ids) impl_id
                 JOIN game g2 ON g2.bgg_id = impl_id
                 JOIN user_game ug2 ON ug2.game_id = g2.id AND ug2.user_id = ?
-            )",
-        ];
-        $params = [$user->getId(), $user->getId()];
+            )";
+            array_push($params, $user->getId(), $user->getId());
+        }
 
         if (!empty($familyKeys)) {
             $jsonClauses = array_map(fn($k) => 'g.mechanic_families::jsonb @> ?::jsonb', $familyKeys);
@@ -186,6 +204,21 @@ class GameRepository extends ServiceEntityRepository
             foreach ($categoryKeys as $cat) {
                 $params[] = json_encode([$cat]);
             }
+        }
+
+        if ($baseGamesOnly) {
+            $conditions[] = 'g.is_expansion = false';
+        }
+
+        if ($maxComplexity !== null) {
+            // 0 = complexité inconnue : on ne la présente pas comme « accessible »
+            $conditions[] = 'g.complexity > 0 AND g.complexity <= ?';
+            $params[] = $maxComplexity;
+        }
+
+        if ($minVotes !== null) {
+            $conditions[] = 'g.users_rated >= ?';
+            $params[] = $minVotes;
         }
 
         if (!empty($excludeIds)) {
@@ -227,6 +260,62 @@ class GameRepository extends ServiceEntityRepository
         ));
     }
 
+    /**
+     * Nouveautés : jeux de base parus entre `$fromYear` et `$toYear` (à paraître compris), absents de la collection
+     * du joueur, du plus voté au moins voté.
+     *
+     * @return Game[]
+     */
+    public function findNewReleases(User $user, int $fromYear, int $toYear, int $limit): array
+    {
+        $conditions = [
+            'g.is_expansion = false',
+            'g.year_published BETWEEN ? AND ?',
+            'g.users_rated >= 20',
+            '(g.rating_bgg IS NULL OR g.rating_bgg >= 6.0)',
+            'NOT EXISTS (SELECT 1 FROM user_game ug WHERE ug.game_id = g.id AND ug.user_id = ?)',
+            "NOT EXISTS (
+                SELECT 1
+                FROM jsonb_array_elements_text(g.implements_bgg_ids) impl_id
+                JOIN game g2 ON g2.bgg_id = impl_id
+                JOIN user_game ug2 ON ug2.game_id = g2.id AND ug2.user_id = ?
+            )",
+        ];
+        $params = [$fromYear, $toYear, $user->getId(), $user->getId()];
+
+        $ids = $this->getEntityManager()->getConnection()->fetchFirstColumn(
+            'SELECT g.id FROM game g WHERE ' . implode(' AND ', $conditions) . ' ORDER BY g.users_rated DESC, g.id LIMIT ?',
+            [...$params, $limit]
+        );
+        if ($ids === []) {
+            return [];
+        }
+
+        $games = [];
+        foreach ($this->createQueryBuilder('g')->where('g.id IN (:ids)')->setParameter('ids', $ids)->getQuery()->getResult() as $game) {
+            $games[$game->getId()] = $game;
+        }
+
+        return array_values(array_filter(array_map(fn($id) => $games[(int) $id] ?? null, $ids)));
+    }
+
+    /** Jeux de base de la ludothèque de l'association et des membres, sans doublon. */
+    public function findLibraryGames(): array
+    {
+        $ids = $this->getEntityManager()->getConnection()->fetchFirstColumn(
+            'SELECT g.id FROM game g WHERE g.is_expansion = false AND ' . self::IN_LIBRARY
+        );
+        if ($ids === []) {
+            return [];
+        }
+
+        return $this->createQueryBuilder('g')
+            ->where('g.id IN (:ids)')
+            ->setParameter('ids', $ids)
+            ->getQuery()
+            ->getResult();
+    }
+
     public function findExistingBggIds(array $bggIds): array
     {
         if (empty($bggIds)) {
@@ -254,10 +343,18 @@ class GameRepository extends ServiceEntityRepository
             "SELECT id FROM game
              WHERE unaccent(LOWER(name)) LIKE unaccent(LOWER(:q))
                 OR unaccent(LOWER(COALESCE(name_original, ''))) LIKE unaccent(LOWER(:q))
-             -- Jeux de base en premier, puis par note BGG décroissante
-             ORDER BY is_expansion ASC, rating_bgg DESC NULLS LAST
+             -- Le titre exact d'abord, puis ceux qui commencent par la saisie, puis le reste ;
+             -- à égalité, jeux de base avant extensions, puis note BGG décroissante
+             ORDER BY (unaccent(LOWER(name)) = unaccent(LOWER(:exact)) OR unaccent(LOWER(COALESCE(name_original, ''))) = unaccent(LOWER(:exact))) DESC,
+                      (unaccent(LOWER(name)) LIKE unaccent(LOWER(:prefix)) OR unaccent(LOWER(COALESCE(name_original, ''))) LIKE unaccent(LOWER(:prefix))) DESC,
+                      is_expansion ASC, rating_bgg DESC NULLS LAST
              LIMIT :limit",
-            ['q' => '%' . addcslashes($query, '%_\\') . '%', 'limit' => $limit],
+            [
+                'q'      => '%' . addcslashes($query, '%_\\') . '%',
+                'exact'  => $query,
+                'prefix' => addcslashes($query, '%_\\') . '%',
+                'limit'  => $limit,
+            ],
         );
         if ($ids === []) {
             return [];
@@ -386,7 +483,8 @@ class GameRepository extends ServiceEntityRepository
         $sql = "SELECT g.bgg_id FROM game g
                 WHERE g.source = 'bgg_csv' AND g.bgg_id IS NOT NULL
                   AND (g.last_fetch_attempt_at IS NULL OR g.last_fetch_attempt_at < NOW() - INTERVAL '7 days')
-                ORDER BY EXISTS (SELECT 1 FROM user_game ug WHERE ug.game_id = g.id) DESC,
+                ORDER BY (EXISTS (SELECT 1 FROM user_game ug WHERE ug.game_id = g.id)
+                          OR EXISTS (SELECT 1 FROM association_game ag WHERE ag.game_id = g.id)) DESC,
                          g.bgg_rank ASC NULLS LAST, g.rating_bgg DESC NULLS LAST";
         $params = [];
 
@@ -553,9 +651,15 @@ class GameRepository extends ServiceEntityRepository
             'g.is_expansion = false',
             'g.rating_bgg IS NOT NULL',
             'g.rating_bgg >= 5.5',
+            // Une fiche à dix votes affiche volontiers 10/10 : on ne propose pas un jeu qu'à peine quelqu'un a noté.
+            'g.users_rated >= 100',
             'g.mechanics::text != \'[]\'',
         ];
         $params = [];
+        $orderParams = [];
+        // Les jeux qui partagent le plus de familles passent d'abord (puis la note) : classés par la seule note,
+        // le lot se remplissait de grands classiques à peine apparentés.
+        $shared = '0';
 
         if (!empty($families)) {
             $jsonClauses = array_map(fn($k) => 'g.mechanic_families::jsonb @> ?::jsonb', $families);
@@ -563,14 +667,16 @@ class GameRepository extends ServiceEntityRepository
             foreach ($families as $key) {
                 $params[] = json_encode([$key]);
             }
+            $placeholders = implode(',', array_fill(0, count($families), '?'));
+            $shared       = "(SELECT COUNT(*) FROM jsonb_array_elements_text(g.mechanic_families::jsonb) fam WHERE fam IN ({$placeholders}))";
+            $orderParams  = array_values($families);
         }
 
-        $params[] = $limit;
         $where = implode(' AND ', $conditions);
 
         $ids = $conn->fetchFirstColumn(
-            "SELECT g.id FROM game g WHERE {$where} ORDER BY g.rating_bgg DESC NULLS LAST LIMIT ?",
-            $params
+            "SELECT g.id FROM game g WHERE {$where} ORDER BY {$shared} DESC, g.rating_bgg DESC NULLS LAST LIMIT ?",
+            [...$params, ...$orderParams, $limit]
         );
 
         if (empty($ids)) {

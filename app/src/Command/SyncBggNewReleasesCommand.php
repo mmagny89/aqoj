@@ -7,6 +7,7 @@ use App\Repository\GameRepository;
 use App\Service\BggApiException;
 use App\Service\BggApiService;
 use App\Service\BggJobLock;
+use App\Service\JobRunRecorder;
 use App\Service\GameEnrichmentService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -44,6 +45,7 @@ class SyncBggNewReleasesCommand extends Command
         private readonly GameEnrichmentService $enrichment,
         private readonly EntityManagerInterface $em,
         private readonly BggJobLock $lock,
+        private readonly JobRunRecorder $recorder,
     ) {
         parent::__construct();
     }
@@ -54,6 +56,7 @@ class SyncBggNewReleasesCommand extends Command
 
         if (!$this->lock->acquire()) {
             $io->warning('Une autre tâche BGG est déjà en cours : ce passage est sauté.');
+            $this->recorder->note(['skipped' => 'verrou BGG pris']);
             return Command::SUCCESS;
         }
 
@@ -116,6 +119,8 @@ class SyncBggNewReleasesCommand extends Command
             count($newIds)
         ));
 
+        $this->recorder->note(['decouverts' => count($uniqueIds), 'deja_en_base' => count($existingIds), 'nouveaux' => count($newIds)]);
+
         if (empty($newIds)) {
             $io->success('Aucune nouveauté à importer.');
             return Command::SUCCESS;
@@ -126,6 +131,12 @@ class SyncBggNewReleasesCommand extends Command
         $errors   = 0;
 
         foreach (array_chunk($newIds, 20) as $chunk) {
+            if ($this->recorder->stopRequested()) {
+                $io->warning('Arrêt demandé par un administrateur.');
+                $this->recorder->note(['arret_demande' => true]);
+                break;
+            }
+
             try {
                 $gamesData = $this->bggApi->fetchGamesDetails($chunk);
                 foreach ($gamesData as $data) {
@@ -141,6 +152,7 @@ class SyncBggNewReleasesCommand extends Command
                 $this->em->clear();
             } catch (BggApiException $e) {
                 $io->error('Arrêt : ' . $e->getMessage());
+                $this->recorder->note(['importes' => $imported, 'erreurs' => $errors, 'arret_bgg' => $e->getMessage()]);
                 return Command::FAILURE;
             } catch (\Throwable $e) {
                 $errors += count($chunk);
@@ -148,6 +160,7 @@ class SyncBggNewReleasesCommand extends Command
             }
         }
 
+        $this->recorder->note(['importes' => $imported, 'erreurs' => $errors]);
         $io->success(sprintf('%d nouveaux jeux importés, %d erreurs.', $imported, $errors));
 
         return Command::SUCCESS;

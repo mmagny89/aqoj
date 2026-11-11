@@ -29,7 +29,16 @@ final class JwtAuthenticator extends AbstractAuthenticator implements Authentica
 
     public function supports(Request $request): bool
     {
-        return $this->userId($request) !== null;
+        $id = $this->userId($request);
+        if ($id === null) {
+            return false;
+        }
+
+        // Un jeton révoqué (mot de passe changé depuis) ou d'un compte non confirmé se comporte comme un jeton expiré : la requête reste anonyme.
+        $user = $this->users->find($id);
+        $payload = $this->payload($request);
+
+        return !($user !== null && $payload !== null && !$this->jwt->accepts($user, $payload));
     }
 
     public function authenticate(Request $request): Passport
@@ -54,18 +63,14 @@ final class JwtAuthenticator extends AbstractAuthenticator implements Authentica
         return new JsonResponse(['error' => 'Authentification requise.'], 401);
     }
 
+    private function payload(Request $request): ?\stdClass
+    {
+        return $this->jwt->payloadFromRequest($request);
+    }
+
     private function userId(Request $request): ?int
     {
-        $header = $request->headers->get('Authorization', '');
-        if (!str_starts_with($header, 'Bearer ')) {
-            return null;
-        }
-
-        try {
-            $sub = $this->jwt->decode(substr($header, 7))->sub ?? null;
-        } catch (\Throwable) {
-            return null;
-        }
+        $sub = $this->payload($request)->sub ?? null;
 
         return is_int($sub) || ctype_digit((string) $sub) ? (int) $sub : null;
     }
