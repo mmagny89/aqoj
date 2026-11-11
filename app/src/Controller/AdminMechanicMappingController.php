@@ -165,19 +165,21 @@ class AdminMechanicMappingController extends AbstractController
     #[Route('/recompute', name: 'admin_mechanic_mappings_recompute', methods: ['POST'])]
     public function recompute(): JsonResponse
     {
+        // 177 000 jeux : bien au-delà des 30 s de max_execution_time (sinon le serveur renvoie une page HTML).
+        set_time_limit(0);
         $this->familyResolver->invalidateCache();
 
         $conn      = $this->em->getConnection();
         $familyMap = $this->familyResolver->getFamilyMap();
         $engines   = array_flip(MechanicFamilyResolver::ENGINE_FAMILIES);
         $batchSize = 200;
-        $offset    = 0;
+        $lastId    = 0;
         $count     = 0;
 
         while (true) {
             $rows = $conn->fetchAllAssociative(
-                'SELECT id, mechanics FROM game ORDER BY id ASC LIMIT ? OFFSET ?',
-                [$batchSize, $offset]
+                'SELECT id, mechanics FROM game WHERE id > ? ORDER BY id ASC LIMIT ?',
+                [$lastId, $batchSize]
             );
 
             if (empty($rows)) {
@@ -229,7 +231,7 @@ class AdminMechanicMappingController extends AbstractController
                 array_merge($paramsFamilies, $paramsEngines, $ids)
             );
 
-            $offset += $batchSize;
+            $lastId = (int) end($ids);
         }
 
         return $this->json(['updated' => $count]);
