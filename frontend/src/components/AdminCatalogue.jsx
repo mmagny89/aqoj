@@ -147,6 +147,56 @@ function RunCard({ run, onChanged }) {
 }
 
 /** Dernière exécution de chaque tâche, puis l'historique filtrable. */
+const CONSOLE = 'docker compose exec php php bin/console '
+
+// Les tâches ne se lancent pas d'ici (le planificateur seul les déclenche) : on donne la commande à copier.
+const COMMAND_HELP = [
+  { title: 'Resynchroniser les jeux périmés', note: 'Chaque nuit à 1 h, 300 jeux. Pour rattraper un retard (« À resyncer »), une série plus grosse ; 0 = tous, plusieurs heures (BGG : un appel toutes les 5 s).', commands: ['app:bgg:enrich-pending --mode=resync --limit=300', 'app:bgg:enrich-pending --mode=resync --limit=0'] },
+  { title: 'Enrichir les stubs CSV', note: 'Chaque nuit à 2 h, 200 jeux : premier enrichissement des jeux importés par CSV.', commands: ['app:bgg:enrich-pending --mode=pending --limit=200', 'app:bgg:enrich-pending --mode=pending --limit=0'] },
+  { title: 'Nouvelles sorties BGG', note: 'Chaque nuit à 3 h : Hot List et top de l’année.', commands: ['app:bgg:sync-new'] },
+  { title: 'Importer un ZIP du catalogue BGG', note: 'Chaque nuit à 4 h, depuis var/imports/bgg/. Pour un fichier précis : app:import:catalogue.', commands: ['app:bgg:import-csv', 'app:import:catalogue <fichier> --source=bgg [--include-expansions] [--dry-run]'] },
+  { title: 'Relier les extensions à leur jeu de base', note: 'À la demande. --all re-télécharge aussi celles déjà liées.', commands: ['app:bgg:relink-expansions --limit=500', 'app:bgg:relink-expansions --all'] },
+  { title: 'Traduire les descriptions', note: 'Toutes les 10 minutes, 60 jeux. --dry-run compte sans traduire.', commands: ['app:translate:descriptions --limit=60', 'app:translate:descriptions --dry-run'] },
+  { title: 'Recalculer les familles Engelstein', note: 'Aussi dans Mappings mécaniques, bouton « Recalculer les familles ».', commands: ['app:recompute-mechanic-families'] },
+  { title: 'Ménage', note: 'Dimanche 5 h : journal des tâches de plus de 90 jours, jetons périmés.', commands: ['app:maintenance:purge --dry-run', 'app:maintenance:purge'] },
+]
+
+function CommandLine({ command }) {
+  const full = CONSOLE + command
+  const [copied, setCopied] = useState(false)
+  const copy = () => {
+    navigator.clipboard?.writeText(full).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    })
+  }
+  return (
+    <div className="flex items-center gap-2">
+      <code className="min-w-0 flex-1 overflow-x-auto whitespace-nowrap rounded-lg bg-stone-100 px-2 py-1.5 text-xs text-stone-700">{full}</code>
+      <button type="button" onClick={copy} className="min-h-11 shrink-0 rounded-lg border border-stone-300 bg-white px-3 text-xs font-semibold text-stone-600 hover:bg-stone-50">
+        {copied ? 'Copié' : 'Copier'}
+      </button>
+    </div>
+  )
+}
+
+function CommandsHelp() {
+  return (
+    <section aria-labelledby="commandes">
+      <h3 id="commandes" className="mb-3 text-xs font-bold uppercase tracking-wide text-stone-400">Lancer une tâche à la main</h3>
+      <div className="space-y-2">
+        {COMMAND_HELP.map(({ title, note, commands }) => (
+          <details key={title} className="rounded-xl border border-stone-200 bg-white p-3">
+            <summary className="min-h-6 cursor-pointer text-sm font-semibold text-stone-700">{title}</summary>
+            <p className="mb-2 mt-2 text-xs text-stone-500">{note}</p>
+            <div className="space-y-2">{commands.map(c => <CommandLine key={c} command={c} />)}</div>
+          </details>
+        ))}
+      </div>
+    </section>
+  )
+}
+
 export function JobsPanel() {
   const [data, setData] = useState(null)
   const [command, setCommand] = useState('')
@@ -179,6 +229,8 @@ export function JobsPanel() {
           ? <p className="text-sm text-stone-400">Aucune exécution enregistrée pour l’instant.</p>
           : <div className="grid gap-3 sm:grid-cols-2">{data.last.map(run => <RunCard key={run.command} run={run} onChanged={reload} />)}</div>}
       </section>
+
+      <CommandsHelp />
 
       <section aria-labelledby="historique">
         <h3 id="historique" className="mb-3 text-xs font-bold uppercase tracking-wide text-stone-400">Historique</h3>

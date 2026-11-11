@@ -34,8 +34,9 @@ function StatCard({ label, value, sub, color = 'stone', icon, onClick }) {
 }
 
 /* ── Barre de progression ────────────────────────────────────────────── */
-function ProgressBar({ value, max, color = 'amber', label }) {
-  const pct = max > 0 ? Math.round((value / max) * 100) : 0
+function ProgressBar({ value, max, color = 'amber', label, hint, onHint }) {
+  // Jamais 100 % tant qu'il manque un jeu : l'arrondi cacherait le reste à faire.
+  const pct = max > 0 ? (value >= max ? 100 : Math.min(99, Math.round((value / max) * 100))) : 0
   const bars = { amber: 'bg-amber-400', green: 'bg-green-400', red: 'bg-red-400', blue: 'bg-blue-400', violet: 'bg-violet-400' }
   return (
     <div>
@@ -46,6 +47,12 @@ function ProgressBar({ value, max, color = 'amber', label }) {
       <div className="h-2 bg-stone-200 rounded-full overflow-hidden">
         <div className={`h-full rounded-full transition-all ${bars[color]}`} style={{ width: `${pct}%` }} />
       </div>
+      {hint && value < max && (
+        <p className="text-xs text-stone-400 mt-1">
+          {hint}
+          {onHint && <> <button type="button" onClick={onHint} className="underline font-semibold hover:text-stone-600">Voir la liste</button></>}
+        </p>
+      )}
     </div>
   )
 }
@@ -213,21 +220,28 @@ export default function AdminDashboardPage() {
             label="Enrichis (source = bgg_api)"
             value={Number(g.enriched)} max={Number(g.total)}
             color="green"
+            hint="Reste : stubs CSV, enrichis par la tâche enrich-pending (planifiée) ; rien à faire à la main."
           />
           <ProgressBar
-            label="Avec mécaniques BGG mappées"
+            label="Avec mécaniques BGG"
             value={Number(g.total) - Number(g.no_mechanics)} max={Number(g.total)}
             color="amber"
+            hint="Ce n'est pas le mapping Engelstein : un jeu compte dès qu'il a des mécaniques. Les stubs CSV n'en ont pas avant leur enrichissement ; un jeu déjà enrichi sans mécaniques n'en a pas sur BGG."
+            onHint={() => explore('no_mechanics')}
           />
           <ProgressBar
             label="Avec image"
             value={Number(g.total) - Number(g.no_image)} max={Number(g.total)}
             color="blue"
+            hint="Jeux enrichis sans image sur BGG, ou stubs pas encore enrichis."
+            onHint={() => explore('no_image')}
           />
           <ProgressBar
             label="Avec description"
             value={Number(g.total) - Number(g.no_description)} max={Number(g.total)}
             color="violet"
+            hint="Jeux enrichis sans description sur BGG, ou stubs pas encore enrichis."
+            onHint={() => explore('no_description')}
           />
         </div>
 
