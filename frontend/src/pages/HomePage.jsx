@@ -54,15 +54,6 @@ function Hero({ table, onTableChange, saved, scopeSwitch }) {
   )
 }
 
-function SectionTitle({ id, children, action }) {
-  return (
-    <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
-      <h2 id={id} className="text-2xl sm:text-3xl">{children}</h2>
-      {action}
-    </div>
-  )
-}
-
 /* ── Carrousel horizontal ────────────────────────────────────────────── */
 function Carousel({ items, label }) {
   const ref = useRef(null)

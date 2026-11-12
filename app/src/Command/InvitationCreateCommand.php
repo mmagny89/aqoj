@@ -41,12 +41,13 @@ final readonly class InvitationCreateCommand
 
         $expiresAt = null;
         if ($until !== null) {
-            $expiresAt = \DateTimeImmutable::createFromFormat('!Y-m-d', $until)?->modify('+1 day');
-            if ($expiresAt === null) {
+            $day = \DateTimeImmutable::createFromFormat('!Y-m-d', $until);
+            if ($day === false) {
                 $io->error('Date limite : AAAA-MM-JJ.');
 
                 return Command::FAILURE;
             }
+            $expiresAt = $day->modify('+1 day');
         }
 
         $code = new InvitationCode($this->invitations->generateCode(), trim($label), $parsed, $uses, $expiresAt);
