@@ -52,7 +52,12 @@
             "composer/package-versions-deprecated": true,
             "symfony/runtime": true
         },
-        "sort-packages": true
+        "sort-packages": true,
+        "audit": {
+            "ignore-abandoned": {
+                "doctrine/common": "Abandonné en amont, exigé par api-platform/doctrine-common (^3.2.2) ; aucun remplaçant, à lever quand API Platform s en passe."
+            }
+        }
     },
     "autoload": {
         "psr-4": {
