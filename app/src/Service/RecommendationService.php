@@ -177,11 +177,8 @@ class RecommendationService
                 $score += 5;
             }
 
-            $rawRating = $game->getRatingBgg() ?? 0;
-            $reason = $rawRating >= 7.5
-                ? 'Très bien noté sur BGG (' . number_format($rawRating, 1) . '/10)'
-                : 'Noté ' . number_format($rawRating, 1) . '/10 sur BGG';
-            return ['game' => $game, 'score' => $score, 'reason' => $reason];
+            // La note BGG est déjà sur la carte : aucune raison à redire dans le catalogue.
+            return ['game' => $game, 'score' => $score, 'reason' => ''];
         }, $games);
 
         usort($scored, fn($a, $b) => $b['score'] <=> $a['score']);
@@ -358,7 +355,7 @@ class RecommendationService
         }
 
         $easy = array_map(function (Game $game) use ($currentYear, $difficulty): array {
-            $reason = ($difficulty === null ? 'Facile à aborder' : 'Poids ' . number_format($game->getComplexity(), 1) . '/5') . ' · ' . number_format((float) $game->getRatingBgg(), 1) . '/10 sur BGG';
+            $reason = ($difficulty === null ? 'Facile à aborder' : 'Poids ' . number_format($game->getComplexity(), 1) . '/5');
             return [
                 'game'   => $game,
                 'score'  => $this->qualityRating($game, $currentYear) * 5 + $this->recencyBonus($game, $currentYear),
@@ -560,9 +557,6 @@ class RecommendationService
                 $overlap === 2 => 'Partage 2 de vos mécaniques préférées',
                 default        => 'Correspond à votre style de jeu',
             };
-            if ($rating >= 7.5) {
-                $reason .= ' · ' . number_format($rating, 1) . '/10 sur BGG';
-            }
             return ['game' => $game, 'score' => $score, 'reason' => $reason];
         }, $games);
 
@@ -681,9 +675,6 @@ class RecommendationService
         $parts = [];
         if ($shared !== []) {
             $parts[] = 'en commun : ' . implode(', ', array_slice($shared, 0, 2));
-        }
-        if ($candidate->getRatingBgg() !== null && $candidate->getRatingBgg() >= 7.5 && ($candidate->getUsersRated() ?? 0) >= 100) {
-            $parts[] = number_format($candidate->getRatingBgg(), 1) . '/10 BGG';
         }
 
         $prefix = $sim >= 75 ? 'Très proche' : ($sim >= 55 ? 'Proche' : 'Dans le même style');
@@ -927,11 +918,6 @@ class RecommendationService
                     $parts[] = 'pas joué depuis 6+ mois';
                 }
             }
-        }
-
-        if ($game->getRatingBgg() !== null && $game->getRatingBgg() >= 7.5) {
-            $rating = number_format($game->getRatingBgg(), 1, '.', '');
-            $parts[] = "noté {$rating}/10 sur BGG";
         }
 
         if (empty($parts)) {

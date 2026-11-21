@@ -32,7 +32,7 @@ describe('HomePage', () => {
 
   describe('connecté, sans profil', () => {
     const jeu = { id: 1, name: 'Nouveauté Test', yearPublished: 2025, ratingBgg: 7.9, minPlayers: 2, maxPlayers: 4, playingTime: 30, complexity: 2 }
-    const froid = { families: [], recent: [{ game: jeu, reason: 'Nouveauté 2025 · 7.9/10 sur BGG · facile à aborder' }], byDecade: {}, coldStart: true, declared: [] }
+    const froid = { families: [], recent: [{ game: jeu, reason: 'Facile à aborder' }], byDecade: {}, coldStart: true, declared: [] }
 
     beforeEach(() => {
       auth.user = { id: 1, email: 'a@example.test' }
@@ -138,7 +138,7 @@ describe('HomePage', () => {
     it('affiche ce que jouent les autres membres et les jeux faciles pour la table choisie', async () => {
       getTonightRecommendations.mockResolvedValue({
         popular: [{ game: jeu(1, 'Jeu Partagé'), reason: 'Joué par 3 membres cette année' }],
-        easy: [{ game: jeu(2, 'Jeu Facile'), reason: 'Facile à aborder · 7.5/10 sur BGG' }],
+        easy: [{ game: jeu(2, 'Jeu Facile'), reason: 'Facile à aborder' }],
       })
       render(<MemoryRouter><HomePage /></MemoryRouter>)
 
