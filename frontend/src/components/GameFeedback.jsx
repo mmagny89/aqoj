@@ -46,6 +46,8 @@ const OPTIONS = [
   { verdict: 'played_liked', label: 'J’ai joué, et j’aime', help: 'J’y ai joué et j’ai aimé : mes goûts en tiennent compte.', Icon: ThumbUpIcon },
 ]
 
+export const VERDICT_LABELS = Object.fromEntries(OPTIONS.map(o => [o.verdict, o.label]))
+
 export function FeedbackButtons({ game, verdict = null, onFeedback }) {
   const [tip, setTip] = useState(null)
   const tipId = useId()

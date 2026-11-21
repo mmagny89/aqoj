@@ -98,7 +98,7 @@ final class GameFeedbackTest extends ApiTestCase
         self::assertSame([], $this->call($client, 'GET', '/api/games/home-reco', token: $token)['families']);
     }
 
-    public function testJAimeraisJouerResteProposeEtJAiJoueEtJAimeEstEcarteMaisCompteCommeUnGout(): void
+    public function testJAimeraisJouerEtJAiJoueEtJAimeRestentProposesEtCompentCommeUnGout(): void
     {
         $client = static::createClient();
         $token = $this->register($client, 'positifs@example.test');
@@ -129,6 +129,29 @@ final class GameFeedbackTest extends ApiTestCase
         // Les deux comptent comme des goûts : le profil n'est plus vide.
         self::assertEqualsCanonicalizing(['cooperation', 'deck_building'], $vu['families']);
         self::assertFalse($vu['coldStart']);
+    }
+
+    public function testHistoriqueDesVotesListeTousLesVotesDuJoueurSeulement(): void
+    {
+        $client = static::createClient();
+        $token = $this->register($client, 'historique@example.test');
+        $autre = $this->register($client, 'autre-historique@example.test');
+        $a = $this->creerJeu('Zzfb Histo A', 2015, 7.0, 3000, ['auction']);
+        $b = $this->creerJeu('Zzfb Histo B', 2016, 7.0, 3000, ['cooperation']);
+
+        $this->call($client, 'PUT', "/api/games/$a/feedback", ['verdict' => 'not_interested'], $token);
+        $this->call($client, 'PUT', "/api/games/$b/feedback", ['verdict' => 'played_liked'], $token);
+        $this->call($client, 'PUT', "/api/games/$a/feedback", ['verdict' => 'want_to_play'], $autre);
+
+        $votes = $this->call($client, 'GET', '/api/user/feedback', token: $token);
+        $parNom = [];
+        foreach ($votes as $v) {
+            $parNom[$v['game']['name']] = [$v['verdict'], $v['source']];
+        }
+        self::assertSame(['Zzfb Histo A' => ['not_interested', 'user'], 'Zzfb Histo B' => ['played_liked', 'user']], $parNom);
+
+        $this->call($client, 'DELETE', "/api/games/$a/feedback", token: $token);
+        self::assertCount(1, $this->call($client, 'GET', '/api/user/feedback', token: $token));
     }
 
     public function testUnePartieAnnuleLEnvieDeJouerEtLaListeLesRend(): void

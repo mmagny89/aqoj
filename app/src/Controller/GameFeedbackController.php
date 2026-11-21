@@ -87,6 +87,42 @@ class GameFeedbackController extends AbstractController
         return $this->json($out);
     }
 
+    /**
+     * Tous les votes du joueur (dernier d'abord), pour les revoir, les changer ou les annuler depuis « Mon compte ».
+     * `source` dit si le vote vient d'un clic (`user`) ou des parties et des notes (`auto`).
+     */
+    #[Route('/api/user/feedback', name: 'api_user_feedback', methods: ['GET'])]
+    public function history(Connection $connection, GameRepository $games): JsonResponse
+    {
+        $user = $this->appUser();
+        if (!$user) {
+            return $this->json(['error' => 'Authentification requise.'], 401);
+        }
+
+        $rows = $connection->fetchAllAssociative(
+            'SELECT game_id, verdict, source, created_at FROM game_feedback WHERE user_id = ? ORDER BY created_at DESC, game_id LIMIT 500',
+            [$user->getId()],
+        );
+        if ($rows === []) {
+            return $this->json([]);
+        }
+
+        $byId = [];
+        foreach ($games->findBy(['id' => array_map(static fn(array $r): int => (int) $r['game_id'], $rows)]) as $game) {
+            $byId[$game->getId()] = $game;
+        }
+
+        $out = [];
+        foreach ($rows as $row) {
+            $game = $byId[(int) $row['game_id']] ?? null;
+            if ($game) {
+                $out[] = ['game' => $game, 'verdict' => $row['verdict'], 'source' => $row['source'], 'votedAt' => $row['created_at']];
+            }
+        }
+
+        return $this->json($out);
+    }
+
     /** Annule le retour : le jeu peut de nouveau être proposé. Sans effet s'il n'y en avait pas. */
     #[Route('/api/games/{id}/feedback', name: 'api_game_feedback_delete', requirements: ['id' => '\d+'], methods: ['DELETE'])]
     public function delete(int $id, Connection $connection): Response
