@@ -121,30 +121,19 @@ function ShopButtons({ gameName }) {
   )
 }
 
-/* ── Extensions : les connues d'abord, les confidentielles (< 50 votes, ni à nous ni prêtables) repliées ── */
+/* ── Extensions : toutes, classées côté API (les nôtres, puis les mieux notées) ── */
 function ExpansionsPanel({ expansions }) {
-  const [showAll, setShowAll] = useState(false)
-  const known  = expansions.filter(e => e.owned || e.inAssociation || e.withMember || (e.usersRated ?? 0) >= 50)
-  const hidden = expansions.filter(e => !known.includes(e))
-  const shown  = showAll ? [...known, ...hidden] : known
-
   return (
     <section aria-labelledby="titre-extensions" className="panel p-4">
       <h2 id="titre-extensions" className="mb-1 text-xl">
-        Extensions <span className="text-base font-normal text-stone-600">({shown.length})</span>
+        Extensions <span className="text-base font-normal text-stone-600">({expansions.length})</span>
       </h2>
       <p className="mb-3 mt-0 text-xs text-stone-600">Les vôtres d’abord, puis celles que l’association ou un membre peut prêter, puis les mieux notées.</p>
       <div className="space-y-2">
-        {shown.map(exp => (
+        {expansions.map(exp => (
           <GameRow key={exp.id} g={exp} currentId={null} />
         ))}
       </div>
-      {hidden.length > 0 && (
-        <button type="button" onClick={() => setShowAll(v => !v)} aria-expanded={showAll}
-          className="mt-2 inline-flex min-h-11 items-center text-sm font-bold text-brand-blue underline underline-offset-4">
-          {showAll ? 'Masquer les extensions peu notées' : `Voir les ${hidden.length} autre${hidden.length > 1 ? 's' : ''} (peu de votes)`}
-        </button>
-      )}
     </section>
   )
 }
