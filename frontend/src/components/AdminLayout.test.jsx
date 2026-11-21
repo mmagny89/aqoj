@@ -105,7 +105,9 @@ describe('Administration', () => {
     renderAt('/admin/communaute')
     expect(await screen.findByRole('region', { name: 'Parties enregistrées' })).toBeInTheDocument()
 
-    await userEvent.click(screen.getByRole('link', { name: 'Mappings' }))
+    // Le menu signale ce qui reste à mapper (3 mécaniques dans ce jeu d'essai).
+    expect(screen.getByRole('link', { name: /^Mappings\s*3 à traiter/ })).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('link', { name: /^Mappings/ }))
     expect(await screen.findByRole('link', { name: 'Gérer les mécaniques' })).toBeInTheDocument()
   })
 })
