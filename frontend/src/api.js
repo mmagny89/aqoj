@@ -106,6 +106,8 @@ export const getTonightRecommendations = ({ players, maxTime, scope, difficulty 
 }
 // Retour sur une proposition : 'not_interested' ou 'played_meh' ; l'annulation remet le jeu en circulation.
 export const setGameFeedback = (id, verdict) => request(`/games/${id}/feedback`, { method: 'PUT', body: JSON.stringify({ verdict }) })
+// Jeux que le joueur aimerait jouer ([{ game, why, feedback }]) ; une partie enregistrée sur un jeu le retire.
+export const getWishlist = () => request('/user/wishlist')
 export const clearGameFeedback = (id) => request(`/games/${id}/feedback`, { method: 'DELETE' })
 export const getSimilarGames = (id, limit = 5) => request(`/games/${id}/similar?limit=${limit}`)
 

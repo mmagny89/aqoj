@@ -131,6 +131,36 @@ final class GameFeedbackTest extends ApiTestCase
         self::assertFalse($vu['coldStart']);
     }
 
+    public function testUnePartieAnnuleLEnvieDeJouerEtLaListeLesRend(): void
+    {
+        $client = static::createClient();
+        $token = $this->register($client, 'envies@example.test');
+        $a = $this->creerJeu('Zzfb Envie A', 2020, 7.5, 2000);
+        $b = $this->creerJeu('Zzfb Envie B', 2021, 7.5, 2000);
+        $c = $this->creerJeu('Zzfb Pas Envie', 2022, 7.5, 2000);
+
+        $this->call($client, 'PUT', "/api/games/$a/feedback", ['verdict' => 'want_to_play'], $token);
+        $this->call($client, 'PUT', "/api/games/$b/feedback", ['verdict' => 'want_to_play'], $token);
+        $this->call($client, 'PUT', "/api/games/$c/feedback", ['verdict' => 'not_interested'], $token);
+
+        $liste = $this->call($client, 'GET', '/api/user/wishlist', token: $token);
+        self::assertEqualsCanonicalizing(['Zzfb Envie A', 'Zzfb Envie B'], array_column(array_column($liste, 'game'), 'name'));
+        self::assertSame(['want_to_play', 'want_to_play'], array_column($liste, 'feedback'));
+
+        // Une partie saisie sur A : l'envie est satisfaite.
+        $this->call($client, 'POST', '/api/sessions', ['gameId' => $a, 'playersCount' => 3, 'playedAt' => date('Y-m-d')], $token);
+        self::assertResponseStatusCodeSame(201);
+        self::assertSame(['Zzfb Envie B'], array_column(array_column($this->call($client, 'GET', '/api/user/wishlist', token: $token), 'game'), 'name'));
+
+        // La partie d'un autre joueur n'y change rien.
+        $autre = $this->register($client, 'autre-envie@example.test');
+        $this->call($client, 'POST', '/api/sessions', ['gameId' => $b, 'playersCount' => 2, 'playedAt' => date('Y-m-d')], $autre);
+        self::assertSame(['Zzfb Envie B'], array_column(array_column($this->call($client, 'GET', '/api/user/wishlist', token: $token), 'game'), 'name'));
+
+        $this->call($client, 'GET', '/api/user/wishlist');
+        self::assertResponseStatusCodeSame(401);
+    }
+
     /** @param list<string> $familles */
     private function creerJeu(string $nom, int $annee, float $note, int $votes, array $familles = []): int
     {

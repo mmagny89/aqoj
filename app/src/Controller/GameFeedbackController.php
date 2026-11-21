@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Repository\GameRepository;
+use App\Service\RecommendationService;
 use Doctrine\DBAL\Connection;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -48,6 +50,39 @@ class GameFeedbackController extends AbstractController
         );
 
         return $this->json(['gameId' => $id, 'verdict' => $verdict]);
+    }
+
+    /** Les jeux que le joueur aimerait jouer, le dernier ajouté d'abord. Une partie enregistrée sur un jeu le retire (déclencheur SQL). */
+    #[Route('/api/user/wishlist', name: 'api_user_wishlist', methods: ['GET'])]
+    public function wishlist(Connection $connection, GameRepository $games, RecommendationService $recommendations): JsonResponse
+    {
+        $user = $this->appUser();
+        if (!$user) {
+            return $this->json(['error' => 'Authentification requise.'], 401);
+        }
+
+        $ids = array_map('intval', $connection->fetchFirstColumn(
+            "SELECT game_id FROM game_feedback WHERE user_id = ? AND verdict = 'want_to_play' ORDER BY created_at DESC, game_id LIMIT 60",
+            [$user->getId()],
+        ));
+        if ($ids === []) {
+            return $this->json([]);
+        }
+
+        $byId = [];
+        foreach ($games->findBy(['id' => $ids]) as $game) {
+            $byId[$game->getId()] = $game;
+        }
+
+        $why = $recommendations->explainer($user);
+        $out = [];
+        foreach ($ids as $id) {
+            if (isset($byId[$id])) {
+                $out[] = ['game' => $byId[$id], 'reason' => '', 'why' => $why($byId[$id]), 'feedback' => 'want_to_play'];
+            }
+        }
+
+        return $this->json($out);
     }
 
     /** Annule le retour : le jeu peut de nouveau être proposé. Sans effet s'il n'y en avait pas. */

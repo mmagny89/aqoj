@@ -24,15 +24,16 @@ export function useGameFeedback() {
     if (next) timer.current = setTimeout(() => setNotice(null), NOTICE_MS)
   }, [])
 
-  const apply = (id, verdict) => setMarked(prev => new Map(prev).set(id, verdict))
+  // Le jeu est gardé avec son retour : la section « Mes envies » s'alimente sans attendre un rechargement.
+  const apply = (game, verdict) => setMarked(prev => new Map(prev).set(game.id, { verdict, game }))
   const persist = (game, verdict) => (verdict ? setGameFeedback(game.id, verdict) : clearGameFeedback(game.id))
 
   /* `verdict` = null retire le retour ; `previous` = le retour d'avant, pour annuler. */
   const send = useCallback((game, verdict, previous = null) => {
-    apply(game.id, verdict)
+    apply(game, verdict)
     announce(verdict ? { game, verdict, previous } : null)
     persist(game, verdict).catch(() => {
-      apply(game.id, previous)
+      apply(game, previous)
       announce({ game, error: true })
     })
   }, [announce])
@@ -40,17 +41,19 @@ export function useGameFeedback() {
   const undo = useCallback(() => {
     if (!notice?.game) return
     const { game, previous, verdict } = notice
-    apply(game.id, previous)
+    apply(game, previous)
     announce(null)
     persist(game, previous).catch(() => {
-      apply(game.id, verdict)
+      apply(game, verdict)
       announce({ game, error: true })
     })
   }, [notice, announce])
 
-  const verdictOf = useCallback((id, fromServer = null) => (marked.has(id) ? marked.get(id) : fromServer), [marked])
-  const isHidden = useCallback((id) => HIDING.has(marked.get(id)), [marked])
+  const verdictOf = useCallback((id, fromServer = null) => (marked.has(id) ? marked.get(id).verdict : fromServer), [marked])
+  const isHidden = useCallback((id) => HIDING.has(marked.get(id)?.verdict), [marked])
+  // Les jeux marqués « J'aimerais jouer » depuis cette page.
+  const wanted = [...marked.values()].filter(m => m.verdict === 'want_to_play').map(m => m.game)
   const dismiss = useCallback(() => announce(null), [announce])
 
-  return { isHidden, verdictOf, send, undo, dismiss, notice }
+  return { isHidden, verdictOf, wanted, send, undo, dismiss, notice }
 }
