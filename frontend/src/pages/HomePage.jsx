@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { getForgottenGems, getHomeRecommendations, getTonightRecommendations, saveTable } from '../api'
+import { getForgottenGems, getHomeRecommendations, getTonightRecommendations, getWishlist, saveTable } from '../api'
 import GameCard from '../components/GameCard'
 import { FeedbackNotice } from '../components/GameFeedback'
 import { useGameFeedback } from '../hooks/useGameFeedback'
@@ -287,6 +287,7 @@ export default function HomePage() {
 
   const [reco, setReco]               = useState(null)
   const [forgotten, setForgotten]     = useState([])
+  const [wishlist, setWishlist]       = useState([])
   const [recoLoading, setRecoLoading] = useState(false)
   const [recoError, setRecoError]     = useState(null)
   const [scope, setScope]             = useState(storedScope)
@@ -331,6 +332,12 @@ export default function HomePage() {
       .finally(() => { setRecoLoading(false); setTableReady(true) })
   }, [user, authLoading, scope])
 
+  // Les envies de jeu : indépendantes du périmètre, une partie enregistrée les retire côté serveur.
+  useEffect(() => {
+    if (authLoading || !user) return
+    getWishlist().then(setWishlist).catch(() => setWishlist([]))
+  }, [user, authLoading])
+
   // Les « oubliés » sont ceux de la ludothèque commune : sans objet quand on cherche dans tout le catalogue.
   useEffect(() => {
     if (authLoading || !user) return
@@ -358,6 +365,16 @@ export default function HomePage() {
   const recentList = kept(reco?.recent ?? []).filter(({ game }) => !shown.has(game.id))
   recentList.forEach(({ game }) => shown.add(game.id))
   const tonightShown = { popular, easy: kept(tonight.easy).filter(({ game }) => !shown.has(game.id)) }
+  // Envies du serveur + celles marquées ici depuis, sans celles retirées ou écartées entre-temps ; chaque jeu une fois.
+  const wishIds  = new Set()
+  const wished   = [
+    ...feedback.wanted.map(game => ({ game, feedback: 'want_to_play' })),
+    ...wishlist,
+  ].filter(({ game }) => {
+    if (wishIds.has(game.id) || feedback.verdictOf(game.id, 'want_to_play') !== 'want_to_play') return false
+    wishIds.add(game.id)
+    return true
+  })
   const byDecade     = Object.fromEntries(Object.entries(reco?.byDecade ?? {}).map(([label, list]) => [label, kept(list)]).filter(([, list]) => list.length > 0))
 
   const hasTonight   = tonightShown.easy.length > 0 || tonightShown.popular.length > 0
@@ -368,6 +385,16 @@ export default function HomePage() {
   const showInvite   = !recoLoading && reco !== null && !noHistory && !(reco.declared?.length > 0)
 
   const tabs = [
+    wished.length > 0 && {
+      id: 'envies',
+      label: `Mes envies de jeu (${wished.length})`,
+      content: (
+        <>
+          <p className="mb-4 mt-0 text-stone-600">Les jeux que vous aimeriez jouer. Une partie enregistrée sur un jeu le retire de cette liste.</p>
+          <Carousel items={wished} label="Mes envies de jeu" feedback={feedback} />
+        </>
+      ),
+    },
     hasRecent && {
       id: 'nouveautes',
       label: 'Nouveautés pour vous',

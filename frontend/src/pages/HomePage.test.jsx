@@ -3,16 +3,17 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import HomePage from './HomePage'
-import { clearGameFeedback, getForgottenGems, getHomeRecommendations, getTonightRecommendations, saveTable, setGameFeedback } from '../api'
+import { clearGameFeedback, getForgottenGems, getHomeRecommendations, getTonightRecommendations, getWishlist, saveTable, setGameFeedback } from '../api'
 
 const auth = vi.hoisted(() => ({ user: null }))
 vi.mock('../context/AuthContext', () => ({ useAuth: () => ({ user: auth.user, loading: false }) }))
-vi.mock('../api', () => ({ getHomeRecommendations: vi.fn(), getForgottenGems: vi.fn(), getTonightRecommendations: vi.fn(), saveTable: vi.fn(), setGameFeedback: vi.fn(), clearGameFeedback: vi.fn() }))
+vi.mock('../api', () => ({ getHomeRecommendations: vi.fn(), getForgottenGems: vi.fn(), getTonightRecommendations: vi.fn(), saveTable: vi.fn(), setGameFeedback: vi.fn(), clearGameFeedback: vi.fn(), getWishlist: vi.fn() }))
 
 describe('HomePage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     auth.user = null
+    getWishlist.mockResolvedValue([])
   })
 
   it('n’a ni bouton d’envoi ni lien de recherche dans le bandeau : le filtrage est immédiat', () => {
@@ -71,6 +72,30 @@ describe('HomePage', () => {
       await userEvent.click(screen.getByRole('button', { name: 'Annuler' }))
       expect(clearGameFeedback).toHaveBeenCalledWith(1)
       expect(await screen.findByRole('link', { name: 'Nouveauté Test' })).toBeInTheDocument()
+    })
+
+    it('range les envies de jeu dans leur onglet, et un jeu marqué « J’aimerais jouer » y arrive aussitôt', async () => {
+      const envie = { id: 7, name: 'Jeu Convoité', yearPublished: 2020, ratingBgg: 7.5, minPlayers: 2, maxPlayers: 4, playingTime: 30, complexity: 2 }
+      getWishlist.mockResolvedValue([{ game: envie, why: null, feedback: 'want_to_play' }])
+      getHomeRecommendations.mockResolvedValue({ ...froid, hasHistory: true })
+      setGameFeedback.mockResolvedValue({})
+      clearGameFeedback.mockResolvedValue(null)
+      render(<MemoryRouter><HomePage /></MemoryRouter>)
+
+      const onglet = await screen.findByRole('tab', { name: 'Mes envies de jeu (1)' })
+      expect(onglet).toHaveAttribute('aria-selected', 'true')
+      expect(screen.getByRole('link', { name: 'Jeu Convoité' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /J’aimerais jouer : Jeu Convoité/ })).toHaveAttribute('aria-pressed', 'true')
+
+      // Retirer l'envie vide la liste ; l'onglet disparaît.
+      await userEvent.click(screen.getByRole('button', { name: /J’aimerais jouer : Jeu Convoité/ }))
+      expect(clearGameFeedback).toHaveBeenCalledWith(7)
+      expect(screen.queryByRole('tab', { name: /Mes envies de jeu/ })).not.toBeInTheDocument()
+
+      // Marquer une nouveauté l'ajoute à la liste sans rechargement.
+      await userEvent.click(screen.getByRole('button', { name: /J’aimerais jouer : Nouveauté Test/ }))
+      expect(setGameFeedback).toHaveBeenCalledWith(1, 'want_to_play')
+      expect(await screen.findByRole('tab', { name: 'Mes envies de jeu (1)' })).toBeInTheDocument()
     })
 
     it('invite à renseigner BGG, MyLudo ou des parties tant qu’il n’y a aucun historique, et se masque une semaine', async () => {
