@@ -137,6 +137,7 @@ class GameController extends AbstractController
             'byDecade' => $byDecade,
             'coldStart' => $result['coldStart'],
             'declared'  => $result['declared'],
+            'hasHistory' => $result['hasHistory'],
             'table'     => $prefRepository->find($user->getId())?->getTable(),
         ]);
     }

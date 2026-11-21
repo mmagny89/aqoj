@@ -196,6 +196,7 @@ class RecommendationService
      *   - `coldStart` : true quand ni l'historique ni le questionnaire ne donnent de profil ;
      *                   `recent` propose alors des nouveautés accessibles, sans filtre de mécanique
      *   - `declared`  : goûts déclarés par le joueur (pour préremplir le questionnaire)
+     *   - `hasHistory` : false tant que ni ludothèque ni partie n'existent (l'accueil invite à importer ou saisir)
      */
     public function recommendHomeDiscover(User $user, bool $library = false): array
     {
@@ -214,6 +215,7 @@ class RecommendationService
                 'byDecade'  => [],
                 'coldStart' => true,
                 'declared'  => $declared,
+                'hasHistory' => $this->hasHistory($user),
             ];
         }
 
@@ -265,7 +267,17 @@ class RecommendationService
             'byDecade'  => $byDecade,
             'coldStart' => false,
             'declared'  => $declared,
+            'hasHistory' => $this->hasHistory($user),
         ];
+    }
+
+    /** Le joueur a-t-il au moins un jeu en ludothèque ou une partie enregistrée ? Sinon l'accueil l'invite à en fournir. */
+    private function hasHistory(User $user): bool
+    {
+        return (bool) $this->conn->fetchOne(
+            'SELECT EXISTS (SELECT 1 FROM user_game WHERE user_id = ?) OR EXISTS (SELECT 1 FROM game_session WHERE user_id = ?)',
+            [$user->getId(), $user->getId()],
+        );
     }
 
     /**

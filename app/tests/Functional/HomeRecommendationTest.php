@@ -213,6 +213,24 @@ final class HomeRecommendationTest extends ApiTestCase
         self::assertSame($ids, array_values(array_unique($ids)), 'une même fiche ne revient pas d\'une page à l\'autre');
     }
 
+    public function testLAccueilSaitSiLeJoueurAUnHistorique(): void
+    {
+        $client = static::createClient();
+        $token = $this->register($client, 'histo@example.test');
+        $this->creerJeu('Zzhis Jeu', (int) date('Y') - 4, 2.0, 7.5, 3000);
+
+        $avant = $this->call($client, 'GET', '/api/games/home-reco', token: $token);
+        self::assertFalse($avant['hasHistory']);
+
+        static::getContainer()->get(Connection::class)->executeStatement(
+            'INSERT INTO user_game (user_id, game_id) VALUES ((SELECT id FROM app_user WHERE email = ?), (SELECT id FROM game WHERE name = ?))',
+            ['histo@example.test', 'Zzhis Jeu'],
+        );
+
+        $apres = $this->call($client, 'GET', '/api/games/home-reco', token: $token);
+        self::assertTrue($apres['hasHistory']);
+    }
+
     public function testLePerimetreLudothequeNeGardeQueLesJeuxDeLAssociationEtDesMembres(): void
     {
         $client = static::createClient();

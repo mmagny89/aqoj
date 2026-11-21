@@ -121,12 +121,53 @@ function TonightSection({ tonight, players, maxTime, difficulty }) {
 const INVITE_KEY = 'aqoj_gouts_plus_tard'
 const INVITE_DELAY = 7 * 24 * 3600 * 1000
 
-function inviteSnoozed() {
+function inviteSnoozed(key = INVITE_KEY) {
   try {
-    return Date.now() - Number(localStorage.getItem(INVITE_KEY) ?? 0) < INVITE_DELAY
+    return Date.now() - Number(localStorage.getItem(key) ?? 0) < INVITE_DELAY
   } catch {
     return false
   }
+}
+
+// Plus rien à recommander sans matière : ni ludothèque ni partie. Trois façons d'en fournir, la plus rapide en premier.
+const HISTORY_KEY = 'aqoj_historique_plus_tard'
+const HISTORY_WAYS = [
+  { to: '/importer?onglet=bgg', label: 'Renseigner mon compte BGG', text: 'Votre collection et vos notes arrivent en un clic.' },
+  { to: '/importer?onglet=myludo', label: 'Importer ma ludothèque MyLudo', text: 'Depuis le fichier CSV exporté de MyLudo.' },
+  { to: '/parties', label: 'Enregistrer des parties', text: 'Quelques parties jouées suffisent pour cerner vos goûts.' },
+]
+
+function HistoryInvite({ hasTastes }) {
+  const [hidden, setHidden] = useState(() => inviteSnoozed(HISTORY_KEY))
+  if (hidden) return null
+
+  const later = () => {
+    try { localStorage.setItem(HISTORY_KEY, String(Date.now())) } catch { /* stockage indisponible : le rappel reviendra */ }
+    setHidden(true)
+  }
+
+  return (
+    <section aria-labelledby="titre-historique" className="panel flex flex-col gap-4 bg-amber-100 p-5">
+      <div>
+        <h2 id="titre-historique" className="text-xl sm:text-2xl">Des suggestions à votre image</h2>
+        <p className="mt-1 text-stone-700">Dites-nous à quoi vous avez déjà joué : les idées de cette page s’ajusteront à vos goûts.</p>
+      </div>
+      <ul className="m-0 grid list-none gap-3 p-0 sm:grid-cols-3">
+        {HISTORY_WAYS.map(({ to, label, text }) => (
+          <li key={to}>
+            <Link to={to} className="token-card h-full gap-1 p-4">
+              <span className="font-bold">{label}</span>
+              <span className="text-sm text-stone-600">{text}</span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-1">
+        {!hasTastes && <Link to="/compte#gouts" className="inline-flex min-h-11 items-center font-bold text-brand-blue underline underline-offset-4">Ou choisir mes goûts</Link>}
+        <button type="button" onClick={later} className="inline-flex min-h-11 items-center font-bold text-brand-blue underline underline-offset-4">Plus tard</button>
+      </div>
+    </section>
+  )
 }
 
 function TasteInvite() {
@@ -316,7 +357,8 @@ export default function HomePage() {
   const hasRecent    = recentList.length > 0
   const hasDecades   = reco?.byDecade && Object.keys(reco.byDecade).length > 0
   const hasForgotten = forgotten.length > 0
-  const showInvite   = !recoLoading && reco !== null && !(reco.declared?.length > 0)
+  const noHistory    = !recoLoading && reco !== null && reco.hasHistory === false
+  const showInvite   = !recoLoading && reco !== null && !noHistory && !(reco.declared?.length > 0)
 
   const tabs = [
     hasRecent && {
@@ -348,6 +390,8 @@ export default function HomePage() {
     <div className="mx-auto flex max-w-7xl flex-col gap-10 px-4 py-6 sm:px-6 lg:px-10 lg:py-8">
       <Hero table={table} onTableChange={changeTable} difficulty={difficulty} onDifficultyChange={changeDifficulty} saved={tableSaved}
         scopeSwitch={!authLoading && user ? <ScopeSwitch scope={scope} onChange={changeScope} /> : null} />
+
+      {!authLoading && user && noHistory && <HistoryInvite hasTastes={reco.declared?.length > 0} />}
 
       {!authLoading && user && hasTonight && <TonightSection tonight={tonightShown} players={players} maxTime={maxTime} difficulty={difficulty} />}
 
