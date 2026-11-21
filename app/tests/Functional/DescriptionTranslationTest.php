@@ -54,18 +54,16 @@ final class DescriptionTranslationTest extends ApiTestCase
         self::assertSame(1, $http->getRequestsCount());
     }
 
-    public function testUnVisiteurAnonymeNeDeclenchePasLaTraduction(): void
+    public function testUnVisiteurAnonymeEstRefuseEtNeDeclenchePasLaTraduction(): void
     {
         $client = static::createClient();
         $id = $this->jeu('Zztr Anonyme', self::EN);
         $http = $this->mockTranslator($client, []);
 
-        $fiche = $this->call($client, 'GET', "/api/games/$id");
+        $this->call($client, 'GET', "/api/games/$id");
 
-        self::assertResponseIsSuccessful();
+        self::assertResponseStatusCodeSame(401);
         self::assertSame(0, $http->getRequestsCount());
-        self::assertNull($fiche['descriptionFr']);
-        self::assertTrue($fiche['descriptionFrPending']);
     }
 
     public function testUnServiceEnPanneLaisseLAnglaisEtNeEstRappeleQuUneFoisParJour(): void
