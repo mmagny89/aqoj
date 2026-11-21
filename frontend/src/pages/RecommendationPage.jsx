@@ -15,7 +15,7 @@ import { ENGINES, SUPPORT_FAMILIES, EXTRA_FAMILIES, familyLabel } from '../utils
 function Chip({ active, onClick, icon, label, small = true }) {
   return (
     <button type="button" onClick={onClick} aria-pressed={active} className={small ? 'chip chip-sm' : 'chip !min-h-11 text-sm'}>
-      {small && <span aria-hidden="true" className="mr-1 inline-block w-3 text-center">{active ? '✓' : ''}</span>}
+      {small && active && <span aria-hidden="true" className="mr-1">✓</span>}
       {icon && <span aria-hidden="true" className="mr-1.5">{icon}</span>}
       {label}
     </button>
