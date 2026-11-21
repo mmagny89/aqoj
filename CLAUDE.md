@@ -9,7 +9,7 @@ Plateforme de découverte et de recommandation de jeux de société, alimentée 
 
 ## Infrastructure — règle qui fait autorité
 - `.claude/rules/stack-conventions.md` prime pour Docker, `.env`, nommage, ports et déploiement. Ne pas la reformuler ici. `.claude/` est ignoré par git (copie de `../claude/subagent/`).
-- Modifier le stack : agents `symfony-docker` (socle) et `stack-env-config` (overrides, `.dist`, CI). Régénérer : `.claude/scripts/setup-symfony.sh --shared-server --headless --same-origin` — à lancer dans un dossier vide nommé `aqoj` puis à fusionner à la main : le projet a ajouté un service `worker` (planificateur BGG) et un service `libretranslate` (traduction des descriptions, absent du manifeste : écart signalé dans `README.docker.md`), des variables `BGG_*_CRON`, `TRANSLATE_CRON`, `LIBRETRANSLATE_URL`, `ALERT_EMAIL`, `JWT_SECRET`, `BGG_TOKEN` et un job `frontend` dans le workflow.
+- Modifier le stack : agents `symfony-docker` (socle) et `stack-env-config` (overrides, `.dist`, CI). Régénérer : `.claude/scripts/setup-symfony.sh --shared-server --headless --same-origin` — à lancer dans un dossier vide nommé `aqoj` puis à fusionner à la main : le projet a ajouté un service `worker` (planificateur BGG) et un service `libretranslate` (traduction des descriptions, absent du manifeste : écart signalé dans `README.docker.md`), des variables `BGG_*_CRON`, `TRANSLATE_CRON`, `LIBRETRANSLATE_URL`, `ALERT_EMAIL`, `JWT_SECRET`, `BGG_TOKEN` et un job `frontend` dans le workflow et, dans `compose.yml`, l'ancre `x-journaux` (rotation des journaux Docker : 3 × 10 Mo par service, accès Caddy et IP compris).
 - Un défaut dans un fichier issu de `.claude/scripts` ou `.claude/resources` se corrige aussi à la source, dans le dépôt voisin `../claude` (`subagent/`).
 - Aucun code applicatif à la racine : PHP dans `app/`, React dans `frontend/`.
 
@@ -38,6 +38,10 @@ URLs de dev : front `http://localhost:5173` (Vite, proxifie `/api`), API `https:
 ## Branches
 - `develop` reçoit le travail ; `main` ne reçoit que du validé. Une branche par tâche : `feat/*`, `fix/*`, `docs/*`, `refactor/*`, `chore/*`.
 - Ne jamais pousser `develop`, `main` ni une branche : donner la commande, l'utilisatrice pousse.
+
+## Pages légales
+- Identité (association Envie de Jouer : RNA, SIRET, siège, présidente), hébergeur (Hostinger International Ltd., Larnaca) et contact : valeurs par défaut de `frontend/src/legal.js`, d'après `enviedejouer89.fr/mentions-legales`, surchargeables par `VITE_*` (`README.md`). E-mails transactionnels : Brevo, sous-traitant.
+- `PrivacyPage.jsx` décrit des faits du code : durées (session 8 h / 30 j dans `JwtService`, limiteurs de débit, purge des jetons à 7 j et des `job_run` à 90 j) et journaux plafonnés (`x-journaux`). Toute modification de l'un met l'autre à jour, et la date `updated` des deux pages.
 
 ## Invariants
 - **Aucun appel à BGG pendant la requête d'un joueur**, sauf trois exceptions bornées : l'import de sa collection, le premier enrichissement d'une fiche encore vide (un essai par jour et par jeu), le repli de la recherche textuelle (mis en cache 24 h). Tout le reste passe par le planificateur.
