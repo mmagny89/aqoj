@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { getForgottenGems, getHomeRecommendations, getTonightRecommendations, saveTable } from '../api'
 import GameCard from '../components/GameCard'
+import { FeedbackNotice } from '../components/GameFeedback'
+import { useGameFeedback } from '../hooks/useGameFeedback'
 import FilterRow from '../components/FilterRow'
 import { momentDeLaJournee } from '../utils/moment'
 import { DIFFICULTIES, storedDifficulty, storeDifficulty } from '../utils/difficulte'
@@ -65,7 +67,7 @@ function Hero({ table, onTableChange, difficulty, onDifficultyChange, saved, sco
 }
 
 /* ── Carrousel horizontal ────────────────────────────────────────────── */
-function Carousel({ items, label }) {
+function Carousel({ items, label, onFeedback }) {
   const ref = useRef(null)
   const scroll = (dir) => ref.current?.scrollBy({ left: dir * 300, behavior: 'smooth' })
 
@@ -74,9 +76,9 @@ function Carousel({ items, label }) {
       <button type="button" onClick={() => scroll(-1)} aria-label={`${label} : précédents`}
         className="btn absolute -left-3 top-1/3 z-10 hidden !min-h-11 w-11 !px-0 bg-paper shadow-token-sm lg:flex">‹</button>
       <ul ref={ref} aria-label={label} className="m-0 flex list-none snap-x snap-mandatory gap-5 overflow-x-auto px-1 pb-4 pt-1" style={{ scrollbarWidth: 'thin' }}>
-        {items.map(({ game }) => (
+        {items.map(({ game, why }) => (
           <li key={game.id} className="w-48 shrink-0 snap-start sm:w-56">
-            <GameCard game={game} />
+            <GameCard game={game} why={why} onFeedback={onFeedback} />
           </li>
         ))}
       </ul>
@@ -87,7 +89,7 @@ function Carousel({ items, label }) {
 }
 
 /* ── Pour la table du soir ───────────────────────────────────────────── */
-function TonightSection({ tonight, players, maxTime, difficulty }) {
+function TonightSection({ tonight, players, maxTime, difficulty, onFeedback }) {
   const easyTitle = { light: 'Légers à sortir', medium: 'Entre deux : ni légers ni lourds', heavy: 'Pour les costauds' }[difficulty] ?? 'Faciles à expliquer'
   const durationLabel = maxTime < 240 ? DURATIONS.find(d => d.value === maxTime)?.label : 'Durée libre'
 
@@ -104,13 +106,13 @@ function TonightSection({ tonight, players, maxTime, difficulty }) {
       {tonight.popular.length > 0 && (
         <div>
           <h3 className="mb-3 text-xl sm:text-2xl">Ce que jouent les autres membres</h3>
-          <Carousel items={tonight.popular} label="Ce que jouent les autres membres" />
+          <Carousel items={tonight.popular} label="Ce que jouent les autres membres" onFeedback={onFeedback} />
         </div>
       )}
       {tonight.easy.length > 0 && (
         <div>
           <h3 className="mb-3 text-xl sm:text-2xl">{easyTitle}</h3>
-          <Carousel items={tonight.easy} label={easyTitle} />
+          <Carousel items={tonight.easy} label={easyTitle} onFeedback={onFeedback} />
         </div>
       )}
     </section>
@@ -221,7 +223,7 @@ function ScopeSwitch({ scope, onChange }) {
 }
 
 /* ── Onglets décennie ────────────────────────────────────────────────── */
-function DecadeTabs({ byDecade }) {
+function DecadeTabs({ byDecade, onFeedback }) {
   const labels = Object.keys(byDecade)
   const [active, setActive] = useState(labels[0])
 
@@ -240,8 +242,8 @@ function DecadeTabs({ byDecade }) {
         ))}
       </div>
       <ul id="epoque-panneau" role="tabpanel" aria-labelledby={`epoque-${active}`} className="m-0 grid list-none grid-cols-2 gap-4 p-0 sm:grid-cols-3 sm:gap-5 xl:grid-cols-4 2xl:grid-cols-5">
-        {games.map(({ game }) => (
-          <li key={game.id}><GameCard game={game} /></li>
+        {games.map(({ game, why }) => (
+          <li key={game.id}><GameCard game={game} why={why} onFeedback={onFeedback} /></li>
         ))}
       </ul>
     </div>
@@ -281,6 +283,7 @@ const ENTRIES = [
 /* ── Page ────────────────────────────────────────────────────────────── */
 export default function HomePage() {
   const { user, loading: authLoading } = useAuth()
+  const feedback = useGameFeedback()
 
   const [reco, setReco]               = useState(null)
   const [forgotten, setForgotten]     = useState([])
@@ -348,14 +351,18 @@ export default function HomePage() {
   }, [user, authLoading, tableReady, players, maxTime, scope, difficulty])
 
   // Un même jeu ne s'affiche qu'une fois : ce que jouent les membres d'abord, les nouveautés avant les « faciles ».
-  const shown      = new Set(tonight.popular.map(({ game }) => game.id))
-  const recentList = (reco?.recent ?? []).filter(({ game }) => !shown.has(game.id))
+  // Un jeu écarté (« pas intéressé », « bof ») disparaît des listes sans attendre le rechargement.
+  const kept       = (list) => list.filter(({ game }) => !feedback.isHidden(game.id))
+  const popular    = kept(tonight.popular)
+  const shown      = new Set(popular.map(({ game }) => game.id))
+  const recentList = kept(reco?.recent ?? []).filter(({ game }) => !shown.has(game.id))
   recentList.forEach(({ game }) => shown.add(game.id))
-  const tonightShown = { popular: tonight.popular, easy: tonight.easy.filter(({ game }) => !shown.has(game.id)) }
+  const tonightShown = { popular, easy: kept(tonight.easy).filter(({ game }) => !shown.has(game.id)) }
+  const byDecade     = Object.fromEntries(Object.entries(reco?.byDecade ?? {}).map(([label, list]) => [label, kept(list)]).filter(([, list]) => list.length > 0))
 
   const hasTonight   = tonightShown.easy.length > 0 || tonightShown.popular.length > 0
   const hasRecent    = recentList.length > 0
-  const hasDecades   = reco?.byDecade && Object.keys(reco.byDecade).length > 0
+  const hasDecades   = Object.keys(byDecade).length > 0
   const hasForgotten = forgotten.length > 0
   const noHistory    = !recoLoading && reco !== null && reco.hasHistory === false
   const showInvite   = !recoLoading && reco !== null && !noHistory && !(reco.declared?.length > 0)
@@ -367,7 +374,7 @@ export default function HomePage() {
       content: (
         <>
           <p className="mb-4 mt-0 text-stone-600">Dix nouveautés parmi les plus suivies sur BGG, sorties récemment ou à paraître, qui ne sont pas dans votre ludothèque.</p>
-          <Carousel items={recentList} label="Nouveautés pour vous" />
+          <Carousel items={recentList} label="Nouveautés pour vous" onFeedback={feedback.send} />
         </>
       ),
     },
@@ -383,7 +390,7 @@ export default function HomePage() {
         </>
       ),
     },
-    hasDecades && { id: 'epoque', label: 'Par époque', content: <DecadeTabs byDecade={reco.byDecade} /> },
+    hasDecades && { id: 'epoque', label: 'Par époque', content: <DecadeTabs byDecade={byDecade} onFeedback={feedback.send} /> },
   ].filter(Boolean)
 
   return (
@@ -393,7 +400,7 @@ export default function HomePage() {
 
       {!authLoading && user && noHistory && <HistoryInvite hasTastes={reco.declared?.length > 0} />}
 
-      {!authLoading && user && hasTonight && <TonightSection tonight={tonightShown} players={players} maxTime={maxTime} difficulty={difficulty} />}
+      {!authLoading && user && hasTonight && <TonightSection tonight={tonightShown} players={players} maxTime={maxTime} difficulty={difficulty} onFeedback={feedback.send} />}
 
       {/* ── Non connecté ───────────────────────────────────────────── */}
       {!authLoading && !user && (
@@ -444,6 +451,8 @@ export default function HomePage() {
           )}
         </>
       )}
+
+      <FeedbackNotice feedback={feedback} />
     </div>
   )
 }

@@ -3,11 +3,11 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import HomePage from './HomePage'
-import { getForgottenGems, getHomeRecommendations, getTonightRecommendations, saveTable } from '../api'
+import { clearGameFeedback, getForgottenGems, getHomeRecommendations, getTonightRecommendations, saveTable, setGameFeedback } from '../api'
 
 const auth = vi.hoisted(() => ({ user: null }))
 vi.mock('../context/AuthContext', () => ({ useAuth: () => ({ user: auth.user, loading: false }) }))
-vi.mock('../api', () => ({ getHomeRecommendations: vi.fn(), getForgottenGems: vi.fn(), getTonightRecommendations: vi.fn(), saveTable: vi.fn() }))
+vi.mock('../api', () => ({ getHomeRecommendations: vi.fn(), getForgottenGems: vi.fn(), getTonightRecommendations: vi.fn(), saveTable: vi.fn(), setGameFeedback: vi.fn(), clearGameFeedback: vi.fn() }))
 
 describe('HomePage', () => {
   beforeEach(() => {
@@ -49,6 +49,28 @@ describe('HomePage', () => {
       expect(screen.getByRole('link', { name: 'Choisir mes goûts' })).toHaveAttribute('href', '/compte#gouts')
       expect(screen.queryByRole('heading', { name: 'Ce que vous aimez' })).not.toBeInTheDocument()
       expect(screen.queryByText(/Importez votre collection/)).not.toBeInTheDocument()
+    })
+
+    it('explique la proposition, la retire sur « Pas intéressé » et la remet sur « Annuler »', async () => {
+      getHomeRecommendations.mockResolvedValue({
+        ...froid,
+        hasHistory: true,
+        recent: [{ game: jeu, reason: '', why: { liked: { id: 9, name: 'Catan' }, families: ['deck_building'] } }],
+      })
+      setGameFeedback.mockResolvedValue({})
+      clearGameFeedback.mockResolvedValue(null)
+      render(<MemoryRouter><HomePage /></MemoryRouter>)
+
+      expect(await screen.findByText(/Parce que vous avez aimé/)).toHaveTextContent('Parce que vous avez aimé Catan, et que vous aimez la mécanique')
+
+      await userEvent.click(screen.getByRole('button', { name: /Pas intéressé/ }))
+      expect(setGameFeedback).toHaveBeenCalledWith(1, 'not_interested')
+      expect(screen.queryByRole('link', { name: 'Nouveauté Test' })).not.toBeInTheDocument()
+      expect(screen.getByText(/« Nouveauté Test » ne vous sera plus proposé/)).toBeInTheDocument()
+
+      await userEvent.click(screen.getByRole('button', { name: 'Annuler' }))
+      expect(clearGameFeedback).toHaveBeenCalledWith(1)
+      expect(await screen.findByRole('link', { name: 'Nouveauté Test' })).toBeInTheDocument()
     })
 
     it('invite à renseigner BGG, MyLudo ou des parties tant qu’il n’y a aucun historique, et se masque une semaine', async () => {

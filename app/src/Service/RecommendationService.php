@@ -36,6 +36,13 @@ class RecommendationService
     /** Un jeu n'est « joué par les autres membres » qu'à partir de ce nombre de joueurs distincts : jamais le choix d'une seule personne. */
     private const POPULAR_MIN_PLAYERS = 2;
 
+    /** Nombre de jeux « bof » partageant une famille pour qu'elle sorte du profil déduit. */
+    private const AVOIDED_MIN_GAMES = 3;
+
+    /** Jeux aimés comparés à chaque proposition pour la phrase « parce que vous avez aimé… » ; ressemblance minimale (comme `findSimilar`). */
+    private const EXPLAIN_LIKED_GAMES = 12;
+    private const EXPLAIN_MIN_SIMILARITY = 25;
+
     public function __construct(
         private readonly GameRepository $gameRepository,
         private readonly GameSessionRepository $sessionRepository,
@@ -130,12 +137,14 @@ class RecommendationService
         $categories = (array) ($criteria['categories'] ?? []);
 
         $currentYear = (int) date('Y');
+        $excludeIds  = $this->getFeedbackGameIds($user);
 
         // Triée par note brute, la réserve générale ne contient presque que des classiques : on y ajoute
         // un second lot de jeux récents, sinon aucune nouveauté n'atteindrait jamais le classement.
         $general = $this->gameRepository->findDiscoverForRecommendation(
             $user, $players, $maxTime, $families,
             limit: 300,
+            excludeIds: $excludeIds,
             categoryKeys: $categories,
             library: $library,
             maxComplexity: $maxComplexity,
@@ -145,6 +154,7 @@ class RecommendationService
             $user, $players, $maxTime, $families,
             limit: 100,
             minYear: $this->recentFromYear($currentYear),
+            excludeIds: $excludeIds,
             categoryKeys: $categories,
             minVotes: self::RECENT_MIN_VOTES,
             library: $library,
@@ -313,7 +323,12 @@ class RecommendationService
         $currentYear = (int) date('Y');
         $fromYear    = (int) date('n') <= 6 ? $currentYear - 1 : $currentYear;
         // Les 30 plus suivies, dont 10 au hasard : d'autres nouveautés à chaque chargement.
-        $games = $this->pickRandom($this->gameRepository->findNewReleases($user, $fromYear, $currentYear + 1, 30), 30, 10);
+        $excluded = array_flip($this->getFeedbackGameIds($user));
+        $pool     = array_filter(
+            $this->gameRepository->findNewReleases($user, $fromYear, $currentYear + 1, 30),
+            fn(Game $game): bool => !isset($excluded[$game->getId()]),
+        );
+        $games = $this->pickRandom($pool, 30, 10);
 
         // Aucune raison : le tag « Nouveauté » / « À paraître » de la carte (Game::getRelease) dit déjà tout.
         return array_map(
@@ -496,6 +511,10 @@ class RecommendationService
             $families = array_column($rows, 'family_key');
         }
 
+        // Les familles de jeux « déjà joué, bof » ne se déduisent plus de l'historique (un goût déclaré les garde).
+        $avoided  = $this->getAvoidedFamilies($user);
+        $families = array_values(array_diff($families, $avoided));
+
         // Les goûts déclarés passent devant : un choix explicite vaut mieux qu'une déduction, et l'historique
         // complète ce que le joueur n'a pas dit (jusqu'à quatre familles).
         $families = array_slice(array_values(array_unique([...$declared, ...$families])), 0, 4);
@@ -517,13 +536,13 @@ class RecommendationService
                  LIMIT 4",
                 [$user->getId()]
             );
-            $families = array_column($rows, 'family_key');
+            $families = array_values(array_diff(array_column($rows, 'family_key'), $avoided));
         }
 
         return $families;
     }
 
-    /** IDs des jeux explicitement détestés (note BGG < 5, ou session avec rating = 1). */
+    /** IDs des jeux explicitement détestés (note BGG < 5, session avec rating = 1) ou écartés par un retour du joueur. */
     private function getDislikedGameIds(User $user): array
     {
         $rows = $this->conn->fetchFirstColumn(
@@ -533,11 +552,98 @@ class RecommendationService
                  UNION
                  SELECT gs.game_id FROM game_session gs
                  WHERE gs.user_id = ? AND gs.rating = 1
+                 UNION
+                 SELECT f.game_id FROM game_feedback f
+                 WHERE f.user_id = ?
              ) sub",
-            [$user->getId(), $user->getId()]
+            [$user->getId(), $user->getId(), $user->getId()]
         );
 
         return array_map('intval', $rows);
+    }
+
+    /** Jeux que le joueur a écartés d'un « pas intéressé » ou d'un « déjà joué, bof » : plus jamais proposés. */
+    private function getFeedbackGameIds(User $user): array
+    {
+        return array_map('intval', $this->conn->fetchFirstColumn('SELECT game_id FROM game_feedback WHERE user_id = ?', [$user->getId()]));
+    }
+
+    /**
+     * Familles que le joueur évite : celles d'au moins trois jeux « déjà joué, bof ». Elles sortent du profil déduit
+     * de l'historique ; seul un goût déclaré les y remet.
+     *
+     * @return list<string>
+     */
+    private function getAvoidedFamilies(User $user): array
+    {
+        return array_map('strval', $this->conn->fetchFirstColumn(
+            "SELECT family_key FROM (
+                 SELECT json_array_elements_text(g.mechanic_families) AS family_key
+                 FROM game_feedback f
+                 JOIN game g ON g.id = f.game_id
+                 WHERE f.user_id = ? AND f.verdict = 'played_meh' AND g.mechanic_families::text != '[]'
+             ) sub
+             GROUP BY family_key
+             HAVING COUNT(*) >= " . self::AVOIDED_MIN_GAMES,
+            [$user->getId()]
+        ));
+    }
+
+    /**
+     * De quoi expliquer une proposition : « parce que vous avez aimé X, et que vous aimez les mécaniques Y ».
+     * Le profil et les jeux aimés sont lus une fois ; la fonction rendue se joue pour chaque jeu proposé.
+     *
+     * `liked` = le jeu aimé (note BGG ou MyLudo ≥ 7, partie aimée) le plus ressemblant, à partir de `EXPLAIN_MIN_SIMILARITY` ;
+     * `families` = ses familles de mécaniques qui font partie du profil du joueur. Rien à dire = null.
+     *
+     * @return \Closure(Game): (array{liked: ?array{id: int, name: string}, families: list<string>}|null)
+     */
+    public function explainer(User $user): \Closure
+    {
+        $profile = $this->getUserTopFamilies($user, $this->getDeclaredFamilies($user));
+
+        $ids = $this->conn->fetchFirstColumn(
+            "SELECT game_id FROM (
+                 SELECT ug.game_id, ug.bgg_user_rating AS score
+                 FROM user_game ug JOIN game g ON g.id = ug.game_id
+                 WHERE ug.user_id = ? AND ug.bgg_user_rating >= 7 AND g.is_expansion = false
+                 UNION ALL
+                 SELECT gs.game_id, 10 AS score
+                 FROM game_session gs JOIN game g ON g.id = gs.game_id
+                 WHERE gs.user_id = ? AND gs.rating = 5 AND g.is_expansion = false
+             ) sub
+             GROUP BY game_id
+             ORDER BY MAX(score) DESC, game_id
+             LIMIT " . self::EXPLAIN_LIKED_GAMES,
+            [$user->getId(), $user->getId()]
+        );
+        $liked = $ids === [] ? [] : $this->gameRepository->findBy(['id' => array_map('intval', $ids)]);
+
+        return function (Game $game) use ($profile, $liked): ?array {
+            $families = array_values(array_intersect($profile, $game->getMechanicFamilies()));
+
+            $best      = null;
+            $bestScore = self::EXPLAIN_MIN_SIMILARITY - 1;
+            foreach ($liked as $candidate) {
+                if ($candidate->getId() === $game->getId()) {
+                    continue;
+                }
+                $score = $this->computeSimilarity($candidate, $game);
+                if ($score > $bestScore) {
+                    $best      = $candidate;
+                    $bestScore = $score;
+                }
+            }
+
+            if ($best === null && $families === []) {
+                return null;
+            }
+
+            return [
+                'liked'    => $best === null ? null : ['id' => $best->getId(), 'name' => $best->getName()],
+                'families' => $families,
+            ];
+        };
     }
 
     /**

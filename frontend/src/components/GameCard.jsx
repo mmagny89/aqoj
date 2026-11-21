@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import { familyLabel, familyColor, SUPPORT_COLOR, isEngine } from '../utils/engelstein'
 import { AddPlayIcon } from './icons'
 import { gameImage } from '../utils/game'
+import { FeedbackButtons, WhyLine } from './GameFeedback'
 
 /* Fond de la pastille d'un jeu sans image : une couleur de la charte, stable pour un même jeu. */
 const COVER_COLORS = ['bg-brand-red', 'bg-brand-yellow', 'bg-[#8fbf9a]', 'bg-board-deep']
@@ -22,7 +23,7 @@ export function weightDots(complexity) {
   return '●'.repeat(level) + '○'.repeat(5 - level)
 }
 
-export default function GameCard({ game, rank, onAddSession, userRating, owned, similarity }) {
+export default function GameCard({ game, rank, onAddSession, userRating, owned, similarity, why, onFeedback }) {
   const image = gameImage(game)
   const playerRange =
     game.minPlayers === game.maxPlayers
@@ -118,6 +119,7 @@ export default function GameCard({ game, rank, onAddSession, userRating, owned, 
           </div>
         )}
 
+        <WhyLine why={why} />
 
         {onAddSession && (
           <button
@@ -129,6 +131,8 @@ export default function GameCard({ game, rank, onAddSession, userRating, owned, 
             Enregistrer une partie
           </button>
         )}
+
+        {onFeedback && <FeedbackButtons game={game} onFeedback={onFeedback} />}
       </div>
     </article>
   )
