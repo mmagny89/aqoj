@@ -482,7 +482,7 @@ class RecommendationService
         $positiveFamilies = "SELECT json_array_elements_text(g.mechanic_families) AS family_key
                  FROM game_feedback f
                  JOIN game g ON g.id = f.game_id
-                 WHERE f.user_id = ? AND f.verdict IN (" . self::POSITIVE_VERDICTS . ") AND g.mechanic_families::text != '[]'";
+                 WHERE f.user_id = ? AND f.source = 'user' AND f.verdict IN (" . self::POSITIVE_VERDICTS . ") AND g.mechanic_families::text != '[]'";
 
         // Priorité 1 : jeux bien notés sur BGG (>= 6) — signal fort "j'aime"
         $rows = $this->conn->fetchAllAssociative(
@@ -570,7 +570,7 @@ class RecommendationService
                  WHERE gs.user_id = ? AND gs.rating = 1
                  UNION
                  SELECT f.game_id FROM game_feedback f
-                 WHERE f.user_id = ? AND f.verdict IN (" . self::EXCLUDING_VERDICTS . ")
+                 WHERE f.user_id = ? AND f.source = 'user' AND f.verdict IN (" . self::EXCLUDING_VERDICTS . ")
              ) sub",
             [$user->getId(), $user->getId(), $user->getId()]
         );
@@ -582,7 +582,7 @@ class RecommendationService
     private function getFeedbackGameIds(User $user): array
     {
         return array_map('intval', $this->conn->fetchFirstColumn(
-            'SELECT game_id FROM game_feedback WHERE user_id = ? AND verdict IN (' . self::EXCLUDING_VERDICTS . ')',
+            "SELECT game_id FROM game_feedback WHERE user_id = ? AND source = 'user' AND verdict IN (" . self::EXCLUDING_VERDICTS . ')',
             [$user->getId()]
         ));
     }
@@ -649,7 +649,7 @@ class RecommendationService
                  UNION ALL
                  SELECT f.game_id, 10 AS score
                  FROM game_feedback f JOIN game g ON g.id = f.game_id
-                 WHERE f.user_id = ? AND f.verdict IN (" . self::POSITIVE_VERDICTS . ") AND g.is_expansion = false
+                 WHERE f.user_id = ? AND f.source = 'user' AND f.verdict IN (" . self::POSITIVE_VERDICTS . ") AND g.is_expansion = false
              ) sub
              GROUP BY game_id
              ORDER BY MAX(score) DESC, game_id

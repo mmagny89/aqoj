@@ -18,6 +18,8 @@ use Symfony\Component\Routing\Attribute\Route;
  *   - `not_interested`, `played_meh` : le jeu n'est plus proposé ; « bof » pèse aussi contre ses mécaniques ;
  *   - `played_liked` : déjà joué, donc plus proposé, et ses mécaniques comptent parmi les goûts ;
  *   - `want_to_play` : le jeu reste proposé, et ses mécaniques comptent parmi les goûts.
+ * Un retour `source = 'auto'` est déduit en base des parties et des notes (`game_feedback_sync_auto`) : il coche le bouton
+ * mais n'écarte rien ; le choix du joueur (`source = 'user'`) l'emporte toujours.
  */
 class GameFeedbackController extends AbstractController
 {
@@ -44,8 +46,8 @@ class GameFeedbackController extends AbstractController
         }
 
         $connection->executeStatement(
-            'INSERT INTO game_feedback (user_id, game_id, verdict) VALUES (?, ?, ?)
-             ON CONFLICT (user_id, game_id) DO UPDATE SET verdict = EXCLUDED.verdict, created_at = NOW()',
+            "INSERT INTO game_feedback (user_id, game_id, verdict) VALUES (?, ?, ?)
+             ON CONFLICT (user_id, game_id) DO UPDATE SET verdict = EXCLUDED.verdict, created_at = NOW(), source = 'user'",
             [$user->getId(), $id, $verdict],
         );
 
