@@ -206,4 +206,51 @@ final class BggApiServiceTest extends TestCase
             $items,
         );
     }
+
+    private function sondage(string $resultats): array
+    {
+        $xml = '<items><item type="boardgame" id="7"><name type="primary" value="Sondé"/>'
+            . '<minplayers value="1"/><maxplayers value="5"/><playingtime value="30"/><minage value="8"/>'
+            . '<poll name="suggested_numplayers" title="User Suggested Number of Players" totalvotes="0">' . $resultats . '</poll>'
+            . '</item></items>';
+
+        return $this->service(new MockResponse($xml))->fetchGamesDetails(['7'])[0];
+    }
+
+    private function vote(string $joueurs, int $best, int $recommended, int $not): string
+    {
+        return '<results numplayers="' . $joueurs . '">'
+            . '<result value="Best" numvotes="' . $best . '"/><result value="Recommended" numvotes="' . $recommended . '"/>'
+            . '<result value="Not Recommended" numvotes="' . $not . '"/></results>';
+    }
+
+    public function testLeSondageDonneLesNombresIdealsEtConseilles(): void
+    {
+        $game = $this->sondage(
+            $this->vote('1', 0, 2, 20)
+            . $this->vote('2', 30, 20, 1)
+            . $this->vote('3', 5, 30, 2)
+            . $this->vote('4', 2, 3, 40)
+            . $this->vote('5+', 0, 0, 30),
+        );
+
+        // Idéal : le nombre qui récolte le plus de « Best ». Conseillé : Best + Recommended l'emportent sur Not Recommended.
+        self::assertSame([2], $game['bestPlayers']);
+        self::assertSame([2, 3], $game['recommendedPlayers']);
+    }
+
+    public function testUnSondageTropPeuVoteResteInconnu(): void
+    {
+        $game = $this->sondage($this->vote('2', 1, 1, 0));
+
+        self::assertNull($game['bestPlayers']);
+        self::assertNull($game['recommendedPlayers']);
+    }
+
+    public function testSansSondageLesNombresDeJoueursSontInconnus(): void
+    {
+        $game = $this->service(new MockResponse(self::THING))->fetchGamesDetails(['13'])[0];
+
+        self::assertNull($game['bestPlayers']);
+    }
 }

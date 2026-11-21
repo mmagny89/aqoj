@@ -9,9 +9,9 @@ const FONCTIONS = [
 ]
 
 const CAPTURES = [
-  { src: '/captures/accueil.png', alt: 'Accueil : suggestions de jeux pour une table de quatre joueurs', legende: 'Les suggestions du soir, selon la table.' },
+  { src: '/captures/accueil.png', alt: 'Accueil : idées de jeux pour une table de quatre joueurs', legende: 'Les suggestions du soir, selon la table.' },
   { src: '/captures/fiche.png', alt: 'Fiche d’un jeu avec ses caractéristiques et des jeux proches', legende: 'Une fiche complète, en français.' },
-  { src: '/captures/recommander.png', alt: 'Page À quoi on joue avec les filtres de table et de style', legende: 'Des résultats qui suivent vos envies.' },
+  { src: '/captures/recommander.png', alt: 'Page À quoi on joue : résultats classés selon la table et les styles', legende: 'Des résultats qui suivent vos envies.' },
 ]
 
 export default function LandingPage() {

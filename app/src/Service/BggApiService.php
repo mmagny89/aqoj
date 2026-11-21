@@ -370,6 +370,63 @@ class BggApiService
         return ($gameYear !== null ? ($candidates[$gameYear] ?? null) : null) ?? $candidates[min(array_keys($candidates))];
     }
 
+    /** Sondage « nombre de joueurs » : en dessous de ce total de votes, il n'est pas fiable et le jeu reste « inconnu ». */
+    private const PLAYER_POLL_MIN_VOTES = 5;
+
+    /**
+     * Lit le sondage communautaire `suggested_numplayers`.
+     * « Idéal » = le ou les nombres qui récoltent le plus de votes « Best » ; « conseillé » = ceux où Best + Recommended
+     * l'emportent sur Not Recommended (les idéaux en font partie). Le libellé « 8+ » n'est pas un nombre : ignoré.
+     *
+     * @return array{0: ?int[], 1: ?int[]} [idéaux, conseillés], null/null si le sondage manque ou est trop peu voté
+     */
+    private function playerPoll(SimpleXMLElement $item): array
+    {
+        foreach ($item->poll as $poll) {
+            if ((string) $poll['name'] !== 'suggested_numplayers') {
+                continue;
+            }
+
+            $rows  = [];
+            $total = 0;
+            foreach ($poll->results as $results) {
+                $label = (string) $results['numplayers'];
+                if (!ctype_digit($label)) {
+                    continue;
+                }
+                $votes = ['Best' => 0, 'Recommended' => 0, 'Not Recommended' => 0];
+                foreach ($results->result as $result) {
+                    $value = (string) $result['value'];
+                    if (isset($votes[$value])) {
+                        $votes[$value] = (int) $result['numvotes'];
+                    }
+                }
+                $rows[(int) $label] = $votes;
+                $total += array_sum($votes);
+            }
+
+            if ($total < self::PLAYER_POLL_MIN_VOTES) {
+                return [null, null];
+            }
+
+            $maxBest = max(array_column($rows, 'Best'));
+            $best = $maxBest > 0
+                ? array_keys(array_filter($rows, fn(array $v) => $v['Best'] === $maxBest))
+                : [];
+            $recommended = array_keys(array_filter(
+                $rows,
+                fn(array $v) => $v['Best'] + $v['Recommended'] > $v['Not Recommended'],
+            ));
+            $recommended = array_values(array_unique([...$recommended, ...$best]));
+            sort($recommended);
+            sort($best);
+
+            return [$best, $recommended];
+        }
+
+        return [null, null];
+    }
+
     /** BGG échappe certaines apostrophes et double parfois les espaces. */
     private function cleanVersionText(string $text): string
     {
@@ -439,6 +496,8 @@ class BggApiService
         $usersRated  = (int)   ($ratings?->usersrated['value'] ?? 0);
         $minAge      = (int)   $item->minage['value'];
 
+        [$bestPlayers, $recommendedPlayers] = $this->playerPoll($item);
+
         // Rang BGG global (type "boardgame")
         $bggRank = null;
         foreach ($ratings?->ranks->rank ?? [] as $rank) {
@@ -459,6 +518,8 @@ class BggApiService
             'editionFr'    => $editionFr,
             'publisherOriginal' => $this->originalPublisher($item, (int) $item->yearpublished['value'] ?: null),
             'minAge'       => $minAge > 0 ? $minAge : null,
+            'bestPlayers'        => $bestPlayers,
+            'recommendedPlayers' => $recommendedPlayers,
             'description'  => $description ?: null,
             'minPlayers'   => max(1, (int) $item->minplayers['value']),
             'maxPlayers'   => max(1, (int) $item->maxplayers['value']),

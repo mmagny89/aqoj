@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import { familyLabel, familyColor, SUPPORT_COLOR, isEngine } from '../utils/engelstein'
 import { AddPlayIcon } from './icons'
 import { gameImage } from '../utils/game'
+import { fitBadge, unknownFields } from '../utils/contexte'
 import { FeedbackButtons, WhyLine } from './GameFeedback'
 
 /* Fond de la pastille d'un jeu sans image : une couleur de la charte, stable pour un même jeu. */
@@ -23,7 +24,8 @@ export function weightDots(complexity) {
   return '●'.repeat(level) + '○'.repeat(5 - level)
 }
 
-export default function GameCard({ game, rank, onAddSession, userRating, owned, similarity, why, verdict, onFeedback }) {
+/* `context` : filtres de contexte actifs ; la carte dit si le jeu est idéal à ce nombre de joueurs et sur quoi on ne sait rien de lui. */
+export default function GameCard({ game, rank, onAddSession, userRating, owned, similarity, why, verdict, onFeedback, context }) {
   const image = gameImage(game)
   const playerRange =
     game.minPlayers === game.maxPlayers
@@ -36,6 +38,8 @@ export default function GameCard({ game, rank, onAddSession, userRating, owned, 
     ? (game.mechanicFamilies ?? []).filter(f => !isEngine(f)).slice(0, 2)
     : []
   const badges = engines.length > 0 ? engines : fallback
+  const fit = context ? fitBadge(game, context) : null
+  const unknown = context ? unknownFields(game, context) : []
 
   return (
     <article className="token-card group relative h-full">
@@ -103,6 +107,13 @@ export default function GameCard({ game, rank, onAddSession, userRating, owned, 
             </span>
           )}
         </p>
+
+        {(fit || unknown.length > 0) && (
+          <p className="flex flex-wrap gap-1">
+            {fit && <span className="badge bg-brand-green text-paper">{fit}</span>}
+            {unknown.map(label => <span key={label} className="badge bg-cream">{label}</span>)}
+          </p>
+        )}
 
         {badges.length > 0 && (
           <div className="flex flex-wrap gap-1">

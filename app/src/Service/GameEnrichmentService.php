@@ -80,6 +80,8 @@ class GameEnrichmentService
             ->setBggRank($data['bggRank']    ?? $game->getBggRank())
             ->setUsersRated($data['usersRated'] ?? $game->getUsersRated())
             ->setMinAge($data['minAge'] ?? $game->getMinAge())
+            ->setBestPlayers($data['bestPlayers'] ?? $game->getBestPlayers())
+            ->setRecommendedPlayers($data['recommendedPlayers'] ?? $game->getRecommendedPlayers())
             ->setExpansionBggIds(!empty($data['expansionIds'])  ? $data['expansionIds']  : $game->getExpansionBggIds())
             ->setImplementsBggIds($this->buildImplementsIds(
                 $data['baseGameIds']   ?? [],

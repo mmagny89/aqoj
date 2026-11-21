@@ -31,7 +31,7 @@ describe('RecommendationPage', () => {
 
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('À quoi on joue…')
     await waitFor(() => expect(getRecommendations).toHaveBeenCalledTimes(3))
-    expect(getRecommendations).toHaveBeenCalledWith({ players: 5, maxTime: 90, families: ['cooperation'], categories: [], difficulty: null, scope: 'library' })
+    expect(getRecommendations).toHaveBeenCalledWith({ players: 5, maxTime: 90, families: ['cooperation'], categories: [], scope: 'library' })
     expect(screen.queryByRole('button', { name: /Trouver des jeux/ })).not.toBeInTheDocument()
     expect(await screen.findByText('Jeu Perso')).toBeInTheDocument()
   })
@@ -59,15 +59,23 @@ describe('RecommendationPage', () => {
     expect(getRecommendations).toHaveBeenLastCalledWith(expect.objectContaining({ players: 2, maxTime: 90 }))
   })
 
-  it('relance les résultats avec la difficulté choisie', async () => {
+  it('relance les résultats avec le poids choisi dans la barre de table', async () => {
     render(<MemoryRouter><RecommendationPage /></MemoryRouter>)
     await waitFor(() => expect(getRecommendations).toHaveBeenCalledTimes(3))
 
-    await userEvent.click(screen.getByRole('button', { name: /^Difficulté/ }))
+    // La barre est ouverte d'office : la table enregistrée (joueurs, durée) est déjà posée.
     await userEvent.click(screen.getByRole('button', { name: 'Costaud' }))
 
     await waitFor(() => expect(getRecommendations).toHaveBeenCalledTimes(6))
-    expect(getRecommendations).toHaveBeenLastCalledWith(expect.objectContaining({ difficulty: 'heavy' }))
+    expect(getRecommendations).toHaveBeenLastCalledWith(expect.objectContaining({ weight: 'heavy', players: 5, maxTime: 90 }))
+  })
+
+  it('reprend les filtres de contexte de l’adresse, sans écraser par la table enregistrée', async () => {
+    render(<MemoryRouter initialEntries={['/recommander?joueurs=3&nombre=ideal&poids=leger&mode=coop']}><RecommendationPage /></MemoryRouter>)
+
+    await waitFor(() => expect(getRecommendations).toHaveBeenCalledTimes(3))
+    expect(getRecommendations).toHaveBeenCalledWith(expect.objectContaining({ players: 3, fit: 'best', weight: 'light', coop: true, scope: 'collection' }))
+    expect(screen.getByRole('button', { name: 'Idéal' })).toHaveAttribute('aria-pressed', 'true')
   })
 
   it('charge la page suivante avec « Voir plus » sans perdre les premiers résultats', async () => {
@@ -113,12 +121,11 @@ describe('RecommendationPage', () => {
     await waitFor(() => expect(getRecommendations).toHaveBeenCalledTimes(3))
 
     const facette = (nom) => screen.getByRole('button', { name: new RegExp(`^${nom}`) })
-    expect(facette('Nombre de joueurs')).toHaveAttribute('aria-expanded', 'true')
+    expect(facette('Ma table')).toHaveAttribute('aria-expanded', 'true') // joueurs et durée sont toujours valorisés
     expect(facette('Mécaniques')).toHaveAttribute('aria-expanded', 'true') // « Coopération » est présélectionnée
     expect(facette('Style / Moteur')).toHaveAttribute('aria-expanded', 'false')
-    expect(facette('Difficulté')).toHaveAttribute('aria-expanded', 'false')
 
-    await userEvent.click(facette('Difficulté'))
-    expect(facette('Difficulté')).toHaveAttribute('aria-expanded', 'true')
+    await userEvent.click(facette('Style / Moteur'))
+    expect(facette('Style / Moteur')).toHaveAttribute('aria-expanded', 'true')
   })
 })

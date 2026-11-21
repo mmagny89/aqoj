@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import SearchPage from './SearchPage'
@@ -37,7 +37,7 @@ describe('SearchPage', () => {
     expect(avances).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getByRole('group', { name: 'Style' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Explorer le catalogue' })).toBeInTheDocument()
-    await userEvent.click(screen.getAllByRole('button', { pressed: false })[0])
+    await userEvent.click(within(screen.getByRole('group', { name: 'Style' })).getAllByRole('button')[0])
     expect(avances).toHaveTextContent('(1)')
 
     expect(searchGames).toHaveBeenCalled()
