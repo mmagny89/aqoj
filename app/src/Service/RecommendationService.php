@@ -40,7 +40,7 @@ class RecommendationService
     private const AVOIDED_MIN_GAMES = 3;
 
     /** Retours qui écartent un jeu des propositions (un jeu qu'on veut essayer, lui, reste proposé). */
-    private const EXCLUDING_VERDICTS = "'not_interested', 'played_meh', 'played_liked'";
+    private const EXCLUDING_VERDICTS = "'not_interested', 'played_meh'";
 
     /** Retours qui comptent comme un goût : les mécaniques du jeu entrent dans le profil et dans « parce que vous avez aimé ». */
     private const POSITIVE_VERDICTS = "'played_liked', 'want_to_play'";

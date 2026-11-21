@@ -16,7 +16,7 @@ use Symfony\Component\Routing\Attribute\Route;
 /**
  * Retour du joueur sur une proposition :
  *   - `not_interested`, `played_meh` : le jeu n'est plus proposé ; « bof » pèse aussi contre ses mécaniques ;
- *   - `played_liked` : déjà joué, donc plus proposé, et ses mécaniques comptent parmi les goûts ;
+ *   - `played_liked` : le jeu reste proposé, et ses mécaniques comptent parmi les goûts ;
  *   - `want_to_play` : le jeu reste proposé, et ses mécaniques comptent parmi les goûts.
  * Un retour `source = 'auto'` est déduit en base des parties et des notes (`game_feedback_sync_auto`) : il coche le bouton
  * mais n'écarte rien ; le choix du joueur (`source = 'user'`) l'emporte toujours.

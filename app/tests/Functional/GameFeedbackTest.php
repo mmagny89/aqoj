@@ -123,9 +123,9 @@ final class GameFeedbackTest extends ApiTestCase
 
         $vu = $reco();
         $items = $parNom($vu['recent']);
-        // L'envie reste proposée, avec son retour ; le jeu déjà joué n'est plus proposé.
+        // L'envie et le jeu aimé restent proposés, avec leur retour : seuls « pas intéressé » et « bof » écartent.
         self::assertSame('want_to_play', $items['Zzfb Envie']['feedback']);
-        self::assertArrayNotHasKey('Zzfb Joue Aime', $items);
+        self::assertSame('played_liked', $items['Zzfb Joue Aime']['feedback']);
         // Les deux comptent comme des goûts : le profil n'est plus vide.
         self::assertEqualsCanonicalizing(['cooperation', 'deck_building'], $vu['families']);
         self::assertFalse($vu['coldStart']);

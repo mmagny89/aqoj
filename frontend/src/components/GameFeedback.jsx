@@ -43,7 +43,7 @@ const OPTIONS = [
   { verdict: 'not_interested', label: 'Pas intéressé', help: 'Ne plus me proposer ce jeu.', Icon: NotInterestedIcon },
   { verdict: 'played_meh', label: 'Déjà joué, bof', help: 'J’y ai joué sans accrocher : ne plus me le proposer.', Icon: ThumbDownIcon },
   { verdict: 'want_to_play', label: 'J’aimerais jouer', help: 'Ce jeu me tente : mes goûts en tiennent compte.', Icon: BookmarkIcon },
-  { verdict: 'played_liked', label: 'J’ai joué, et j’aime', help: 'J’y ai joué et j’ai aimé : mes goûts en tiennent compte, ne plus me le proposer.', Icon: ThumbUpIcon },
+  { verdict: 'played_liked', label: 'J’ai joué, et j’aime', help: 'J’y ai joué et j’ai aimé : mes goûts en tiennent compte.', Icon: ThumbUpIcon },
 ]
 
 export function FeedbackButtons({ game, verdict = null, onFeedback }) {
@@ -95,7 +95,7 @@ export function FeedbackButtons({ game, verdict = null, onFeedback }) {
 const VERDICT_TEXT = {
   not_interested: 'ne vous sera plus proposé',
   played_meh: 'ne vous sera plus proposé (déjà joué, bof)',
-  played_liked: 'compte parmi vos goûts et ne vous sera plus proposé (déjà joué)',
+  played_liked: 'compte parmi vos goûts',
   want_to_play: 'est noté comme une envie de jeu',
 }
 
