@@ -93,20 +93,12 @@ final class ContextFiltersTest extends ApiTestCase
         self::assertSame(['Zzctx Costaud'], $this->noms($joues));
     }
 
-    public function testLesRecommandationsEtLaRechercheAppliquentLesMemesFiltres(): void
+    public function testLesRecommandationsAppliquentLesMemesFiltres(): void
     {
         [$client, $token] = $this->monde();
 
         $reco = $this->call($client, 'GET', '/api/games/recommendation?weight=light&coop=0&played=0', token: $token);
         self::assertSame(['Zzctx Inconnu', 'Zzctx Leger'], $this->noms($reco));
-
-        // Recherche par filtres seuls (sans texte ni style) : le contexte suffit.
-        $recherche = $this->call($client, 'GET', '/api/games/search?weight=heavy&played=1', token: $token);
-        self::assertSame(['Zzctx Costaud'], $this->noms($recherche));
-
-        // Recherche par nom : les filtres s'appliquent aux titres trouvés.
-        $texte = $this->call($client, 'GET', '/api/games/search?q=Zzctx&local=1&weight=light', token: $token);
-        self::assertSame(['Zzctx Inconnu', 'Zzctx Leger'], $this->noms($texte));
     }
 
     public function testUneValeurInconnueDesFiltresEstIgnoree(): void

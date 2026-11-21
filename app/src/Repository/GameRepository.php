@@ -375,7 +375,7 @@ class GameRepository extends ServiceEntityRepository
      * Recherche textuelle pleine — inclut les extensions et promos, pas de limite arbitraire.
      * Tri : d'abord les jeux de base (isExpansion=false) bien notés, puis les extensions.
      */
-    public function searchByName(string $query, int $limit = 200, ?ContextFilters $context = null, ?User $user = null): array
+    public function searchByName(string $query, int $limit = 200): array
     {
         // Titre affiché (français si connu) et titre original, sans accents ni casse.
         $ids = $this->getEntityManager()->getConnection()->fetchFirstColumn(
@@ -397,20 +397,6 @@ class GameRepository extends ServiceEntityRepository
         );
         if ($ids === []) {
             return [];
-        }
-
-        // Filtres de contexte : posés sur les identifiants trouvés (le tri par pertinence reste celui de la recherche).
-        [$contextConditions, $contextParams] = $this->contextSql($context, $user, basics: true);
-        if ($contextConditions !== []) {
-            $kept = $this->getEntityManager()->getConnection()->fetchFirstColumn(
-                'SELECT g.id FROM game g WHERE g.id IN (?) AND ' . implode(' AND ', $contextConditions),
-                [$ids, ...$contextParams],
-                [ArrayParameterType::INTEGER],
-            );
-            $ids = array_values(array_intersect($ids, array_map('intval', $kept)));
-            if ($ids === []) {
-                return [];
-            }
         }
 
         $games = [];
@@ -630,7 +616,7 @@ class GameRepository extends ServiceEntityRepository
      *
      * @param string[] $engineKeys  ex: ['worker_placement', 'deck_building']
      */
-    public function findByEngines(array $engineKeys, ?int $players, ?int $maxTime, int $page = 1, int $limit = 50, ?ContextFilters $context = null, ?User $user = null): array
+    public function findByEngines(array $engineKeys, ?int $players, ?int $maxTime, int $page = 1, int $limit = 50): array
     {
         $conn = $this->getEntityManager()->getConnection();
         $conditions = ['is_expansion = false'];
@@ -656,17 +642,13 @@ class GameRepository extends ServiceEntityRepository
             $params[] = $maxTime;
         }
 
-        [$contextConditions, $contextParams] = $this->contextSql($context, $user);
-        array_push($conditions, ...$contextConditions);
-        array_push($params, ...$contextParams);
-
         $where = implode(' AND ', $conditions);
         $offset = ($page - 1) * $limit;
         $params[] = $limit;
         $params[] = $offset;
 
         $ids = $conn->fetchFirstColumn(
-            "SELECT id FROM game g WHERE {$where}
+            "SELECT id FROM game WHERE {$where}
              ORDER BY bgg_rank ASC NULLS LAST, rating_bgg DESC NULLS LAST
              LIMIT ? OFFSET ?",
             $params

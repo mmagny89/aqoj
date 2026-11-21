@@ -5,8 +5,8 @@ namespace App\Service;
 use Symfony\Component\HttpFoundation\Request;
 
 /**
- * Filtres de contexte (« qu'est-ce qu'on joue maintenant, avec ces gens et ce temps ? »), communs à la ludothèque,
- * aux recommandations et à la recherche. Tout vient du catalogue déjà importé : aucun appel à BGG.
+ * Filtres de contexte (« qu'est-ce qu'on joue maintenant, avec ces gens et ce temps ? »), communs à la ludothèque
+ * et aux recommandations. Tout vient du catalogue déjà importé : aucun appel à BGG.
  *
  * Un jeu sans donnée (poids, durée, âge, mécaniques, sondage de joueurs) n'est jamais écarté : il reste visible et le front
  * l'étiquette « inconnu ». Les conditions sont du SQL natif sur la table `game` aliasée.

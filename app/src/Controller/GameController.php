@@ -223,7 +223,6 @@ class GameController extends AbstractController
         $category = $request->query->getString('category') ?: null;
         $engines = $request->query->all('engines');
         $page = max(1, $request->query->getInt('page', 1));
-        $context = ContextFilters::fromRequest($request);
         // `local=1` : choisir un jeu dans la base (saisie semi-automatique) ne doit jamais appeler BGG.
         $localOnly = $request->query->getBoolean('local');
 
@@ -242,7 +241,6 @@ class GameController extends AbstractController
 
         // Recherche textuelle
         if ($query !== '') {
-            // Le repli BGG se décide sur la recherche sans filtres : un filtre qui vide la liste n'est pas un titre inconnu.
             $localResults = $repository->searchByName($query);
 
             // Fallback BGG si résultats insuffisants. Une même recherche n'interroge BGG qu'une
@@ -278,16 +276,12 @@ class GameController extends AbstractController
                 }
             }
 
-            if ($context->hasAny()) {
-                $localResults = $repository->searchByName($query, context: $context, user: $user);
-            }
-
             return $this->json($withOwned($localResults));
         }
 
         // Recherche par filtres (sans texte) — moteurs Engelstein prioritaires
-        if (!empty($engines) || $context->isActive()) {
-            $games = $repository->findByEngines($engines, $players, $maxTime, $page, context: $context, user: $user);
+        if (!empty($engines)) {
+            $games = $repository->findByEngines($engines, $players, $maxTime, $page);
         } else {
             $games = $repository->findByCriteria(
                 $players,

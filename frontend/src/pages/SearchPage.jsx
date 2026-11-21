@@ -5,9 +5,6 @@ import GameCard from '../components/GameCard'
 import FilterRow from '../components/FilterRow'
 import { ENGINES, familyLabel } from '../utils/engelstein'
 import { FILTER_THEMES, FILTER_TYPES, categoryInfo } from '../utils/categories'
-import ContextFilters from '../components/ContextFilters'
-import { useContextFilters } from '../hooks/useContextFilters'
-import { activeCount, filtersToApi } from '../utils/contexte'
 
 function useDebounce(value, delay) {
   const [debounced, setDebounced] = useState(value)
@@ -79,16 +76,12 @@ export default function SearchPage() {
 
   const debouncedQuery = useDebounce(query, 400)
 
-  const [context, setContext] = useContextFilters()
-  const contextKey = JSON.stringify(context)
-
-  const doSearch = useCallback(async (q, engines, category, filters) => {
+  const doSearch = useCallback(async (q, engines, category) => {
     const hasQuery    = q.trim().length > 0
     const hasEngines  = engines.length > 0
     const hasCategory = !!category
-    const hasContext  = activeCount(filters) > 0
 
-    if (!hasQuery && !hasEngines && !hasCategory && !hasContext) {
+    if (!hasQuery && !hasEngines && !hasCategory) {
       setResults([])
       setSearched(false)
       return
@@ -97,7 +90,7 @@ export default function SearchPage() {
     setLoading(true)
     setError(null)
     try {
-      const data = await searchGames({ q: q.trim() || undefined, engines, category: category || undefined, ...filtersToApi(filters) })
+      const data = await searchGames({ q: q.trim() || undefined, engines, category: category || undefined })
       setResults(data)
       setSearched(true)
       setActiveTab('base')
@@ -109,14 +102,11 @@ export default function SearchPage() {
   }, [])
 
   useEffect(() => {
-    doSearch(debouncedQuery, selectedEngines, selectedCategory, JSON.parse(contextKey))
-  }, [debouncedQuery, selectedEngines, selectedCategory, contextKey, doSearch])
-
-  // Le nom cherché rejoint l'adresse sans écraser les filtres de contexte.
-  useEffect(() => {
-    if (!debouncedQuery) return
-    setSearchParams(prev => { const next = new URLSearchParams(prev); next.set('q', debouncedQuery); return next }, { replace: true })
-  }, [debouncedQuery, setSearchParams])
+    doSearch(debouncedQuery, selectedEngines, selectedCategory)
+    if (debouncedQuery) {
+      setSearchParams({ q: debouncedQuery }, { replace: true })
+    }
+  }, [debouncedQuery, selectedEngines, selectedCategory, doSearch, setSearchParams])
 
   const toggleEngine = (key) =>
     setSelectedEngines(prev =>
@@ -134,8 +124,7 @@ export default function SearchPage() {
   const hasExpansions = expansions.length > 0
 
   const ownedCount = visibleGames.filter(g => g.owned).length
-  const advancedCount = selectedEngines.length + (selectedCategory ? 1 : 0)
-  const activeFilters = advancedCount + activeCount(context)
+  const activeFilters = selectedEngines.length + (selectedCategory ? 1 : 0)
   const browsingByEngine = !query.trim() && selectedEngines.length > 0
 
   return (
@@ -166,9 +155,6 @@ export default function SearchPage() {
           )}
         </form>
 
-        {/* Filtres de contexte : valables aussi pour une recherche par nom */}
-        <ContextFilters filters={context} onChange={setContext} idPrefix="explorer-ctx" />
-
         {/* Filtres avancés : repliés par défaut, absents dès qu'un nom est saisi */}
         {!query.trim() && (
           <>
@@ -179,7 +165,7 @@ export default function SearchPage() {
               aria-controls="filtres-avances"
               className="chip chip-sm self-start"
             >
-              Filtres avancés{advancedCount > 0 && ` (${advancedCount})`}
+              Filtres avancés{activeFilters > 0 && ` (${activeFilters})`}
               <span aria-hidden="true" className="ml-1.5">{advancedOpen ? '−' : '+'}</span>
             </button>
 
@@ -221,7 +207,7 @@ export default function SearchPage() {
       )}
 
       {/* État vide */}
-      {!query.trim() && activeFilters === 0 && (
+      {!query.trim() && selectedEngines.length === 0 && !selectedCategory && (
         <p className="m-0 text-center text-stone-700">Tapez un nom, ou ouvrez les filtres avancés : les jeux sont cherchés dans la base, puis sur BGG si besoin.</p>
       )}
 
@@ -264,7 +250,7 @@ export default function SearchPage() {
           >
             {visibleGames.map(game => (
               <li key={game.id}>
-                <GameCard game={game} owned={game.owned != null ? game.owned : undefined} context={context} />
+                <GameCard game={game} owned={game.owned != null ? game.owned : undefined} />
               </li>
             ))}
           </ul>
