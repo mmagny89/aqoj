@@ -17,15 +17,19 @@ function Chip({ active, onClick, icon, label, small = false }) {
   )
 }
 
+const hasAny = (selected, keys) => selected.some(k => keys.includes(k))
+
 /* ── Section filtres (repliable) ─────────────────────────────────────── */
-function FilterSection({ title, children, defaultOpen = true }) {
-  const [open, setOpen] = useState(defaultOpen)
+// Ouverte tant qu'un de ses éléments est retenu (`active`), fermée sinon ; un clic sur le titre reprend la main.
+function FilterSection({ title, children, active = false }) {
+  const [chosen, setChosen] = useState(null)
+  const open = chosen ?? active
   const id = useId()
   return (
     <div className="border-b-2 border-ink/15 pb-4">
       <button
         type="button"
-        onClick={() => setOpen(v => !v)}
+        onClick={() => setChosen(!open)}
         aria-expanded={open}
         aria-controls={id}
         className="mb-1 flex min-h-11 w-full items-center justify-between text-left font-bold"
@@ -319,7 +323,7 @@ export default function RecommendationPage() {
             </div>
 
             {/* Joueurs */}
-            <FilterSection title="Nombre de joueurs">
+            <FilterSection title="Nombre de joueurs" active>
               <div className="flex flex-wrap gap-2">
                 {[1, 2, 3, 4, 5, 6, 7, 8].map(n => (
                   <button
@@ -331,7 +335,7 @@ export default function RecommendationPage() {
             </FilterSection>
 
             {/* Durée */}
-            <FilterSection title="Durée maximum">
+            <FilterSection title="Durée maximum" active>
               <div className="mb-2 text-center">
                 <span className="font-display text-3xl">
                   {maxTime < 60 ? `${maxTime} min` : `${Math.floor(maxTime / 60)}h${maxTime % 60 ? maxTime % 60 + 'm' : ''}`}
@@ -348,7 +352,7 @@ export default function RecommendationPage() {
             </FilterSection>
 
             {/* Difficulté */}
-            <FilterSection title="Difficulté">
+            <FilterSection title="Difficulté" active={difficulty !== null}>
               <div className="flex flex-wrap gap-2">
                 {DIFFICULTIES.map(({ label, value }) => (
                   <Chip key={label} active={difficulty === value} label={label}
@@ -358,7 +362,7 @@ export default function RecommendationPage() {
             </FilterSection>
 
             {/* Moteurs Engelstein */}
-            <FilterSection title="Style / Moteur">
+            <FilterSection title="Style / Moteur" active={hasAny(selectedFamilies, Object.keys(ENGINES))}>
               <div className="flex flex-wrap gap-1.5">
                 {Object.keys(ENGINES).map(key => (
                   <Chip
@@ -372,7 +376,7 @@ export default function RecommendationPage() {
             </FilterSection>
 
             {/* Mécaniques de support */}
-            <FilterSection title="Mécaniques" defaultOpen={false}>
+            <FilterSection title="Mécaniques" active={hasAny(selectedFamilies, Object.keys(SUPPORT_FAMILIES))}>
               <div className="flex flex-wrap gap-1.5">
                 {Object.keys(SUPPORT_FAMILIES).map(key => (
                   <Chip
@@ -386,7 +390,7 @@ export default function RecommendationPage() {
             </FilterSection>
 
             {/* Caractéristiques */}
-            <FilterSection title="Caractéristiques" defaultOpen={false}>
+            <FilterSection title="Caractéristiques" active={hasAny(selectedFamilies, Object.keys(EXTRA_FAMILIES))}>
               <div className="flex flex-wrap gap-1.5">
                 {Object.keys(EXTRA_FAMILIES).map(key => (
                   <Chip
@@ -401,7 +405,7 @@ export default function RecommendationPage() {
 
             {/* Thèmes & univers (mappés en admin) */}
             {themeGroups.themes.length > 0 && (
-              <FilterSection title="Thèmes & univers" defaultOpen={false}>
+              <FilterSection title="Thèmes & univers" active={hasAny(selectedCategories, themeGroups.themes.map(t => t.label))}>
                 <div className="flex flex-wrap gap-1.5">
                   {themeGroups.themes.map(item => (
                     <Chip
@@ -418,7 +422,7 @@ export default function RecommendationPage() {
 
             {/* Types de jeu (mappés en admin) */}
             {themeGroups.types.length > 0 && (
-              <FilterSection title="Types de jeu" defaultOpen={false}>
+              <FilterSection title="Types de jeu" active={hasAny(selectedCategories, themeGroups.types.map(t => t.label))}>
                 <div className="flex flex-wrap gap-1.5">
                   {themeGroups.types.map(item => (
                     <Chip
