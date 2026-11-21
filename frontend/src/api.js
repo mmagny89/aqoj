@@ -104,6 +104,9 @@ export const getTonightRecommendations = ({ players, maxTime, scope, difficulty 
   if (maxTime) qs.set('maxTime', maxTime)
   return request('/games/home-tonight?' + qs)
 }
+// Retour sur une proposition : 'not_interested' ou 'played_meh' ; l'annulation remet le jeu en circulation.
+export const setGameFeedback = (id, verdict) => request(`/games/${id}/feedback`, { method: 'PUT', body: JSON.stringify({ verdict }) })
+export const clearGameFeedback = (id) => request(`/games/${id}/feedback`, { method: 'DELETE' })
 export const getSimilarGames = (id, limit = 5) => request(`/games/${id}/similar?limit=${limit}`)
 
 // Préférences utilisateur

@@ -1,0 +1,114 @@
+<?php
+
+namespace App\Tests\Functional;
+
+use Doctrine\DBAL\Connection;
+
+final class GameFeedbackTest extends ApiTestCase
+{
+    public function testUnJeuEcarteNEstPlusPropose(): void
+    {
+        $client = static::createClient();
+        $token = $this->register($client, 'ecarte@example.test');
+        $annee = (int) date('Y');
+        $a = $this->creerJeu('Zzfb Nouveau A', $annee, 7.5, 2000);
+        $this->creerJeu('Zzfb Nouveau B', $annee, 7.4, 1900);
+        $c = $this->creerJeu('Zzfb Classique', $annee - 8, 8.2, 20000);
+
+        $noms = fn() => array_column(array_column($this->call($client, 'GET', '/api/games/home-reco', token: $token)['recent'], 'game'), 'name');
+        self::assertEqualsCanonicalizing(['Zzfb Nouveau A', 'Zzfb Nouveau B'], $noms());
+        $decouverte = fn() => array_column(array_column($this->call($client, 'GET', '/api/games/recommendation?scope=discover', token: $token)['items'], 'game'), 'name');
+        self::assertContains('Zzfb Classique', $decouverte());
+
+        $this->call($client, 'PUT', "/api/games/$a/feedback", ['verdict' => 'not_interested'], $token);
+        self::assertResponseIsSuccessful();
+        $this->call($client, 'PUT', "/api/games/$c/feedback", ['verdict' => 'played_meh'], $token);
+
+        self::assertSame(['Zzfb Nouveau B'], $noms());
+        self::assertNotContains('Zzfb Classique', $decouverte());
+
+        // Un retour se change et s'annule : le jeu revient.
+        $this->call($client, 'DELETE', "/api/games/$a/feedback", token: $token);
+        self::assertResponseStatusCodeSame(204);
+        self::assertEqualsCanonicalizing(['Zzfb Nouveau A', 'Zzfb Nouveau B'], $noms());
+    }
+
+    public function testLesRetoursSontPersonnelsEtValides(): void
+    {
+        $client = static::createClient();
+        $moi = $this->register($client, 'moi-fb@example.test');
+        $autre = $this->register($client, 'autre-fb@example.test');
+        $id = $this->creerJeu('Zzfb Partage', (int) date('Y'), 7.5, 2000);
+
+        $this->call($client, 'PUT', "/api/games/$id/feedback", ['verdict' => 'trop-cher'], $moi);
+        self::assertResponseStatusCodeSame(400);
+        $this->call($client, 'PUT', '/api/games/999999999/feedback', ['verdict' => 'not_interested'], $moi);
+        self::assertResponseStatusCodeSame(404);
+        $this->call($client, 'PUT', "/api/games/$id/feedback", ['verdict' => 'not_interested']);
+        self::assertResponseStatusCodeSame(401);
+
+        $this->call($client, 'PUT', "/api/games/$id/feedback", ['verdict' => 'not_interested'], $moi);
+        $noms = fn(string $t) => array_column(array_column($this->call($client, 'GET', '/api/games/home-reco', token: $t)['recent'], 'game'), 'name');
+        self::assertSame([], $noms($moi));
+        self::assertSame(['Zzfb Partage'], $noms($autre));
+    }
+
+    public function testLaPropositionDitPourquoi(): void
+    {
+        $client = static::createClient();
+        $token = $this->register($client, 'pourquoi@example.test');
+        $aime = $this->creerJeu('Zzfb Aime', 2018, 7.8, 5000, ['deck_building', 'cooperation']);
+        $this->creerJeu('Zzfb Propose', (int) date('Y'), 7.5, 2000, ['deck_building', 'cooperation']);
+        $this->creerJeu('Zzfb Sans Rapport', (int) date('Y'), 7.4, 1900, ['auction']);
+        static::getContainer()->get(Connection::class)->executeStatement(
+            'INSERT INTO user_game (user_id, game_id, bgg_user_rating) VALUES ((SELECT id FROM app_user WHERE email = ?), ?, 9)',
+            ['pourquoi@example.test', $aime],
+        );
+
+        $items = $this->call($client, 'GET', '/api/games/home-reco', token: $token)['recent'];
+        $parNom = [];
+        foreach ($items as $r) {
+            $parNom[$r['game']['name']] = $r['why'];
+        }
+
+        self::assertSame(['id' => $aime, 'name' => 'Zzfb Aime'], $parNom['Zzfb Propose']['liked']);
+        self::assertEqualsCanonicalizing(['deck_building', 'cooperation'], $parNom['Zzfb Propose']['families']);
+        // « auction » n'est pas un goût du joueur : aucune mécanique à citer.
+        self::assertSame([], $parNom['Zzfb Sans Rapport']['families'] ?? []);
+    }
+
+    public function testTroisJeuxBofRetirentUneFamilleDuProfilDeduit(): void
+    {
+        $client = static::createClient();
+        $token = $this->register($client, 'bof@example.test');
+        $conn = static::getContainer()->get(Connection::class);
+        $uid = (int) $conn->fetchOne('SELECT id FROM app_user WHERE email = ?', ['bof@example.test']);
+
+        foreach ([1, 2, 3] as $i) {
+            $id = $this->creerJeu("Zzfb Bof $i", 2015, 7.0, 3000, ['auction', 'deck_building']);
+            $conn->executeStatement('INSERT INTO user_game (user_id, game_id, bgg_user_rating) VALUES (?, ?, 8)', [$uid, $id]);
+        }
+        self::assertEqualsCanonicalizing(['auction', 'deck_building'], $this->call($client, 'GET', '/api/games/home-reco', token: $token)['families']);
+
+        $ids = $conn->fetchFirstColumn("SELECT id FROM game WHERE name LIKE 'Zzfb Bof %'");
+        foreach ($ids as $id) {
+            $this->call($client, 'PUT', "/api/games/$id/feedback", ['verdict' => 'played_meh'], $token);
+        }
+
+        self::assertSame([], $this->call($client, 'GET', '/api/games/home-reco', token: $token)['families']);
+    }
+
+    /** @param list<string> $familles */
+    private function creerJeu(string $nom, int $annee, float $note, int $votes, array $familles = []): int
+    {
+        $conn = static::getContainer()->get(Connection::class);
+        $conn->executeStatement(
+            "INSERT INTO game (bgg_id, name, min_players, max_players, playing_time, complexity, categories, mechanics,
+                               year_published, rating_bgg, users_rated, is_expansion, mechanic_families, created_at)
+             VALUES (?, ?, 2, 4, 45, 2.3, '[]', '[\"Dice Rolling\"]', ?, ?, ?, false, ?, NOW())",
+            ['zz' . md5($nom), $nom, $annee, $note, $votes, json_encode($familles)],
+        );
+
+        return (int) $conn->lastInsertId();
+    }
+}

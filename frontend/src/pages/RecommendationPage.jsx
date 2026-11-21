@@ -2,6 +2,8 @@ import { useState, useEffect, useId, useRef } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { getRecommendations, getUserPreferences, getThemeMappings } from '../api'
 import GameCard from '../components/GameCard'
+import { FeedbackNotice } from '../components/GameFeedback'
+import { useGameFeedback } from '../hooks/useGameFeedback'
 import { useAuth } from '../context/AuthContext'
 import { DIFFICULTIES, storedDifficulty, storeDifficulty } from '../utils/difficulte'
 import { ENGINES, SUPPORT_FAMILIES, EXTRA_FAMILIES, familyLabel } from '../utils/engelstein'
@@ -44,9 +46,11 @@ function FilterSection({ title, children, active = false }) {
 
 /* ── Grille de résultats avec sous-onglets base / extension ─────────── */
 // Chaque type de fiche a sa propre liste paginée côté API : une page de 30 donne toujours 30 résultats du type affiché.
-function ResultsGrid({ list, totals, type, onType, loading, error, onLoadMore }) {
-  const items = list.data ?? []
-  const total = list.total
+function ResultsGrid({ list, totals, type, onType, loading, error, onLoadMore, feedback }) {
+  const loaded = list.data ?? []
+  // Un jeu écarté disparaît sans attendre le rechargement ; le compte suit.
+  const items = feedback ? loaded.filter(({ game }) => !feedback.isHidden(game.id)) : loaded
+  const total = list.total - (loaded.length - items.length)
 
   // Au premier chargement seulement : ensuite les anciens résultats restent affichés pendant l'actualisation.
   if ((loading || list.loadingMore) && list.data === null) return (
@@ -89,14 +93,14 @@ function ResultsGrid({ list, totals, type, onType, loading, error, onLoadMore })
         <>
           <p className="mb-3 text-stone-600" aria-live="polite">{total} jeu{total > 1 ? 'x' : ''}</p>
           <ul className="m-0 grid list-none grid-cols-2 gap-4 p-0 sm:grid-cols-3 sm:gap-5 xl:grid-cols-4">
-            {items.map(({ game }, i) => (
-              <li key={game.id}><GameCard game={game} rank={i + 1} /></li>
+            {items.map(({ game, why }, i) => (
+              <li key={game.id}><GameCard game={game} rank={i + 1} why={why} onFeedback={feedback?.send} /></li>
             ))}
           </ul>
-          {items.length < total && (
+          {loaded.length < list.total && (
             <div className="mt-6 flex justify-center">
               <button type="button" onClick={onLoadMore} disabled={list.loadingMore} className="btn btn-primary">
-                {list.loadingMore ? 'Chargement…' : `Voir plus de jeux (${total - items.length} restants)`}
+                {list.loadingMore ? 'Chargement…' : `Voir plus de jeux (${list.total - loaded.length} restants)`}
               </button>
             </div>
           )}
@@ -113,7 +117,7 @@ const SCOPE_TABS = [
   { key: 'discover',   label: 'Tout le catalogue' },
 ]
 
-function ResultsPanel({ results, totals, activeTab, onTabChange, type, onType, onLoadMore }) {
+function ResultsPanel({ results, totals, activeTab, onTabChange, type, onType, onLoadMore, feedback }) {
   return (
     <div>
       <div role="tablist" aria-label="Où chercher" className="tab-list mb-5">
@@ -136,7 +140,8 @@ function ResultsPanel({ results, totals, activeTab, onTabChange, type, onType, o
 
       <div id="reco-panneau" role="tabpanel" aria-labelledby={`reco-${activeTab}`}>
         <ResultsGrid list={results[`${activeTab}:${type}`]} totals={totals[activeTab]} type={type} onType={onType}
-          loading={results[`${activeTab}:base`].loading} error={results[`${activeTab}:${type}`].error} onLoadMore={() => onLoadMore(activeTab, type)} />
+          loading={results[`${activeTab}:base`].loading} error={results[`${activeTab}:${type}`].error} onLoadMore={() => onLoadMore(activeTab, type)}
+          feedback={activeTab === 'collection' ? undefined : feedback} />
       </div>
     </div>
   )
@@ -149,6 +154,7 @@ const EMPTY_RESULTS = Object.fromEntries(SCOPE_TABS.flatMap(t => [[`${t.key}:bas
 /* ── Page principale ─────────────────────────────────────────────────── */
 export default function RecommendationPage() {
   const { user } = useAuth()
+  const feedback = useGameFeedback()
   // L'accueil envoie `?joueurs=3&duree=60` : la recherche part d'elle-même avec ces valeurs.
   const [searchParams] = useSearchParams()
   const fromHome = searchParams.has('joueurs')
@@ -452,11 +458,12 @@ export default function RecommendationPage() {
 
           {/* ── Zone résultats ────────────────────────────────────────── */}
           <div className="flex-1 min-w-0">
-            <ResultsPanel results={results} totals={totals} activeTab={activeTab} onTabChange={setActiveTab} type={type} onType={setType} onLoadMore={loadMore} />
+            <ResultsPanel results={results} totals={totals} activeTab={activeTab} onTabChange={setActiveTab} type={type} onType={setType} onLoadMore={loadMore} feedback={feedback} />
           </div>
 
         </div>
       </div>
+      <FeedbackNotice feedback={feedback} />
     </div>
   )
 }

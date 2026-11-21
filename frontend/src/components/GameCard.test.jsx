@@ -17,6 +17,21 @@ describe('GameCard', () => {
     expect(screen.getByText('★ 7.1')).toBeInTheDocument()
   })
 
+  it('dit pourquoi le jeu est proposé et offre les deux retours', async () => {
+    const onFeedback = vi.fn()
+    renderCard({ why: { liked: null, families: ['auction', 'cooperation'] }, onFeedback })
+
+    expect(screen.getByTestId('why')).toHaveTextContent(/^Vous aimez les mécaniques .+, .+\.$/)
+    await userEvent.click(screen.getByRole('button', { name: /Déjà joué, bof/ }))
+    expect(onFeedback).toHaveBeenCalledWith(game, 'played_meh')
+  })
+
+  it('n’affiche ni explication ni retour sans données', () => {
+    renderCard()
+    expect(screen.queryByTestId('why')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Pas intéressé/ })).not.toBeInTheDocument()
+  })
+
   it('affiche le tag de sortie fourni par l’API', () => {
     renderCard()
     expect(screen.queryByText('Nouveauté')).not.toBeInTheDocument()

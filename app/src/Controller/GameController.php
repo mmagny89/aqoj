@@ -105,11 +105,14 @@ class GameController extends AbstractController
         $page  = max(1, $request->query->getInt('page', 1));
         $slice = array_slice($results, ($page - 1) * self::RECOMMENDATION_PAGE_SIZE, self::RECOMMENDATION_PAGE_SIZE);
 
+        $why = $service->explainer($user);
+
         return $this->json([
             'items' => array_map(fn($r) => [
                 'game'   => $r['game'],
                 'score'  => round($r['score'], 2),
                 'reason' => $r['reason'],
+                'why'    => $why($r['game']),
             ], $slice),
             'total'  => count($results),
             'totals' => $totals,
@@ -130,8 +133,9 @@ class GameController extends AbstractController
 
         $result = $service->recommendHomeDiscover($user, $request->query->getString('scope') === 'library');
 
+        $why       = $service->explainer($user);
         $serialize = fn(array $list) => array_map(
-            fn($r) => ['game' => $r['game'], 'reason' => $r['reason']],
+            fn($r) => ['game' => $r['game'], 'reason' => $r['reason'], 'why' => $why($r['game'])],
             $list
         );
 
@@ -170,7 +174,8 @@ class GameController extends AbstractController
             isset(RecommendationService::DIFFICULTY_BANDS[$level]) ? $level : null,
         );
 
-        $serialize = fn(array $list) => array_map(fn($r) => ['game' => $r['game'], 'reason' => $r['reason']], $list);
+        $why       = $service->explainer($user);
+        $serialize = fn(array $list) => array_map(fn($r) => ['game' => $r['game'], 'reason' => $r['reason'], 'why' => $why($r['game'])], $list);
 
         return $this->json(['easy' => $serialize($result['easy']), 'popular' => $serialize($result['popular'])]);
     }
