@@ -486,7 +486,7 @@ export default function GameDetailPage() {
       {!game.isExpansion && game.expansions?.length > 0 && <ExpansionsPanel expansions={game.expansions} />}
 
       {/* ── Jeux similaires ──────────────────────────────────────────────── */}
-      {/* L'API /similar retourne des objets plats : { ...game, similarity, reason } */}
+      {/* L'API /similar retourne des objets plats : { ...game, similarity } */}
       {(similarGames?.length > 0 || similarLoading) && (
         <div className="panel p-5">
           <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-4">🎯 Jeux similaires</p>
@@ -503,7 +503,6 @@ export default function GameDetailPage() {
                   <GameCard
                     key={sg.id}
                     game={sg}
-                    reason={sg.reason}
                     similarity={sg.similarity}
                   />
                 ))}

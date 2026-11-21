@@ -89,8 +89,8 @@ function ResultsGrid({ list, totals, type, onType, loading, error, onLoadMore })
         <>
           <p className="mb-3 text-stone-600" aria-live="polite">{total} jeu{total > 1 ? 'x' : ''}</p>
           <ul className="m-0 grid list-none grid-cols-2 gap-4 p-0 sm:grid-cols-3 sm:gap-5 xl:grid-cols-4">
-            {items.map(({ game, reason }, i) => (
-              <li key={game.id}><GameCard game={game} reason={reason} rank={i + 1} /></li>
+            {items.map(({ game }, i) => (
+              <li key={game.id}><GameCard game={game} rank={i + 1} /></li>
             ))}
           </ul>
           {items.length < total && (

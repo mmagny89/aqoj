@@ -74,9 +74,9 @@ function Carousel({ items, label }) {
       <button type="button" onClick={() => scroll(-1)} aria-label={`${label} : précédents`}
         className="btn absolute -left-3 top-1/3 z-10 hidden !min-h-11 w-11 !px-0 bg-paper shadow-token-sm lg:flex">‹</button>
       <ul ref={ref} aria-label={label} className="m-0 flex list-none snap-x snap-mandatory gap-5 overflow-x-auto px-1 pb-4 pt-1" style={{ scrollbarWidth: 'thin' }}>
-        {items.map(({ game, reason }) => (
+        {items.map(({ game }) => (
           <li key={game.id} className="w-48 shrink-0 snap-start sm:w-56">
-            <GameCard game={game} reason={reason} />
+            <GameCard game={game} />
           </li>
         ))}
       </ul>
@@ -240,8 +240,8 @@ function DecadeTabs({ byDecade }) {
         ))}
       </div>
       <ul id="epoque-panneau" role="tabpanel" aria-labelledby={`epoque-${active}`} className="m-0 grid list-none grid-cols-2 gap-4 p-0 sm:grid-cols-3 sm:gap-5 xl:grid-cols-4 2xl:grid-cols-5">
-        {games.map(({ game, reason }) => (
-          <li key={game.id}><GameCard game={game} reason={reason} /></li>
+        {games.map(({ game }) => (
+          <li key={game.id}><GameCard game={game} /></li>
         ))}
       </ul>
     </div>
