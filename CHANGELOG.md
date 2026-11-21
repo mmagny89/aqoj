@@ -10,6 +10,8 @@ version devient le texte de sa release GitHub.
 
 ## [Non publié]
 
+## [0.2.0] - 2026-11-21
+
 ### Ajouté
 
 - **Filtres de contexte dans « À quoi on joue »** : « qu'est-ce qu'on joue maintenant, avec ces gens et ce temps ? ». Des scénarios en
@@ -81,6 +83,12 @@ version devient le texte de sa release GitHub.
 - L'import d'une collection BoardGameGeek n'interroge plus le service qu'une
   fois.
 
+### Mise à jour
+
+- Les migrations s'appliquent au démarrage. L'une d'elles remet les fiches déjà enrichies au rafraîchissement nocturne pour récupérer le vote
+  de la communauté sur le nombre de joueurs : le filtre « idéal » se remplit en quelques nuits (aucun appel à BoardGameGeek pendant la mise à jour).
+- Nouvelle variable `REGISTRATION_REQUIRES_CODE` (`1` : l'inscription exige un code d'invitation), à poser dans chaque environnement.
+
 ## [0.1.0] - 2026-06-07
 
 ### Ajouté
@@ -92,5 +100,6 @@ version devient le texte de sa release GitHub.
   administration.
 - Journal de parties.
 
-[Non publié]: https://github.com/mmagny89/aqoj/compare/v0.1.0...HEAD
+[Non publié]: https://github.com/mmagny89/aqoj/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/mmagny89/aqoj/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/mmagny89/aqoj/releases/tag/v0.1.0
