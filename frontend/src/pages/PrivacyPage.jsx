@@ -7,7 +7,7 @@ export default function PrivacyPage() {
     <LegalPage title="Politique de confidentialité" updated="novembre 2026">
       <LegalSection title="Qui est responsable">
         <p>
-          L'{publisher.form} {publisher.name}, éditrice du site (siège : {publisher.address}). Contact pour toute question
+          {publisher.name}, {publisher.form}, éditrice du site (siège : {publisher.address}). Contact pour toute question
           ou demande : {publisher.email}.
         </p>
       </LegalSection>
@@ -19,7 +19,6 @@ export default function PrivacyPage() {
           <li>Votre nom d'utilisateur BoardGameGeek, si vous importez votre collection.</li>
           <li>Votre ludothèque : les jeux que vous possédez et vos notes personnelles, y compris les parties importées de MyLudo.</li>
           <li>Vos parties jouées : jeu, nombre de joueurs, note, commentaire, date.</li>
-          <li>Votre appartenance à la ludothèque de l'association, le cas échéant.</li>
           <li>Vos préférences, calculées à partir de votre ludothèque pour les recommandations.</li>
           <li>Vos goûts, si vous les indiquez, et la table (nombre de joueurs, durée) que vous choisissez sur l'accueil.</li>
         </ul>

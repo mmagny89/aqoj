@@ -7,13 +7,13 @@ export const TO_FILL = '[à renseigner avant la mise en ligne]'
 const env = import.meta.env
 
 export const publisher = {
-  name: env.VITE_PUBLISHER_NAME || 'Envie de jouer',
-  form: env.VITE_PUBLISHER_FORM || 'association',
-  address: env.VITE_PUBLISHER_ADDRESS || TO_FILL,
+  name: env.VITE_PUBLISHER_NAME || 'Envie de Jouer',
+  form: env.VITE_PUBLISHER_FORM || 'association régie par la loi du 1er juillet 1901',
+  address: env.VITE_PUBLISHER_ADDRESS || 'Maison des Associations, 89300 Joigny',
   // Numéro RNA ou SIREN de l'association.
-  id: env.VITE_PUBLISHER_ID || TO_FILL,
-  director: env.VITE_PUBLICATION_DIRECTOR || TO_FILL,
-  email: env.VITE_CONTACT_EMAIL || TO_FILL,
+  id: env.VITE_PUBLISHER_ID || 'RNA W893006812 — SIRET 920 202 488 00028',
+  director: env.VITE_PUBLICATION_DIRECTOR || 'Céline Grégoire, présidente de l\'association',
+  email: env.VITE_CONTACT_EMAIL || 'enviedejouer89300@gmail.com',
 }
 
 export const host = {
