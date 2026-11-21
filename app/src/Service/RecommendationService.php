@@ -367,7 +367,8 @@ class RecommendationService
         }
 
         $easy = array_map(function (Game $game) use ($currentYear, $difficulty): array {
-            $reason = ($difficulty === null ? 'Facile à aborder' : 'Poids ' . number_format($game->getComplexity(), 1) . '/5');
+            // Avec un niveau choisi, le poids figure déjà sur la carte (points) : rien à ajouter.
+            $reason = $difficulty === null ? 'Facile à aborder' : '';
             return [
                 'game'   => $game,
                 'score'  => $this->qualityRating($game, $currentYear) * 5 + $this->recencyBonus($game, $currentYear),
