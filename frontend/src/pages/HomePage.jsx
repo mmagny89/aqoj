@@ -77,7 +77,7 @@ function Carousel({ items, label, feedback }) {
         className="btn absolute -left-3 top-1/3 z-10 hidden !min-h-11 w-11 !px-0 bg-paper shadow-token-sm lg:flex">‹</button>
       <ul ref={ref} aria-label={label} className="m-0 flex list-none snap-x snap-mandatory gap-5 overflow-x-auto px-1 pb-4 pt-1" style={{ scrollbarWidth: 'thin' }}>
         {items.map(({ game, why, feedback: saved }) => (
-          <li key={game.id} className="w-48 shrink-0 snap-start sm:w-56">
+          <li key={game.id} className="w-56 shrink-0 snap-start sm:w-60">
             <GameCard game={game} why={why} verdict={feedback?.verdictOf(game.id, saved)} onFeedback={feedback?.send} />
           </li>
         ))}
