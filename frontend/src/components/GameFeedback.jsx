@@ -1,4 +1,5 @@
 import { familyLabel } from '../utils/engelstein'
+import { NotInterestedIcon, ThumbDownIcon } from './icons'
 
 /* « Parce que vous avez aimé X, et que vous aimez les mécaniques Y » : rend visible ce qui a fait proposer le jeu. */
 export function WhyLine({ why }) {
@@ -19,15 +20,17 @@ export function WhyLine({ why }) {
 
 /* Les deux retours possibles sur une proposition. Chaque bouton nomme le jeu pour les lecteurs d'écran. */
 export function FeedbackButtons({ game, onFeedback }) {
-  const button = 'relative z-10 inline-flex min-h-11 items-center text-left text-sm font-bold text-stone-600 underline underline-offset-4 hover:text-ink'
+  const button = 'relative z-10 inline-flex min-h-11 items-center gap-1.5 text-left text-sm font-bold text-stone-600 hover:text-ink'
 
   return (
     <div className="mt-auto flex flex-wrap gap-x-4">
       <button type="button" className={button} onClick={() => onFeedback(game, 'not_interested')}>
-        Pas intéressé<span className="sr-only"> par {game.name}</span>
+        <NotInterestedIcon aria-hidden="true" className="h-5 w-5 shrink-0" />
+        <span className="underline underline-offset-4">Pas intéressé<span className="sr-only"> par {game.name}</span></span>
       </button>
       <button type="button" className={button} onClick={() => onFeedback(game, 'played_meh')}>
-        Déjà joué, bof<span className="sr-only"> : {game.name}</span>
+        <ThumbDownIcon aria-hidden="true" className="h-5 w-5 shrink-0" />
+        <span className="underline underline-offset-4">Déjà joué, bof<span className="sr-only"> : {game.name}</span></span>
       </button>
     </div>
   )
