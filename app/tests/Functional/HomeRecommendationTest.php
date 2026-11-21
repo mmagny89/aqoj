@@ -28,12 +28,12 @@ final class HomeRecommendationTest extends ApiTestCase
         $parNom = array_column(array_column($reco['recent'], 'game'), 'name');
         sort($parNom);
         self::assertSame(['Zznouv AVenir', 'Zznouv Discret', 'Zznouv Suivi'], $parNom);
-        $raisons = [];
+        $tags = [];
         foreach ($reco['recent'] as $r) {
-            $raisons[$r['game']['name']] = $r['reason'];
+            $tags[$r['game']['name']] = $r['game']['release'];
         }
-        self::assertStringStartsWith('Nouveauté', $raisons['Zznouv Suivi']);
-        self::assertStringStartsWith('À paraître', $raisons['Zznouv AVenir']);
+        self::assertSame('new', $tags['Zznouv Suivi']);
+        self::assertSame('upcoming', $tags['Zznouv AVenir']);
     }
 
     public function testLesNouveautesNeProposentPasCeQueLeJoueurAdejaEtSontDixTireesParmiLesTrenteDeTete(): void
@@ -103,7 +103,7 @@ final class HomeRecommendationTest extends ApiTestCase
         $noms = array_column(array_column($reco, 'game'), 'name');
         self::assertContains('Zzdec Nouveau', $noms);
         $nouveau = array_values(array_filter($reco, fn(array $r) => $r['game']['name'] === 'Zzdec Nouveau'))[0];
-        self::assertStringStartsWith('Nouveauté ' . ($annee - 1), $nouveau['reason']);
+        self::assertStringNotContainsString('Nouveauté', $nouveau['reason']);
     }
 
     public function testLesListesDeLAccueilChangentAChaqueChargement(): void
