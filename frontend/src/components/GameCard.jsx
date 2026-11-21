@@ -21,7 +21,7 @@ export function weightDots(complexity) {
   return '●'.repeat(level) + '○'.repeat(5 - level)
 }
 
-export default function GameCard({ game, reason, rank, onAddSession, userRating, owned, similarity }) {
+export default function GameCard({ game, rank, onAddSession, userRating, owned, similarity }) {
   const image = gameImage(game)
   const playerRange =
     game.minPlayers === game.maxPlayers
@@ -117,11 +117,6 @@ export default function GameCard({ game, reason, rank, onAddSession, userRating,
           </div>
         )}
 
-        {reason && (
-          <p className="rounded-lg bg-amber-100 px-2.5 py-1.5 text-xs italic leading-snug text-amber-800">
-            {reason}
-          </p>
-        )}
 
         {onAddSession && (
           <button

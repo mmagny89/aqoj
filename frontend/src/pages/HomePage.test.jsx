@@ -169,7 +169,6 @@ describe('HomePage', () => {
       expect(await screen.findByRole('heading', { name: 'Pour votre table' })).toBeInTheDocument()
       expect(screen.getByRole('heading', { name: 'Ce que jouent les autres membres' })).toBeInTheDocument()
       expect(screen.getByRole('heading', { name: 'Faciles à expliquer' })).toBeInTheDocument()
-      expect(screen.getByText('Joué par 3 membres cette année')).toBeInTheDocument()
       expect(getTonightRecommendations).toHaveBeenCalledWith({ players: 4, maxTime: 60, scope: 'library', difficulty: null })
     })
 
