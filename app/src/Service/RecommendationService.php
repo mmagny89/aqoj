@@ -311,13 +311,11 @@ class RecommendationService
         $games = $this->pickRandom($this->gameRepository->findNewReleases($user, $fromYear, $currentYear + 1, 30), 30, 10);
 
         return array_map(function (Game $game) use ($currentYear): array {
+            // L'année et la note figurent déjà sur la carte : la raison ne dit que le statut et l'intérêt suscité.
             $year   = $game->getYearPublished();
-            $reason = $year !== null && $year > $currentYear ? "À paraître en {$year}" : "Sorti en {$year}";
+            $reason = $year !== null && $year > $currentYear ? 'À paraître' : 'Nouveauté';
             if (($game->getUsersRated() ?? 0) > 0) {
                 $reason .= ' · ' . number_format($game->getUsersRated(), 0, ',', "\u{202F}") . ' votes';
-            }
-            if ($game->getRatingBgg() !== null) {
-                $reason .= ' · ' . number_format($game->getRatingBgg(), 1) . '/10 sur BGG';
             }
 
             return ['game' => $game, 'score' => (float) ($game->getUsersRated() ?? 0), 'reason' => $reason];
