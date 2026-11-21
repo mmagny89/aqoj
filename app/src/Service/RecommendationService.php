@@ -348,7 +348,7 @@ class RecommendationService
             }
         }
 
-        $easy = array_map(function (Game $game) use ($currentYear): array {
+        $easy = array_map(function (Game $game) use ($currentYear, $difficulty): array {
             $reason = ($difficulty === null ? 'Facile à aborder' : 'Poids ' . number_format($game->getComplexity(), 1) . '/5') . ' · ' . number_format((float) $game->getRatingBgg(), 1) . '/10 sur BGG';
             if ($this->isRecent($game, $currentYear)) {
                 $reason = 'Nouveauté ' . $game->getYearPublished() . ' · ' . $reason;
