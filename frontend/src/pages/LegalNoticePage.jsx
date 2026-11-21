@@ -3,15 +3,21 @@ import { publisher, host } from '../legal'
 
 export default function LegalNoticePage() {
   return (
-    <LegalPage title="Mentions légales" updated="octobre 2026">
+    <LegalPage title="Mentions légales" updated="novembre 2026">
       <LegalSection title="Éditeur du site">
-        <p>« À quoi on joue » est édité à titre non professionnel par {publisher.name}.</p>
+        <p>
+          « À quoi on joue » est édité par l'{publisher.form} {publisher.name}, à titre non commercial.
+        </p>
+        <p>Siège : {publisher.address}</p>
+        <p>Identification (RNA ou SIREN) : {publisher.id}</p>
+        <p>Directeur ou directrice de la publication : {publisher.director}</p>
         <p>Contact : {publisher.email}</p>
       </LegalSection>
 
       <LegalSection title="Hébergement">
-        <p>{host.name}</p>
-        <p>{host.address}</p>
+        <p>
+          {host.name}, hébergement en Europe. Adresse de l'hébergeur : {host.address}
+        </p>
       </LegalSection>
 
       <LegalSection title="Données de jeux">
