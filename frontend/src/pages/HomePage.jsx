@@ -5,6 +5,7 @@ import { getForgottenGems, getHomeRecommendations, getTonightRecommendations, sa
 import GameCard from '../components/GameCard'
 import FilterRow from '../components/FilterRow'
 import { momentDeLaJournee } from '../utils/moment'
+import { DIFFICULTIES, storedDifficulty, storeDifficulty } from '../utils/difficulte'
 import { DiceIcon, DownloadIcon, SearchIcon, ShelfIcon } from '../components/icons'
 
 const PLAYERS = [1, 2, 3, 4, 5, 6, 7, 8]
@@ -17,13 +18,6 @@ const DURATIONS = [
   { label: '≤ 3 h', value: 180 },
   { label: 'Peu importe', value: 240 },
 ]
-const DIFFICULTIES = [
-  { label: 'Toutes', value: null },
-  { label: 'Léger', value: 'light' },
-  { label: 'Intermédiaire', value: 'medium' },
-  { label: 'Costaud', value: 'heavy' },
-]
-const DIFFICULTY_KEY = 'aqoj_difficulte'
 const DEFAULT_TABLE = { players: 4, maxTime: 60 }
 
 /* ── Bandeau « À quoi on joue ce soir ? » ──────────────────────── */
@@ -173,15 +167,6 @@ function storedScope() {
   }
 }
 
-function storedDifficulty() {
-  try {
-    const v = localStorage.getItem(DIFFICULTY_KEY)
-    return DIFFICULTIES.some(d => d.value === v) ? v : null
-  } catch {
-    return null
-  }
-}
-
 function ScopeSwitch({ scope, onChange }) {
   return (
     <FilterRow id="filtre-perimetre" label="Parmi">
@@ -278,10 +263,7 @@ export default function HomePage() {
 
   const changeDifficulty = (next) => {
     setDifficulty(next)
-    try {
-      if (next) localStorage.setItem(DIFFICULTY_KEY, next)
-      else localStorage.removeItem(DIFFICULTY_KEY)
-    } catch { /* stockage indisponible : le choix ne sera pas retenu */ }
+    storeDifficulty(next)
   }
 
   const changeTable = (next) => {

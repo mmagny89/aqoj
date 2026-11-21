@@ -80,11 +80,12 @@ export const searchGames = (params = {}) => {
 export const getGame = (id) => request(`/games/${id}`)
 
 export const getRecommendations = (params = {}) => {
-  const { players, maxTime, families = [], categories = [], scope = 'collection' } = params
+  const { players, maxTime, families = [], categories = [], scope = 'collection', difficulty } = params
   const qs = new URLSearchParams()
   if (players) qs.set('players', players)
   if (maxTime) qs.set('maxTime', maxTime)
   if (scope !== 'collection') qs.set('scope', scope)
+  if (difficulty) qs.set('difficulty', difficulty)
   families.forEach(f => qs.append('families[]', f))
   categories.forEach(c => qs.append('categories[]', c))
   return request('/games/recommendation?' + qs)

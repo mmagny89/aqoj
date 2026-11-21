@@ -44,6 +44,18 @@ class RecommendationService
     ) {}
 
     /**
+     * Bornes de poids BGG du niveau `difficulty` des critères ; [null, null] sans niveau (ou inconnu).
+     *
+     * @return array{0: ?float, 1: ?float}
+     */
+    private function difficultyBand(array $criteria): array
+    {
+        $level = $criteria['difficulty'] ?? null;
+
+        return is_string($level) ? (self::DIFFICULTY_BANDS[$level] ?? [null, null]) : [null, null];
+    }
+
+    /**
      * Recommande des jeux depuis la collection de l'utilisateur.
      *
      * Critères de filtrage (durs) :
@@ -56,6 +68,7 @@ class RecommendationService
      */
     public function recommend(User $user, array $criteria): array
     {
+        [$minComplexity, $maxComplexity] = $this->difficultyBand($criteria);
         $players    = isset($criteria['players']) && $criteria['players'] > 0
             ? (int) $criteria['players'] : null;
         $maxTime    = isset($criteria['maxTime']) && $criteria['maxTime'] > 0
@@ -69,6 +82,8 @@ class RecommendationService
             $maxTime,
             $families,
             $categories,
+            $minComplexity,
+            $maxComplexity,
         );
 
         if (empty($games)) {
@@ -108,6 +123,7 @@ class RecommendationService
      */
     public function recommendDiscover(User $user, array $criteria, bool $library = false): array
     {
+        [$minComplexity, $maxComplexity] = $this->difficultyBand($criteria);
         $players    = isset($criteria['players']) && $criteria['players'] > 0 ? (int) $criteria['players'] : null;
         $maxTime    = isset($criteria['maxTime']) && $criteria['maxTime'] > 0 ? (int) $criteria['maxTime'] : null;
         $families   = (array) ($criteria['families']   ?? []);
@@ -122,6 +138,8 @@ class RecommendationService
             limit: 100,
             categoryKeys: $categories,
             library: $library,
+            maxComplexity: $maxComplexity,
+            minComplexity: $minComplexity,
         );
         $recentPool = $this->gameRepository->findDiscoverForRecommendation(
             $user, $players, $maxTime, $families,
@@ -130,6 +148,8 @@ class RecommendationService
             categoryKeys: $categories,
             minVotes: self::RECENT_MIN_VOTES,
             library: $library,
+            maxComplexity: $maxComplexity,
+            minComplexity: $minComplexity,
         );
 
         $games = [];
