@@ -144,7 +144,7 @@ class SyncBggNewReleasesCommand extends Command
                     if ($this->repository->existsByBggId($data['bggId'])) {
                         continue;
                     }
-                    $game = $this->enrichment->hydrate(new Game(), $data);
+                    $game = $this->enrichment->hydrate(new Game(), $data)->markDiscovered();
                     $this->em->persist($game);
                     $imported++;
                 }
