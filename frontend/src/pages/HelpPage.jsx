@@ -61,9 +61,9 @@ export default function HelpPage() {
 
       <Section id="h-quoi" title="C'est quoi ce site ?">
         <p>
-          <strong>À quoi on joue</strong> est une application de gestion et de recommandation de jeux de société.
-          Elle se connecte à votre compte <strong>BoardGameGeek (BGG)</strong> pour importer votre collection et vos notes,
-          puis vous propose des recommandations adaptées à votre situation du soir.
+          <strong>À quoi on joue</strong> est l'application de recommandation de jeux de société des adhérents d'<strong>Envie de Jouer</strong>.
+          Elle importe votre collection depuis <strong>BoardGameGeek (BGG)</strong> ou depuis un export <strong>MyLudo</strong>,
+          puis vous propose des jeux adaptés à votre table du soir : la vôtre, celle de l'association ou tout le catalogue.
         </p>
         <p>
           Pas de réseau social, pas de partage public : juste l'essentiel, <em>à quoi on joue ?</em>
@@ -72,10 +72,10 @@ export default function HelpPage() {
 
       <Section id="h-debut" title="Par où commencer ?">
         <ol className="m-0 flex list-none flex-col gap-4 p-0">
-          <Step n={1} title="Créez un compte" desc="Inscrivez-vous avec votre adresse e-mail. Aucune donnée n'est partagée publiquement." />
+          <Step n={1} title="Créez un compte" desc="L'inscription se fait avec le code d'invitation de l'association, puis on confirme son adresse e-mail. Aucune donnée n'est partagée publiquement." />
           <Step n={2} title="Importez votre collection" desc="Dans « Import », renseignez votre pseudo BoardGameGeek (l'application récupère vos jeux possédés, vos notes et vos extensions) ou déposez l'export CSV de MyLudo." />
-          <Step n={3} title="Explorez les recommandations" desc="Sur « À quoi on joue », les résultats arrivent d’eux-mêmes selon vos styles favoris et votre table ; changez le nombre de joueurs, la durée ou les styles, la liste se met à jour. Trois onglets : votre ludothèque, l’association (toutes les ludothèques) et tout le catalogue." />
-          <Step n={4} title="Enregistrez vos parties" desc="Après chaque partie, dites si vous avez aimé ou non. Cela améliore vos recommandations futures." />
+          <Step n={3} title="Explorez les recommandations" desc="Sur « À quoi on joue », les résultats arrivent d’eux-mêmes selon vos styles favoris et votre table ; choisissez un scénario ou réglez joueurs, durée, difficulté… et la liste se met à jour. Trois onglets : votre ludothèque, l’association (toutes les ludothèques) et tout le catalogue." />
+          <Step n={4} title="Dites ce que vous en pensez" desc="Enregistrez vos parties et, sur les cartes, signalez les jeux qui ne vous intéressent pas ou que vous aimeriez jouer. Cela améliore vos recommandations futures." />
         </ol>
       </Section>
 
@@ -85,7 +85,8 @@ export default function HelpPage() {
           <li><strong>Vos parties jouées</strong> : les jeux que vous avez aimés pèsent davantage.</li>
           <li><strong>Vos notes BGG</strong> : une note de 6/10 ou plus signale un jeu apprécié.</li>
           <li><strong>Votre collection</strong> : posséder un jeu est un signal positif léger.</li>
-          <li><strong>Les jeux écartés</strong> : une note BGG sous 5, ou une partie « Pas aimé ».</li>
+          <li><strong>Vos retours</strong> : « J'ai joué, et j'aime » et « J'aimerais jouer » comptent comme des goûts.</li>
+          <li><strong>Les jeux écartés</strong> : une note BGG sous 5, une partie « Pas aimé », ou un retour « Pas intéressé » ou « Déjà joué, bof ».</li>
         </ul>
         <p>
           La note BGG affichée est une <strong>note bayésienne ajustée</strong> : un jeu avec peu de votes ne peut pas
@@ -93,6 +94,45 @@ export default function HelpPage() {
         </p>
         <p className="rounded-xl border-[3px] border-ink bg-cream p-3 font-mono text-sm">
           score = (votes × note + 500 × 6,8) / (votes + 500)
+        </p>
+      </Section>
+
+      <Section id="h-table" title="Les filtres de « À quoi on joue »">
+        <p>
+          Sur la page <Link to="/recommander" className="font-bold text-brand-blue underline underline-offset-4">À quoi on joue</Link>,
+          répondez à la question « qu'est-ce qu'on joue maintenant, avec ces gens et ce temps ? ». Les réglages sont dans l'adresse de la page :
+          vous pouvez la partager telle quelle.
+        </p>
+        <ul className="m-0 flex list-disc flex-col gap-1 pl-5">
+          <li><strong>Scénario</strong> : un clic règle tout (« 4 joueurs · 1 h · léger », « En famille », « Coopératif à 4 »…).</li>
+          <li>
+            <strong>Nombre de joueurs</strong>, à la jauge, avec trois niveaux : <em>jouable</em> (le jeu se joue à ce nombre),
+            <em> conseillé</em> et <em>idéal</em> (d'après le vote de la communauté BGG sur le nombre de joueurs).
+          </li>
+          <li><strong>Durée maximum</strong>, à la jauge.</li>
+          <li><strong>Difficulté</strong> : léger (poids BGG jusqu'à 2), moyen (2 à 3), costaud (au-delà de 3).</li>
+          <li><strong>Mode de jeu</strong> : coopératif ou compétitif.</li>
+          <li><strong>Joueur le plus jeune</strong> : les jeux dont l'âge minimum ne dépasse pas le sien.</li>
+          <li><strong>Joué</strong> : déjà joué (noté, partie enregistrée ou retour « j'ai joué ») ou jamais joué.</li>
+        </ul>
+        <p>
+          Un jeu dont une donnée manque (durée, difficulté, âge, vote de la communauté) <strong>n'est jamais caché</strong> : il reste dans la liste,
+          avec la mention « inconnu » sur sa carte.
+        </p>
+      </Section>
+
+      <Section id="h-retours" title="Vos retours sur les propositions">
+        <p>Quatre boutons sur chaque carte vous laissent affiner les propositions :</p>
+        <ul className="m-0 flex list-disc flex-col gap-1 pl-5">
+          <li><strong>Pas intéressé</strong> et <strong>Déjà joué, bof</strong> : le jeu n'est plus proposé.</li>
+          <li><strong>J'aimerais jouer</strong> : le jeu rejoint « Mes envies de jeu » sur l'accueil, jusqu'à ce que vous enregistriez une partie.</li>
+          <li><strong>J'ai joué, et j'aime</strong> : le jeu pèse davantage dans vos goûts.</li>
+        </ul>
+        <p>
+          Un retour s'annule pendant quelques secondes, ou en rappuyant sur le bouton. Un jeu déjà joué et bien noté coche tout seul
+          « J'ai joué, et j'aime » (« bof » s'il est mal noté), sans jamais écraser votre choix. Tous vos votes se retrouvent dans
+          <Link to="/compte#votes" className="font-bold text-brand-blue underline underline-offset-4"> Mon compte</Link>, où vous pouvez les modifier.
+          Le lien « Pourquoi ce jeu ? » d'une carte explique la proposition.
         </p>
       </Section>
 
@@ -136,13 +176,14 @@ export default function HelpPage() {
           l'application calcule <strong>vos styles de jeu favoris</strong> à partir de :
         </p>
         <ul className="m-0 flex list-disc flex-col gap-1 pl-5">
+          <li>styles que vous avez déclarés dans « Mon compte » : ils passent avant les autres ;</li>
           <li>jeux bien notés sur BGG (6/10 ou plus) : poids × 3 ;</li>
           <li>parties jouées et aimées : poids × 2 ;</li>
           <li>jeux simplement possédés : poids × 1.</li>
         </ul>
         <p>
           Ces préférences sont recalculées à chaque import BGG et à chaque partie aimée. Elles servent aussi à
-          présélectionner les filtres pertinents dans les recommandations.
+          présélectionner les styles dans les recommandations.
         </p>
       </Section>
 

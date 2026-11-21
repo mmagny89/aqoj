@@ -124,7 +124,7 @@ L'interface d'administration permet de mapper des catégories BGG brutes (en ang
 Ces mappings alimentent directement les filtres de la page Recommandations.
 
 ### Page d'aide (`/aide`)
-Explications sur le fonctionnement du site, du modèle de recommandation, du modèle Engelstein, du score de similarité et du calcul de préférences mécaniques.
+Explications sur le fonctionnement du site, des filtres de « À quoi on joue » (scénarios, jouable / conseillé / idéal, jeux « inconnus »), des retours sur les propositions, du modèle de recommandation, du modèle Engelstein, du score de similarité et du calcul de préférences mécaniques.
 
 ### Recherche
 - Recherche textuelle dans le catalogue (jusqu'à 200 résultats), le titre exact d'abord, puis les titres qui commencent par la saisie, puis le reste
