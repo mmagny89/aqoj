@@ -5,7 +5,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import GameDetailPage from './GameDetailPage'
 
 vi.mock('../api', () => ({ getGame: vi.fn(), getSimilarGames: vi.fn(), createSession: vi.fn() }))
-import { getGame, getSimilarGames } from '../api'
+import { getGame, getSimilarGames, createSession } from '../api'
 
 const EN = 'Build a palace and score points with your tiles. '.repeat(10).trim()
 const FR = 'Construisez un palais et marquez des points avec vos tuiles. '.repeat(10).trim()
@@ -117,5 +117,22 @@ describe('GameDetailPage : extensions et fiche technique', () => {
     expect(detail).not.toHaveAttribute('open')
     expect(detail).toHaveTextContent('Hand Management')
     expect(screen.queryByText('Mécaniques BGG (brut)')).not.toBeInTheDocument()
+  })
+
+  it('enregistre une partie depuis le bloc, et affiche l’erreur sans alerte du navigateur', async () => {
+    createSession.mockRejectedValueOnce(new Error('Trop de parties.')).mockResolvedValueOnce({})
+    renderPage({})
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Noter une partie' }))
+    await userEvent.click(screen.getByRole('button', { name: '3' }))
+    await userEvent.click(screen.getByRole('button', { name: /Aimé/ }))
+    await userEvent.click(screen.getByRole('button', { name: 'Enregistrer la partie' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Trop de parties.')
+    expect(createSession).toHaveBeenCalledWith({ gameId: 7, playersCount: 3, rating: 5, note: null })
+
+    await userEvent.click(screen.getByRole('button', { name: 'Enregistrer la partie' }))
+
+    expect((await screen.findAllByRole('status'))[0]).toHaveTextContent('Partie enregistrée')
   })
 })
