@@ -281,7 +281,6 @@ export default function RecommendationPage() {
   useEffect(() => {
     if (type !== 'expansion' || !baseLoaded || extList.data !== null || extList.loadingMore || extList.error) return
     loadList(activeTab, 'expansion', 1)
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadList ne dépend que de refs et de setters
   }, [type, activeTab, baseLoaded, extList.data, extList.loadingMore, extList.error])
 
   if (!user) return (
