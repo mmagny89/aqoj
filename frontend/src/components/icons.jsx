@@ -26,6 +26,9 @@ export const ShelfIcon = (props) => (
 export const DiceIcon = (props) => (
   <svg {...base} {...props}><rect x="3" y="3" width="18" height="18" rx="3" /><circle cx="8.5" cy="8.5" r="1" /><circle cx="15.5" cy="15.5" r="1" /><circle cx="12" cy="12" r="1" /></svg>
 )
+export const AddPlayIcon = (props) => (
+  <svg {...base} {...props}><rect x="3" y="5" width="15" height="15" rx="3" /><circle cx="7.5" cy="9.5" r="1" /><circle cx="13.5" cy="15.5" r="1" /><path d="M19 2v6m-3-3h6" /></svg>
+)
 export const DownloadIcon = (props) => (
   <svg {...base} {...props}><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v3h16v-3" /></svg>
 )

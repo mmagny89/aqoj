@@ -31,7 +31,7 @@ describe('GameCard', () => {
     const onAddSession = vi.fn()
     renderCard({ onAddSession })
 
-    await userEvent.click(screen.getByRole('button', { name: '+ Enregistrer une partie' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Enregistrer une partie' }))
 
     expect(onAddSession).toHaveBeenCalledWith(game)
   })

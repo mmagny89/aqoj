@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { familyLabel, familyColor, SUPPORT_COLOR, isEngine } from '../utils/engelstein'
+import { AddPlayIcon } from './icons'
 import { gameImage } from '../utils/game'
 
 /* Fond de la pastille d'un jeu sans image : une couleur de la charte, stable pour un même jeu. */
@@ -122,9 +123,10 @@ export default function GameCard({ game, rank, onAddSession, userRating, owned, 
           <button
             type="button"
             onClick={() => onAddSession(game)}
-            className="relative z-10 mt-auto inline-flex min-h-11 items-center text-left text-sm font-bold text-brand-blue underline underline-offset-4"
+            className="relative z-10 mt-auto inline-flex min-h-11 items-center gap-1.5 text-left text-sm font-bold text-brand-blue underline underline-offset-4"
           >
-            + Enregistrer une partie
+            <AddPlayIcon aria-hidden="true" className="h-5 w-5 shrink-0" />
+            Enregistrer une partie
           </button>
         )}
       </div>

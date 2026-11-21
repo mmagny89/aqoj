@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { getGame, createSession, getSimilarGames } from '../api'
 import GameCard, { coverColor, initials } from '../components/GameCard'
+import { AddPlayIcon } from '../components/icons'
 import { familyLabel, familyColor, isEngine, isExtra } from '../utils/engelstein'
 import { groupCategories } from '../utils/categories'
 import { frenchEditionLabel, gameImage, originalEditionLabel } from '../utils/game'
@@ -360,6 +361,7 @@ export default function GameDetailPage() {
                 </div>
               ) : (
                 <button type="button" onClick={openSessionForm} className="btn btn-primary w-full sm:w-auto sm:px-8">
+                  <AddPlayIcon aria-hidden="true" className="h-6 w-6" />
                   Enregistrer une partie
                 </button>
               )}
