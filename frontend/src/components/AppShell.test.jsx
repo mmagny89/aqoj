@@ -71,4 +71,11 @@ describe('AppShell', () => {
     renderShell()
     expect(screen.getByRole('link', { name: 'Aller au contenu' })).toHaveAttribute('href', '#contenu')
   })
+
+  it('n’affiche pas l’adresse e-mail dans le menu', () => {
+    render(<MemoryRouter><AppShell><p>Contenu</p></AppShell></MemoryRouter>)
+
+    expect(screen.queryByText('membre@example.test')).not.toBeInTheDocument()
+    expect(screen.getAllByRole('link', { name: /Mon compte/ })[0]).toHaveAttribute('href', '/compte')
+  })
 })
