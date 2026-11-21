@@ -67,6 +67,7 @@ version devient le texte de sa release GitHub.
 
 ### Modifié
 
+- La **page d'aide** décrit l'inscription par invitation, les filtres de « À quoi on joue » et les retours sur les propositions.
 - « Déjà joué » compte une partie enregistrée, une note BGG ou un vote « j'ai joué » ; la ludothèque range les jeux joués selon la même règle.
 - La page « À quoi on joue » ne propose plus le bloc « Vos styles favoris » : les styles favoris sont présélectionnés dans « Style / Moteur ».
 - Les nouveautés couvrent les **cinq dernières années** (trois auparavant) avec un bonus de récence continu, et la page

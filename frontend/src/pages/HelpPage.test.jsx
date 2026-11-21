@@ -10,6 +10,8 @@ describe('Aide et mentions légales', () => {
 
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('À quoi on joue ?')
     expect(screen.getByRole('heading', { name: 'Comment marchent les recommandations ?' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Les filtres de « À quoi on joue »' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Vos retours sur les propositions' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Trouver un jeu pour ce soir' })).toHaveAttribute('href', '/recommander')
     expect(screen.getByRole('link', { name: 'Importer ma collection' })).toHaveAttribute('href', '/importer')
   })
