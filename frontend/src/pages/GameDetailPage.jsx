@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import { getGame, createSession, getSimilarGames } from '../api'
 import GameCard, { coverColor, initials } from '../components/GameCard'
 import { AddPlayIcon } from '../components/icons'
+import { ErrorMessage, inputClass } from '../components/forms'
 import { familyLabel, familyColor, isEngine, isExtra } from '../utils/engelstein'
 import { groupCategories } from '../utils/categories'
 import { frenchEditionLabel, gameImage, originalEditionLabel } from '../utils/game'
@@ -155,6 +156,7 @@ export default function GameDetailPage() {
   const [sessionForm, setSessionForm] = useState({ playersCount: 4, rating: null, note: '' })
   const [submitting, setSubmitting] = useState(false)
   const [sessionDone, setSessionDone] = useState(false)
+  const [sessionError, setSessionError] = useState('')
   const sessionRef = useRef(null)
 
   useEffect(() => {
@@ -188,6 +190,7 @@ export default function GameDetailPage() {
   const handleSession = async (e) => {
     e.preventDefault()
     setSubmitting(true)
+    setSessionError('')
     try {
       await createSession({
         gameId: Number(id),
@@ -198,7 +201,7 @@ export default function GameDetailPage() {
       setSessionDone(true)
       setShowSessionForm(false)
     } catch (err) {
-      alert(err.message)
+      setSessionError(err.message)
     } finally {
       setSubmitting(false)
     }
@@ -540,66 +543,73 @@ export default function GameDetailPage() {
       )}
 
       {/* ── Enregistrer une partie ────────────────────────────────────────── */}
-      <div ref={sessionRef} className="bg-amber-50 rounded-2xl border border-amber-200 p-5">
+      <section ref={sessionRef} aria-labelledby="titre-partie" className="panel p-4">
         {sessionDone ? (
-          <div className="text-center">
-            <div className="text-3xl mb-2">✅</div>
-            <p className="font-bold text-stone-800">Partie enregistrée !</p>
-            <button onClick={() => setSessionDone(false)} className="mt-3 text-sm text-amber-600 hover:underline">
-              Enregistrer une autre partie
+          <div role="status" className="flex flex-wrap items-center justify-between gap-3">
+            <p id="titre-partie" className="font-display text-xl text-brand-green">Partie enregistrée, merci !</p>
+            <button type="button" onClick={() => setSessionDone(false)} className="btn bg-paper text-sm">
+              <AddPlayIcon aria-hidden="true" className="h-5 w-5" />
+              Une autre partie
             </button>
           </div>
         ) : !showSessionForm ? (
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="font-bold text-stone-800">Vous avez joué à ce jeu ?</p>
-              <p className="text-sm text-stone-500">Notez votre expérience</p>
+              <h2 id="titre-partie" className="font-display text-xl leading-tight">Vous avez joué à ce jeu ?</h2>
+              <p className="text-sm text-stone-600">Gardez la trace de la partie : elle nourrit vos recommandations.</p>
             </div>
-            <button onClick={() => setShowSessionForm(true)} className="bg-amber-500 hover:bg-amber-600 text-white font-bold px-4 py-2.5 rounded-xl transition-all">
-              + Partie
+            <button type="button" onClick={() => setShowSessionForm(true)} className="btn bg-paper text-sm">
+              <AddPlayIcon aria-hidden="true" className="h-5 w-5" />
+              Noter une partie
             </button>
           </div>
         ) : (
           <form onSubmit={handleSession} className="space-y-4">
-            <p className="font-bold text-stone-800">Enregistrer une partie</p>
-            <div>
-              <p className="text-sm font-semibold text-stone-600 mb-2">Joueurs</p>
-              <div className="flex gap-2 flex-wrap">
+            <h2 id="titre-partie" className="font-display text-xl leading-tight">Enregistrer une partie</h2>
+            <fieldset>
+              <legend className="mb-2 font-bold">Combien de joueurs ?</legend>
+              <div className="flex flex-wrap gap-2">
                 {[1, 2, 3, 4, 5, 6, 7, 8].map(n => (
-                  <button key={n} type="button" onClick={() => setSessionForm(f => ({ ...f, playersCount: n }))}
-                    className={'w-10 h-10 rounded-lg font-bold transition-all ' + (sessionForm.playersCount === n ? 'bg-amber-500 text-white' : 'bg-white text-stone-600 hover:bg-stone-100')}
-                  >{n}</button>
+                  <button key={n} type="button" aria-pressed={sessionForm.playersCount === n}
+                    onClick={() => setSessionForm(f => ({ ...f, playersCount: n }))}
+                    className="chip w-11 justify-center !px-0">{n}</button>
                 ))}
               </div>
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-stone-600 mb-2">Votre avis</p>
-              <div className="flex gap-3">
+            </fieldset>
+            <fieldset>
+              <legend className="mb-2 font-bold">Votre avis <span className="font-normal text-stone-600">(facultatif)</span></legend>
+              <div className="flex flex-wrap gap-2">
                 {[{ val: 5, icon: '👍', label: 'Aimé' }, { val: 1, icon: '👎', label: 'Pas aimé' }].map(({ val, icon, label }) => (
-                  <button key={val} type="button" onClick={() => setSessionForm(f => ({ ...f, rating: f.rating === val ? null : val }))}
-                    className={'flex items-center gap-2 px-4 py-2 rounded-xl font-medium text-sm transition-all ' + (sessionForm.rating === val ? 'bg-amber-500 text-white' : 'bg-white text-stone-600 hover:bg-stone-100')}
-                  >{icon} {label}</button>
+                  <button key={val} type="button" aria-pressed={sessionForm.rating === val}
+                    onClick={() => setSessionForm(f => ({ ...f, rating: f.rating === val ? null : val }))}
+                    className="chip gap-2"><span aria-hidden="true">{icon}</span>{label}</button>
                 ))}
               </div>
+            </fieldset>
+            <div>
+              <label htmlFor="note-partie" className="mb-1 block font-bold">
+                Un commentaire <span className="font-normal text-stone-600">(facultatif)</span>
+              </label>
+              <textarea
+                id="note-partie"
+                value={sessionForm.note}
+                onChange={e => setSessionForm(f => ({ ...f, note: e.target.value }))}
+                rows={2}
+                className={`${inputClass} resize-none`}
+              />
             </div>
-            <textarea
-              value={sessionForm.note}
-              onChange={e => setSessionForm(f => ({ ...f, note: e.target.value }))}
-              placeholder="Un commentaire ? (optionnel)"
-              rows={2}
-              className="w-full px-3 py-2 rounded-xl border border-stone-300 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none bg-white"
-            />
-            <div className="flex gap-3">
-              <button type="submit" disabled={submitting} className="flex-1 bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-white font-bold py-2.5 rounded-xl">
-                {submitting ? 'Enregistrement…' : 'Enregistrer'}
+            {sessionError && <ErrorMessage>{sessionError}</ErrorMessage>}
+            <div className="flex flex-wrap gap-3">
+              <button type="submit" disabled={submitting} className="btn btn-primary">
+                {submitting ? 'Enregistrement…' : 'Enregistrer la partie'}
               </button>
-              <button type="button" onClick={() => setShowSessionForm(false)} className="px-4 py-2.5 bg-white text-stone-600 rounded-xl font-medium hover:bg-stone-100">
+              <button type="button" onClick={() => { setShowSessionForm(false); setSessionError('') }} className="btn bg-paper">
                 Annuler
               </button>
             </div>
           </form>
         )}
-      </div>
+      </section>
 
     </div>
   )
