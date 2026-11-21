@@ -31,6 +31,7 @@ describe('filtres de contexte', () => {
     const inconnu = { playingTime: 0, complexity: 0, minAge: null, mechanics: [], bestPlayers: null }
     expect(unknownFields(inconnu, filters)).toEqual(['Durée inconnue', 'Difficulté inconnue', 'Âge inconnu', 'Mode inconnu', 'Idéal inconnu'])
     expect(unknownFields({ ...inconnu, playingTime: 30, complexity: 1.5, minAge: 8, mechanics: ['Dice Rolling'], bestPlayers: [4] }, filters)).toEqual([])
+    expect(unknownFields(inconnu, { ...NO_FILTERS, players: 4, fit: 'recommended' })).toEqual(['Conseillé inconnu'])
     expect(unknownFields(inconnu, NO_FILTERS)).toEqual([])
   })
 
