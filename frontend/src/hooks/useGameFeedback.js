@@ -3,12 +3,16 @@ import { clearGameFeedback, setGameFeedback } from '../api'
 
 const NOTICE_MS = 8000
 
+/* Ces retours retirent le jeu de la liste ; « J'aimerais jouer » le laisse, bouton enfoncé. */
+const HIDING = new Set(['not_interested', 'played_meh', 'played_liked'])
+
 /**
- * Retours sur les propositions (« pas intéressé », « déjà joué, bof ») : le jeu disparaît aussitôt de la liste,
- * le serveur ne le reproposera plus, et un message laisse huit secondes pour annuler.
+ * Retours sur les propositions : le jeu écarté disparaît aussitôt de la liste, le serveur ne le reproposera plus,
+ * et un message laisse huit secondes pour annuler. `verdictOf` rend le retour courant d'un jeu (celui du serveur,
+ * sauf s'il vient d'être changé ici).
  */
 export function useGameFeedback() {
-  const [hidden, setHidden] = useState(() => new Set())
+  const [marked, setMarked] = useState(() => new Map())
   const [notice, setNotice] = useState(null)
   const timer = useRef(null)
 
@@ -20,35 +24,33 @@ export function useGameFeedback() {
     if (next) timer.current = setTimeout(() => setNotice(null), NOTICE_MS)
   }, [])
 
-  const setVisible = (id, visible) => setHidden(prev => {
-    const next = new Set(prev)
-    if (visible) next.delete(id)
-    else next.add(id)
-    return next
-  })
+  const apply = (id, verdict) => setMarked(prev => new Map(prev).set(id, verdict))
+  const persist = (game, verdict) => (verdict ? setGameFeedback(game.id, verdict) : clearGameFeedback(game.id))
 
-  const send = useCallback((game, verdict) => {
-    setVisible(game.id, false)
-    announce({ game, verdict })
-    setGameFeedback(game.id, verdict).catch(() => {
-      setVisible(game.id, true)
+  /* `verdict` = null retire le retour ; `previous` = le retour d'avant, pour annuler. */
+  const send = useCallback((game, verdict, previous = null) => {
+    apply(game.id, verdict)
+    announce(verdict ? { game, verdict, previous } : null)
+    persist(game, verdict).catch(() => {
+      apply(game.id, previous)
       announce({ game, error: true })
     })
   }, [announce])
 
   const undo = useCallback(() => {
     if (!notice?.game) return
-    const { game } = notice
-    setVisible(game.id, true)
+    const { game, previous, verdict } = notice
+    apply(game.id, previous)
     announce(null)
-    clearGameFeedback(game.id).catch(() => {
-      setVisible(game.id, false)
+    persist(game, previous).catch(() => {
+      apply(game.id, verdict)
       announce({ game, error: true })
     })
   }, [notice, announce])
 
-  const isHidden = useCallback((id) => hidden.has(id), [hidden])
+  const verdictOf = useCallback((id, fromServer = null) => (marked.has(id) ? marked.get(id) : fromServer), [marked])
+  const isHidden = useCallback((id) => HIDING.has(marked.get(id)), [marked])
   const dismiss = useCallback(() => announce(null), [announce])
 
-  return { isHidden, send, undo, dismiss, notice }
+  return { isHidden, verdictOf, send, undo, dismiss, notice }
 }

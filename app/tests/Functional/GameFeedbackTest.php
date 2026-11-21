@@ -98,6 +98,39 @@ final class GameFeedbackTest extends ApiTestCase
         self::assertSame([], $this->call($client, 'GET', '/api/games/home-reco', token: $token)['families']);
     }
 
+    public function testJAimeraisJouerResteProposeEtJAiJoueEtJAimeEstEcarteMaisCompteCommeUnGout(): void
+    {
+        $client = static::createClient();
+        $token = $this->register($client, 'positifs@example.test');
+        $annee = (int) date('Y');
+        $envie = $this->creerJeu('Zzfb Envie', $annee, 7.5, 2000, ['cooperation']);
+        $joue = $this->creerJeu('Zzfb Joue Aime', $annee, 7.4, 1900, ['deck_building']);
+
+        $reco = fn() => $this->call($client, 'GET', '/api/games/home-reco', token: $token);
+        $parNom = function (array $items): array {
+            $r = [];
+            foreach ($items as $i) {
+                $r[$i['game']['name']] = $i;
+            }
+
+            return $r;
+        };
+
+        $this->call($client, 'PUT', "/api/games/$envie/feedback", ['verdict' => 'want_to_play'], $token);
+        self::assertResponseIsSuccessful();
+        $this->call($client, 'PUT', "/api/games/$joue/feedback", ['verdict' => 'played_liked'], $token);
+        self::assertResponseIsSuccessful();
+
+        $vu = $reco();
+        $items = $parNom($vu['recent']);
+        // L'envie reste proposée, avec son retour ; le jeu déjà joué n'est plus proposé.
+        self::assertSame('want_to_play', $items['Zzfb Envie']['feedback']);
+        self::assertArrayNotHasKey('Zzfb Joue Aime', $items);
+        // Les deux comptent comme des goûts : le profil n'est plus vide.
+        self::assertEqualsCanonicalizing(['cooperation', 'deck_building'], $vu['families']);
+        self::assertFalse($vu['coldStart']);
+    }
+
     /** @param list<string> $familles */
     private function creerJeu(string $nom, int $annee, float $note, int $votes, array $familles = []): int
     {

@@ -23,7 +23,7 @@ export function weightDots(complexity) {
   return '●'.repeat(level) + '○'.repeat(5 - level)
 }
 
-export default function GameCard({ game, rank, onAddSession, userRating, owned, similarity, why, onFeedback }) {
+export default function GameCard({ game, rank, onAddSession, userRating, owned, similarity, why, verdict, onFeedback }) {
   const image = gameImage(game)
   const playerRange =
     game.minPlayers === game.maxPlayers
@@ -132,7 +132,7 @@ export default function GameCard({ game, rank, onAddSession, userRating, owned, 
           </button>
         )}
 
-        {onFeedback && <FeedbackButtons game={game} onFeedback={onFeedback} />}
+        {onFeedback && <FeedbackButtons game={game} verdict={verdict} onFeedback={onFeedback} />}
       </div>
     </article>
   )

@@ -56,3 +56,9 @@ export const NotInterestedIcon = (props) => (
 export const ThumbDownIcon = (props) => (
   <svg {...base} {...props}><path d="M17 14V3M17 14l-3.5 7a2.5 2.5 0 0 1-2.5-2.5V15H5.8a2 2 0 0 1-2-2.3l1.2-7A2 2 0 0 1 7 4h10" /><path d="M20 3h-3v11h3z" /></svg>
 )
+export const ThumbUpIcon = (props) => (
+  <svg {...base} {...props} style={{ transform: 'rotate(180deg)', ...props.style }}><path d="M17 14V3M17 14l-3.5 7a2.5 2.5 0 0 1-2.5-2.5V15H5.8a2 2 0 0 1-2-2.3l1.2-7A2 2 0 0 1 7 4h10" /><path d="M20 3h-3v11h3z" /></svg>
+)
+export const BookmarkIcon = (props) => (
+  <svg {...base} {...props}><path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4.5L5 21V4a1 1 0 0 1 1-1z" /></svg>
+)

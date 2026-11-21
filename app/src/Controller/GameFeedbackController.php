@@ -12,14 +12,16 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
 
 /**
- * Retour du joueur sur une proposition : « pas intéressé » ou « déjà joué, bof ».
- * Le jeu n'est plus proposé ; « bof » compte aussi comme un signal négatif sur ses mécaniques.
+ * Retour du joueur sur une proposition :
+ *   - `not_interested`, `played_meh` : le jeu n'est plus proposé ; « bof » pèse aussi contre ses mécaniques ;
+ *   - `played_liked` : déjà joué, donc plus proposé, et ses mécaniques comptent parmi les goûts ;
+ *   - `want_to_play` : le jeu reste proposé, et ses mécaniques comptent parmi les goûts.
  */
 class GameFeedbackController extends AbstractController
 {
     use CurrentUser;
 
-    public const VERDICTS = ['not_interested', 'played_meh'];
+    public const VERDICTS = ['not_interested', 'played_meh', 'want_to_play', 'played_liked'];
 
     #[Route('/api/games/{id}/feedback', name: 'api_game_feedback_put', requirements: ['id' => '\d+'], methods: ['PUT'])]
     public function put(int $id, Request $request, Connection $connection): JsonResponse
