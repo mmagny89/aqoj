@@ -93,8 +93,16 @@ class GameController extends AbstractController
             default    => $service->recommend($user, $criteria),
         };
 
-        // La liste complète est classée une fois ; la page n'en découpe qu'une tranche (« Voir plus » côté front).
-        $page = max(1, $request->query->getInt('page', 1));
+        // La liste complète est classée une fois ; la page n'en découpe qu'une tranche d'un seul type de fiche (jeux de base
+        // par défaut, `type=expansion` pour les extensions) : une page de 30 donne toujours 30 résultats du type affiché.
+        $totals = [
+            'base'      => count(array_filter($results, fn($r) => !$r['game']->isExpansion())),
+            'expansion' => count(array_filter($results, fn($r) => $r['game']->isExpansion())),
+        ];
+        $type = $request->query->getString('type') === 'expansion' ? 'expansion' : 'base';
+        $results = array_values(array_filter($results, fn($r) => $r['game']->isExpansion() === ($type === 'expansion')));
+
+        $page  = max(1, $request->query->getInt('page', 1));
         $slice = array_slice($results, ($page - 1) * self::RECOMMENDATION_PAGE_SIZE, self::RECOMMENDATION_PAGE_SIZE);
 
         return $this->json([
@@ -103,8 +111,9 @@ class GameController extends AbstractController
                 'score'  => round($r['score'], 2),
                 'reason' => $r['reason'],
             ], $slice),
-            'total' => count($results),
-            'page'  => $page,
+            'total'  => count($results),
+            'totals' => $totals,
+            'page'   => $page,
         ]);
     }
 

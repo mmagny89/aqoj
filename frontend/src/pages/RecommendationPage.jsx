@@ -39,15 +39,13 @@ function FilterSection({ title, children, defaultOpen = true }) {
 }
 
 /* ── Grille de résultats avec sous-onglets base / extension ─────────── */
-function ResultsGrid({ results, loading, error, total, loadingMore, onLoadMore }) {
-  const [sub, setSub] = useState('base')
-
-  const base = (results ?? []).filter(r => !r.game.isExpansion)
-  const exps  = (results ?? []).filter(r =>  r.game.isExpansion)
-  const items = sub === 'ext' ? exps : base
+// Chaque type de fiche a sa propre liste paginée côté API : une page de 30 donne toujours 30 résultats du type affiché.
+function ResultsGrid({ list, totals, type, onType, loading, error, onLoadMore }) {
+  const items = list.data ?? []
+  const total = list.total
 
   // Au premier chargement seulement : ensuite les anciens résultats restent affichés pendant l'actualisation.
-  if (loading && results === null) return (
+  if ((loading || list.loadingMore) && list.data === null) return (
     <p role="status" className="flex h-32 items-center justify-center gap-3 text-stone-600">
       <span className="h-5 w-5 animate-spin rounded-full border-[3px] border-stone-300 border-t-brand-red" aria-hidden="true" />
       Chargement…
@@ -60,14 +58,14 @@ function ResultsGrid({ results, loading, error, total, loadingMore, onLoadMore }
     <div aria-busy={loading} className={loading ? 'opacity-60 transition-opacity' : 'transition-opacity'}>
       <div role="group" aria-label="Type de fiches" className="mb-4 flex flex-wrap gap-1.5">
         {[
-          { key: 'base', label: 'Jeux de base', count: base.length },
-          { key: 'ext',  label: 'Extensions',   count: exps.length },
+          { key: 'base',      label: 'Jeux de base', count: totals?.base ?? 0 },
+          { key: 'expansion', label: 'Extensions',   count: totals?.expansion ?? 0 },
         ].map(t => (
           <button
             key={t.key}
             type="button"
-            aria-pressed={sub === t.key}
-            onClick={() => setSub(t.key)}
+            aria-pressed={type === t.key}
+            onClick={() => onType(t.key)}
             disabled={t.count === 0}
             className="chip chip-sm disabled:cursor-default disabled:opacity-40"
           >
@@ -79,22 +77,22 @@ function ResultsGrid({ results, loading, error, total, loadingMore, onLoadMore }
 
       {items.length === 0 ? (
         <p className="panel mx-auto max-w-xl p-6 text-center text-stone-700">
-          {sub === 'ext'
+          {type === 'expansion'
             ? 'Aucune extension ne correspond à ces critères.'
             : 'Aucun jeu de base ne correspond exactement.'}
         </p>
       ) : (
         <>
-          <p className="mb-3 text-stone-600" aria-live="polite">{items.length} jeu{items.length > 1 ? 'x' : ''}</p>
+          <p className="mb-3 text-stone-600" aria-live="polite">{total} jeu{total > 1 ? 'x' : ''}</p>
           <ul className="m-0 grid list-none grid-cols-2 gap-4 p-0 sm:grid-cols-3 sm:gap-5 xl:grid-cols-4">
             {items.map(({ game, reason }, i) => (
               <li key={game.id}><GameCard game={game} reason={reason} rank={i + 1} /></li>
             ))}
           </ul>
-          {results.length < total && (
+          {items.length < total && (
             <div className="mt-6 flex justify-center">
-              <button type="button" onClick={onLoadMore} disabled={loadingMore} className="btn btn-primary">
-                {loadingMore ? 'Chargement…' : `Voir plus de jeux (${total - results.length} restants)`}
+              <button type="button" onClick={onLoadMore} disabled={list.loadingMore} className="btn btn-primary">
+                {list.loadingMore ? 'Chargement…' : `Voir plus de jeux (${total - items.length} restants)`}
               </button>
             </div>
           )}
@@ -111,7 +109,7 @@ const SCOPE_TABS = [
   { key: 'discover',   label: 'Tout le catalogue' },
 ]
 
-function ResultsPanel({ results, activeTab, onTabChange, onLoadMore }) {
+function ResultsPanel({ results, totals, activeTab, onTabChange, type, onType, onLoadMore }) {
   return (
     <div>
       <div role="tablist" aria-label="Où chercher" className="tab-list mb-5">
@@ -127,20 +125,22 @@ function ResultsPanel({ results, activeTab, onTabChange, onLoadMore }) {
             className="tab"
           >
             {tab.label}
-            <span className="ml-2 text-sm opacity-80">{results[tab.key].total ?? '…'}</span>
+            <span className="ml-2 text-sm opacity-80">{totals[tab.key] ? totals[tab.key].base + totals[tab.key].expansion : '…'}</span>
           </button>
         ))}
       </div>
 
       <div id="reco-panneau" role="tabpanel" aria-labelledby={`reco-${activeTab}`}>
-        <ResultsGrid results={results[activeTab].data} loading={results[activeTab].loading} error={results[activeTab].error}
-          total={results[activeTab].total ?? 0} loadingMore={results[activeTab].loadingMore} onLoadMore={() => onLoadMore(activeTab)} />
+        <ResultsGrid list={results[`${activeTab}:${type}`]} totals={totals[activeTab]} type={type} onType={onType}
+          loading={results[`${activeTab}:base`].loading} error={results[`${activeTab}:${type}`].error} onLoadMore={() => onLoadMore(activeTab, type)} />
       </div>
     </div>
   )
 }
 
-const EMPTY_RESULTS = Object.fromEntries(SCOPE_TABS.map(t => [t.key, { data: null, total: 0, page: 1, loading: false, loadingMore: false, error: null }]))
+const EMPTY_LIST = { data: null, total: 0, page: 1, loading: false, loadingMore: false, error: null }
+// Une liste par périmètre et par type de fiche : « collection:base », « collection:expansion », etc.
+const EMPTY_RESULTS = Object.fromEntries(SCOPE_TABS.flatMap(t => [[`${t.key}:base`, EMPTY_LIST], [`${t.key}:expansion`, EMPTY_LIST]]))
 
 /* ── Page principale ─────────────────────────────────────────────────── */
 export default function RecommendationPage() {
@@ -159,6 +159,8 @@ export default function RecommendationPage() {
   const [selectedFamilies,   setSelectedFamilies]   = useState([])
   const [selectedCategories, setSelectedCategories] = useState([])
   const [results,            setResults]            = useState(EMPTY_RESULTS)
+  const [totals,             setTotals]             = useState({})
+  const [type,               setType]               = useState('base')
   const [activeTab,          setActiveTab]          = useState('collection')
   const [ready,              setReady]              = useState(false)
   const [filtersOpen,        setFiltersOpen]        = useState(false)
@@ -226,15 +228,25 @@ export default function RecommendationPage() {
     const timer = setTimeout(() => {
       const settled = {}
       SCOPE_TABS.forEach(({ key }) => {
-        setResults(prev => ({ ...prev, [key]: { ...prev[key], loading: true, error: null } }))
+        const baseKey = `${key}:base`
+        // Les extensions se rechargent à la demande : leur liste repart de zéro avec les nouveaux critères.
+        setResults(prev => ({ ...prev, [baseKey]: { ...prev[baseKey], loading: true, error: null }, [`${key}:expansion`]: EMPTY_LIST }))
         getRecommendations({ ...params, scope: key })
-          .then(({ items, total }) => { settled[key] = items; if (current) setResults(prev => ({ ...prev, [key]: { data: items, total, page: 1, loading: false, loadingMore: false, error: null } })) })
-          .catch(err => { settled[key] = []; if (current) setResults(prev => ({ ...prev, [key]: { ...prev[key], loading: false, error: err.message || 'Erreur de chargement' } })) })
+          .then(({ items, total, totals: counts }) => {
+            settled[key] = counts.base + counts.expansion
+            if (!current) return
+            setTotals(prev => ({ ...prev, [key]: counts }))
+            setResults(prev => ({ ...prev, [baseKey]: { data: items, total, page: 1, loading: false, loadingMore: false, error: null } }))
+          })
+          .catch(err => {
+            settled[key] = 0
+            if (current) setResults(prev => ({ ...prev, [baseKey]: { ...prev[baseKey], loading: false, error: err.message || 'Erreur de chargement' } }))
+          })
           .finally(() => {
             // À la première arrivée, on ouvre le premier onglet qui a quelque chose à montrer.
             if (!current || !firstLoad.current || Object.keys(settled).length < SCOPE_TABS.length) return
             firstLoad.current = false
-            const first = SCOPE_TABS.find(t => settled[t.key]?.length > 0)
+            const first = SCOPE_TABS.find(t => settled[t.key] > 0)
             if (first) setActiveTab(first.key)
           })
       })
@@ -243,20 +255,30 @@ export default function RecommendationPage() {
     return () => { current = false; clearTimeout(timer) }
   }, [user, ready, players, maxTime, difficulty, selectedFamilies, selectedCategories, themeLabelToCats])
 
-  const loadMore = (key) => {
+  // Charge une page d'un type de fiche (la première pour les extensions, à la demande) avec les critères de la recherche en cours.
+  const loadList = (key, listType, page) => {
     const { params, token } = searchRef.current
-    const { page } = results[key]
-    setResults(prev => ({ ...prev, [key]: { ...prev[key], loadingMore: true } }))
-    getRecommendations({ ...params, scope: key, page: page + 1 })
+    const listKey = `${key}:${listType}`
+    setResults(prev => ({ ...prev, [listKey]: { ...prev[listKey], loadingMore: true } }))
+    getRecommendations({ ...params, scope: key, type: listType, page })
       .then(({ items, total }) => {
         if (token !== searchRef.current.token) return
-        setResults(prev => ({ ...prev, [key]: { ...prev[key], data: [...prev[key].data, ...items], total, page: page + 1, loadingMore: false } }))
+        setResults(prev => ({ ...prev, [listKey]: { ...prev[listKey], data: [...(page > 1 ? prev[listKey].data : []), ...items], total, page, loadingMore: false } }))
       })
       .catch(err => {
         if (token !== searchRef.current.token) return
-        setResults(prev => ({ ...prev, [key]: { ...prev[key], loadingMore: false, error: err.message || 'Erreur de chargement' } }))
+        setResults(prev => ({ ...prev, [listKey]: { ...prev[listKey], loadingMore: false, error: err.message || 'Erreur de chargement' } }))
       })
   }
+  const loadMore = (key, listType) => loadList(key, listType, results[`${key}:${listType}`].page + 1)
+
+  const extList    = results[`${activeTab}:expansion`]
+  const baseLoaded = results[`${activeTab}:base`].data !== null
+  useEffect(() => {
+    if (type !== 'expansion' || !baseLoaded || extList.data !== null || extList.loadingMore || extList.error) return
+    loadList(activeTab, 'expansion', 1)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadList ne dépend que de refs et de setters
+  }, [type, activeTab, baseLoaded, extList.data, extList.loadingMore, extList.error])
 
   if (!user) return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-10">
@@ -427,7 +449,7 @@ export default function RecommendationPage() {
 
           {/* ── Zone résultats ────────────────────────────────────────── */}
           <div className="flex-1 min-w-0">
-            <ResultsPanel results={results} activeTab={activeTab} onTabChange={setActiveTab} onLoadMore={loadMore} />
+            <ResultsPanel results={results} totals={totals} activeTab={activeTab} onTabChange={setActiveTab} type={type} onType={setType} onLoadMore={loadMore} />
           </div>
 
         </div>
