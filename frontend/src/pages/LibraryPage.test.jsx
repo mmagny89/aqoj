@@ -42,6 +42,16 @@ describe('LibraryPage : vos styles de jeu', () => {
     expect(await screen.findByRole('note')).toHaveTextContent('0 jeu sur 8 analysé')
   })
 
+  it('invite à renseigner BGG, importer des parties MyLudo ou en saisir quand aucun jeu n’est joué', async () => {
+    getUserPreferences.mockResolvedValue(null)
+    render(<MemoryRouter><LibraryPage /></MemoryRouter>)
+
+    expect(await screen.findByRole('heading', { name: 'Aucun jeu joué pour l’instant.' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Renseigner mon compte BGG' })).toHaveAttribute('href', '/importer?onglet=bgg')
+    expect(screen.getByRole('link', { name: 'Importer mes parties MyLudo' })).toHaveAttribute('href', '/importer?onglet=parties')
+    expect(screen.getByRole('link', { name: 'Enregistrer des parties' })).toHaveAttribute('href', '/parties')
+  })
+
   it('accorde « jeux » au pluriel, sans « jeus »', async () => {
     getUserPreferences.mockResolvedValue(null)
     getLibrary.mockResolvedValue({ games: [], total: 230, hasMore: false, userRatings: {}, bggUsername: null })
