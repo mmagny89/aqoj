@@ -107,4 +107,12 @@ class UserGameRepository
 
         return ['added' => count($ratingsByGameId) - $existing, 'existing' => $existing];
     }
+
+    /**
+     * Vide la ludothèque d'un joueur (notes personnelles comprises) et rend le nombre de jeux retirés.
+     */
+    public function clearForUser(User $user): int
+    {
+        return (int) $this->conn->executeStatement('DELETE FROM user_game WHERE user_id = ?', [$user->getId()]);
+    }
 }

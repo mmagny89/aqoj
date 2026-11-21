@@ -133,6 +133,9 @@ export const deleteAccount = (password) =>
 export const importBgg = (username, target = 'me') =>
   request('/bgg/import', { method: 'POST', body: JSON.stringify({ username, target }) })
 
+export const unlinkBgg = (clearLibrary = false) =>
+  request('/bgg/link', { method: 'DELETE', body: JSON.stringify({ clearLibrary }) })
+
 // Ludothèque de l'association (administrateurs)
 export const getAssociationGames = () => request('/admin/association/games')
 export const removeAssociationGame = (id) => request(`/admin/association/games/${id}`, { method: 'DELETE' })
