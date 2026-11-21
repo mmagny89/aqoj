@@ -23,7 +23,7 @@ describe('GameCard', () => {
 
     expect(screen.getByText('Idéal à 4')).toBeInTheDocument()
     expect(screen.getByText('Durée inconnue')).toBeInTheDocument()
-    expect(screen.getByText('Poids inconnu')).toBeInTheDocument()
+    expect(screen.getByText('Difficulté inconnue')).toBeInTheDocument()
   })
 
   it('n’ajoute aucune étiquette de contexte sans filtre', () => {

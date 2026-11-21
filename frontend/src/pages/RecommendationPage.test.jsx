@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import RecommendationPage from './RecommendationPage'
@@ -53,17 +53,19 @@ describe('RecommendationPage', () => {
     render(<MemoryRouter><RecommendationPage /></MemoryRouter>)
     await waitFor(() => expect(getRecommendations).toHaveBeenCalledTimes(3))
 
-    await userEvent.click(screen.getByRole('button', { name: '2' }))
+    // Les joueurs se règlent à la jauge (cran 0 = tous, puis 1 à 8 joueurs).
+    fireEvent.change(screen.getByRole('slider', { name: 'Nombre de joueurs' }), { target: { value: '2' } })
 
     await waitFor(() => expect(getRecommendations).toHaveBeenCalledTimes(6))
     expect(getRecommendations).toHaveBeenLastCalledWith(expect.objectContaining({ players: 2, maxTime: 90 }))
   })
 
-  it('relance les résultats avec le poids choisi dans la barre de table', async () => {
+  it('relance les résultats avec la difficulté choisie dans la barre de table', async () => {
     render(<MemoryRouter><RecommendationPage /></MemoryRouter>)
     await waitFor(() => expect(getRecommendations).toHaveBeenCalledTimes(3))
 
-    // La barre est ouverte d'office : la table enregistrée (joueurs, durée) est déjà posée.
+    // La facette « Difficulté » est fermée tant qu'aucune difficulté n'est retenue ; joueurs et durée de la table enregistrée sont déjà posés.
+    await userEvent.click(screen.getByRole('button', { name: /^Difficulté/ }))
     await userEvent.click(screen.getByRole('button', { name: 'Costaud' }))
 
     await waitFor(() => expect(getRecommendations).toHaveBeenCalledTimes(6))
@@ -121,11 +123,16 @@ describe('RecommendationPage', () => {
     await waitFor(() => expect(getRecommendations).toHaveBeenCalledTimes(3))
 
     const facette = (nom) => screen.getByRole('button', { name: new RegExp(`^${nom}`) })
-    expect(facette('Ma table')).toHaveAttribute('aria-expanded', 'true') // joueurs et durée sont toujours valorisés
+    expect(facette('Nombre de joueurs')).toHaveAttribute('aria-expanded', 'true') // joueurs et durée viennent de la table enregistrée
+    expect(facette('Difficulté')).toHaveAttribute('aria-expanded', 'false')
     expect(facette('Mécaniques')).toHaveAttribute('aria-expanded', 'true') // « Coopération » est présélectionnée
     expect(facette('Style / Moteur')).toHaveAttribute('aria-expanded', 'false')
 
     await userEvent.click(facette('Style / Moteur'))
     expect(facette('Style / Moteur')).toHaveAttribute('aria-expanded', 'true')
+
+    // Scénario et « joué » restent en haut de la liste, hors de la barre latérale.
+    expect(screen.getByRole('group', { name: 'Scénario' })).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: 'Joué' })).toBeInTheDocument()
   })
 })

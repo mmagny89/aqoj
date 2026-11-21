@@ -48,11 +48,8 @@ class GameController extends AbstractController
             ? ($request->query->getBoolean('isExpansion') ? true : false)
             : null;
 
-        // Filtres de contexte (joueurs, durée, poids…) ; « joué » est déjà l'onglet de la ludothèque.
-        $context = ContextFilters::fromRequest($request, withPlayed: false);
-
-        $games       = $repository->findByUserCollection($user, $page, 50, $playedParam, $isExpansionParam, $context);
-        $total       = $repository->countUserCollection($user, $playedParam, $isExpansionParam, $context);
+        $games       = $repository->findByUserCollection($user, $page, 50, $playedParam, $isExpansionParam);
+        $total       = $repository->countUserCollection($user, $playedParam, $isExpansionParam);
         $userRatings = $userGameRepository->getBggUserRatings($user);
 
         return $this->json([

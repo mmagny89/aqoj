@@ -5,8 +5,8 @@ namespace App\Service;
 use Symfony\Component\HttpFoundation\Request;
 
 /**
- * Filtres de contexte (« qu'est-ce qu'on joue maintenant, avec ces gens et ce temps ? »), communs à la ludothèque
- * et aux recommandations. Tout vient du catalogue déjà importé : aucun appel à BGG.
+ * Filtres de contexte (« qu'est-ce qu'on joue maintenant, avec ces gens et ce temps ? ») de « À quoi on joue »
+ * (recommandations). Tout vient du catalogue déjà importé : aucun appel à BGG.
  *
  * Un jeu sans donnée (poids, durée, âge, mécaniques, sondage de joueurs) n'est jamais écarté : il reste visible et le front
  * l'étiquette « inconnu ». Les conditions sont du SQL natif sur la table `game` aliasée.
@@ -29,8 +29,7 @@ final readonly class ContextFilters
         public ?bool $played = null,
     ) {}
 
-    /** `$withPlayed` : faux là où « joué » est déjà un onglet (ludothèque). */
-    public static function fromRequest(Request $request, bool $withPlayed = true): self
+    public static function fromRequest(Request $request): self
     {
         $fit    = $request->query->getString('fit');
         $weight = $request->query->getString('weight');
@@ -45,40 +44,19 @@ final readonly class ContextFilters
             weight: isset(RecommendationService::DIFFICULTY_BANDS[$weight]) ? $weight : null,
             coop: $flag('coop'),
             age: $request->query->getInt('age') ?: null,
-            played: $withPlayed ? $flag('played') : null,
+            played: $flag('played'),
         );
     }
 
-    /** Vrai si un filtre au-delà du nombre de joueurs et de la durée est posé. */
-    public function isActive(): bool
-    {
-        return $this->fit !== null || $this->weight !== null || $this->coop !== null || $this->age !== null || $this->played !== null;
-    }
-
-    /** Vrai si le moindre filtre de contexte est posé (joueurs et durée compris). */
-    public function hasAny(): bool
-    {
-        return $this->isActive() || $this->players !== null || $this->maxTime !== null;
-    }
-
     /**
-     * @param bool $basics  ajoute aussi joueurs (jouable) et durée, pour les appelants qui ne les posent pas eux-mêmes
+     * Joueurs (jouable) et durée ne sont pas ici : les recommandations les posent déjà.
      *
      * @return array{0: string[], 1: array<int, mixed>} conditions SQL (alias `g`, paramètres `?`) et leurs valeurs, dans l'ordre
      */
-    public function conditions(?int $userId, bool $basics = false): array
+    public function conditions(?int $userId): array
     {
         $conditions = [];
         $params     = [];
-
-        if ($basics && $this->players !== null) {
-            $conditions[] = 'g.min_players <= ? AND g.max_players >= ?';
-            array_push($params, $this->players, $this->players);
-        }
-        if ($basics && $this->maxTime !== null) {
-            $conditions[] = '(g.playing_time <= ? OR g.playing_time = 0)';
-            $params[] = $this->maxTime;
-        }
 
         if ($this->fit !== null && $this->players !== null) {
             $column = $this->fit === 'best' ? 'g.best_players' : 'g.recommended_players';

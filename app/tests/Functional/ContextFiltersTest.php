@@ -47,31 +47,32 @@ final class ContextFiltersTest extends ApiTestCase
         return $noms;
     }
 
-    public function testLaLudothequeFiltreParPoidsEtGardeLesJeuxSansPoids(): void
+    private function reco(\Symfony\Bundle\FrameworkBundle\KernelBrowser $client, string $token, string $query): array
+    {
+        return $this->noms($this->call($client, 'GET', '/api/games/recommendation?' . $query, token: $token));
+    }
+
+    public function testLePoidsFiltreEtGardeLesJeuxSansPoids(): void
     {
         [$client, $token] = $this->monde();
 
-        $leger = $this->call($client, 'GET', '/api/library?weight=light', token: $token);
-        self::assertSame(['Zzctx Inconnu', 'Zzctx Leger'], $this->noms($leger));
-
-        $costaud = $this->call($client, 'GET', '/api/library?weight=heavy', token: $token);
-        self::assertSame(['Zzctx Costaud', 'Zzctx Inconnu'], $this->noms($costaud));
-        self::assertSame(2, $costaud['total']);
+        self::assertSame(['Zzctx Inconnu', 'Zzctx Leger'], $this->reco($client, $token, 'weight=light'));
+        self::assertSame(['Zzctx Costaud', 'Zzctx Inconnu'], $this->reco($client, $token, 'weight=heavy'));
     }
 
-    public function testLaLudothequeFiltreParDureeJoueursAgeEtMode(): void
+    public function testDureeJoueursAgeEtModeGardentLesJeuxSansDonnee(): void
     {
         [$client, $token] = $this->monde();
 
         // 1 h : Costaud (150 min) sort ; durée inconnue (0) reste.
-        self::assertSame(['Zzctx Coop', 'Zzctx Inconnu', 'Zzctx Leger'], $this->noms($this->call($client, 'GET', '/api/library?maxTime=60', token: $token)));
+        self::assertSame(['Zzctx Coop', 'Zzctx Inconnu', 'Zzctx Leger'], $this->reco($client, $token, 'maxTime=60'));
         // 6 joueurs : seuls Coop et Inconnu les supportent.
-        self::assertSame(['Zzctx Coop', 'Zzctx Inconnu'], $this->noms($this->call($client, 'GET', '/api/library?players=6', token: $token)));
+        self::assertSame(['Zzctx Coop', 'Zzctx Inconnu'], $this->reco($client, $token, 'players=6'));
         // Dès 10 ans : Costaud (14 ans) sort ; âge inconnu reste.
-        self::assertSame(['Zzctx Coop', 'Zzctx Inconnu', 'Zzctx Leger'], $this->noms($this->call($client, 'GET', '/api/library?age=10', token: $token)));
-        // Coopératif : la fiche non enrichie (mécaniques vides) reste ; compétitif : idem.
-        self::assertSame(['Zzctx Coop', 'Zzctx Inconnu'], $this->noms($this->call($client, 'GET', '/api/library?coop=1', token: $token)));
-        self::assertSame(['Zzctx Costaud', 'Zzctx Inconnu', 'Zzctx Leger'], $this->noms($this->call($client, 'GET', '/api/library?coop=0', token: $token)));
+        self::assertSame(['Zzctx Coop', 'Zzctx Inconnu', 'Zzctx Leger'], $this->reco($client, $token, 'age=10'));
+        // Coopératif ou compétitif : la fiche non enrichie (mécaniques vides) reste dans les deux.
+        self::assertSame(['Zzctx Coop', 'Zzctx Inconnu'], $this->reco($client, $token, 'coop=1'));
+        self::assertSame(['Zzctx Costaud', 'Zzctx Inconnu', 'Zzctx Leger'], $this->reco($client, $token, 'coop=0'));
     }
 
     public function testSupporteIdealEtConseilleSeDistinguent(): void
@@ -79,34 +80,25 @@ final class ContextFiltersTest extends ApiTestCase
         [$client, $token] = $this->monde();
 
         // À 4 : les quatre jeux le supportent ; seul Leger est idéal à 4 (Inconnu reste, sans sondage), Leger et Coop conseillés.
-        self::assertSame(['Zzctx Coop', 'Zzctx Costaud', 'Zzctx Inconnu', 'Zzctx Leger'], $this->noms($this->call($client, 'GET', '/api/library?players=4', token: $token)));
-        self::assertSame(['Zzctx Inconnu', 'Zzctx Leger'], $this->noms($this->call($client, 'GET', '/api/library?players=4&fit=best', token: $token)));
-        self::assertSame(['Zzctx Coop', 'Zzctx Inconnu', 'Zzctx Leger'], $this->noms($this->call($client, 'GET', '/api/library?players=4&fit=recommended', token: $token)));
+        self::assertSame(['Zzctx Coop', 'Zzctx Costaud', 'Zzctx Inconnu', 'Zzctx Leger'], $this->reco($client, $token, 'players=4'));
+        self::assertSame(['Zzctx Inconnu', 'Zzctx Leger'], $this->reco($client, $token, 'players=4&fit=best'));
+        self::assertSame(['Zzctx Coop', 'Zzctx Inconnu', 'Zzctx Leger'], $this->reco($client, $token, 'players=4&fit=recommended'));
     }
 
-    public function testLaLudothequeIgnoreLeFiltreJoue(): void
+    public function testDejaJoueEtJamaisJoue(): void
     {
         [$client, $token] = $this->monde();
 
-        // `played` est l'onglet de la ludothèque : il ne se double pas d'un filtre de contexte.
-        $joues = $this->call($client, 'GET', '/api/library?played=1', token: $token);
-        self::assertSame(['Zzctx Costaud'], $this->noms($joues));
-    }
-
-    public function testLesRecommandationsAppliquentLesMemesFiltres(): void
-    {
-        [$client, $token] = $this->monde();
-
-        $reco = $this->call($client, 'GET', '/api/games/recommendation?weight=light&coop=0&played=0', token: $token);
-        self::assertSame(['Zzctx Inconnu', 'Zzctx Leger'], $this->noms($reco));
+        self::assertSame(['Zzctx Costaud'], $this->reco($client, $token, 'played=1'));
+        self::assertSame(['Zzctx Coop', 'Zzctx Inconnu', 'Zzctx Leger'], $this->reco($client, $token, 'played=0'));
+        self::assertSame(['Zzctx Inconnu', 'Zzctx Leger'], $this->reco($client, $token, 'weight=light&coop=0&played=0'));
     }
 
     public function testUneValeurInconnueDesFiltresEstIgnoree(): void
     {
         [$client, $token] = $this->monde();
 
-        $reponse = $this->call($client, 'GET', '/api/library?weight=enorme&fit=parfait&coop=', token: $token);
-        self::assertCount(4, $this->noms($reponse));
+        self::assertCount(4, $this->reco($client, $token, 'weight=enorme&fit=parfait&coop='));
     }
 
     private function jeu(Connection $conn, string $nom, int $min, int $max, int $duree, float $poids, string $mecaniques, ?int $age, ?string $ideal, ?string $conseille): void

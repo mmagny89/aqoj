@@ -25,9 +25,9 @@ class GameRepository extends ServiceEntityRepository
      *
      * @return array{0: string[], 1: array<int, mixed>}
      */
-    private function contextSql(?ContextFilters $context, ?User $user, bool $basics = false): array
+    private function contextSql(?ContextFilters $context, ?User $user): array
     {
-        return $context === null ? [[], []] : $context->conditions($user?->getId(), $basics);
+        return $context === null ? [[], []] : $context->conditions($user?->getId());
     }
 
     public function findByCriteria(?int $players, ?int $maxTime, array $categories = [], array $mechanics = [], int $page = 1, int $limit = 50): array
@@ -427,9 +427,19 @@ class GameRepository extends ServiceEntityRepository
     /**
      * @param bool|null $played  true = déjà joués (notés sur BGG ou avec une partie), false = pas encore joués, null = tous
      */
-    public function findByUserCollection(User $user, int $page = 1, int $limit = 50, ?bool $played = null, ?bool $isExpansion = null, ?ContextFilters $context = null): array
+    public function findByUserCollection(User $user, int $page = 1, int $limit = 50, ?bool $played = null, ?bool $isExpansion = null): array
     {
-        [$clauses, $contextParams] = $this->collectionClauses($user, $played, $isExpansion, $context);
+        $playedClause = match ($played) {
+            true  => 'AND ' . self::USER_GAME_PLAYED,
+            false => 'AND NOT ' . self::USER_GAME_PLAYED,
+            null  => '',
+        };
+
+        $expansionClause = match ($isExpansion) {
+            true  => 'AND g.is_expansion = TRUE',
+            false => 'AND g.is_expansion = FALSE',
+            null  => '',
+        };
 
         // DBAL pour la pagination : le JOIN ManyToMany + setFirstResult de Doctrine ORM
         // génère une sous-requête qui casse le filtre. On récupère les IDs via SQL natif.
@@ -446,10 +456,10 @@ class GameRepository extends ServiceEntityRepository
             "SELECT ug.game_id
              FROM user_game ug
              JOIN game g ON g.id = ug.game_id
-             WHERE ug.user_id = ? {$clauses}
+             WHERE ug.user_id = ? {$playedClause} {$expansionClause}
              ORDER BY {$orderBy}
              LIMIT ? OFFSET ?",
-            [$user->getId(), ...$contextParams, $limit, ($page - 1) * $limit]
+            [$user->getId(), $limit, ($page - 1) * $limit]
         );
 
         if (empty($ids)) {
@@ -474,41 +484,32 @@ class GameRepository extends ServiceEntityRepository
         )));
     }
 
-    public function countUserCollection(User $user, ?bool $played = null, ?bool $isExpansion = null, ?ContextFilters $context = null): int
+    public function countUserCollection(User $user, ?bool $played = null, ?bool $isExpansion = null): int
     {
-        [$clauses, $contextParams] = $this->collectionClauses($user, $played, $isExpansion, $context);
-
-        return (int) $this->getEntityManager()->getConnection()->fetchOne(
-            "SELECT COUNT(*) FROM user_game ug JOIN game g ON g.id = ug.game_id WHERE ug.user_id = ? {$clauses}",
-            [$user->getId(), ...$contextParams]
-        );
-    }
-
-    /**
-     * Clauses « AND … » communes à la liste et au compte de la ludothèque (alias `ug` et `g`), avec leurs paramètres.
-     *
-     * @return array{0: string, 1: array<int, mixed>}
-     */
-    private function collectionClauses(User $user, ?bool $played, ?bool $isExpansion, ?ContextFilters $context): array
-    {
-        $clauses = match ($played) {
+        $playedClause = match ($played) {
             true  => 'AND ' . self::USER_GAME_PLAYED,
             false => 'AND NOT ' . self::USER_GAME_PLAYED,
             null  => '',
         };
-        $clauses .= match ($isExpansion) {
-            true  => ' AND g.is_expansion = TRUE',
-            false => ' AND g.is_expansion = FALSE',
+
+        $expansionClause = match ($isExpansion) {
+            true  => 'AND g.is_expansion = TRUE',
+            false => 'AND g.is_expansion = FALSE',
             null  => '',
         };
 
-        // Joueurs et durée ne sont posés par personne d'autre ici : le filtre de contexte les porte aussi.
-        [$conditions, $params] = $this->contextSql($context, $user, basics: true);
-        foreach ($conditions as $condition) {
-            $clauses .= " AND {$condition}";
+        $joinNeeded = $isExpansion !== null;
+        if ($joinNeeded) {
+            return (int) $this->getEntityManager()->getConnection()->fetchOne(
+                "SELECT COUNT(*) FROM user_game ug JOIN game g ON g.id = ug.game_id WHERE ug.user_id = ? {$playedClause} {$expansionClause}",
+                [$user->getId()]
+            );
         }
 
-        return [$clauses, $params];
+        return (int) $this->getEntityManager()->getConnection()->fetchOne(
+            "SELECT COUNT(*) FROM user_game ug WHERE ug.user_id = ? {$playedClause}",
+            [$user->getId()]
+        );
     }
 
     /**
