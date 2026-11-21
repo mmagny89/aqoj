@@ -16,7 +16,11 @@ export default function LegalNoticePage() {
 
       <LegalSection title="Hébergement">
         <p>
-          {host.name}, hébergement en Europe. Adresse de l'hébergeur : {host.address}
+          Le site est hébergé par {host.name}, {host.address} —{' '}
+          <a href="https://www.hostinger.fr" className="text-amber-700 underline" target="_blank" rel="noopener noreferrer">
+            hostinger.fr
+          </a>
+          . Les données sont hébergées en Europe.
         </p>
       </LegalSection>
 
