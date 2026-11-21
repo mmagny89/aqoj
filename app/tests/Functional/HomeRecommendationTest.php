@@ -99,7 +99,7 @@ final class HomeRecommendationTest extends ApiTestCase
         }
         $this->creerJeu('Zzdec Nouveau', $annee - 1, 2.5, 7.6, 800);
 
-        $reco = $this->call($client, 'GET', '/api/games/recommendation?scope=discover', token: $token);
+        $reco = $this->call($client, 'GET', '/api/games/recommendation?scope=discover', token: $token)['items'];
 
         self::assertResponseIsSuccessful();
         $noms = array_column(array_column($reco, 'game'), 'name');
@@ -183,12 +183,34 @@ final class HomeRecommendationTest extends ApiTestCase
         }
 
         foreach (['collection', 'discover'] as $perimetre) {
-            $reco = $this->call($client, 'GET', '/api/games/recommendation?scope=' . $perimetre . '&difficulty=heavy', token: $token);
+            $reco = $this->call($client, 'GET', '/api/games/recommendation?scope=' . $perimetre . '&difficulty=heavy', token: $token)['items'];
             $noms = array_column(array_column($reco, 'game'), 'name');
             self::assertNotContains('Zzrd Leger', $noms, $perimetre);
         }
-        $collection = $this->call($client, 'GET', '/api/games/recommendation?difficulty=heavy', token: $token);
+        $collection = $this->call($client, 'GET', '/api/games/recommendation?difficulty=heavy', token: $token)['items'];
         self::assertSame(['Zzrd Costaud'], array_column(array_column($collection, 'game'), 'name'));
+    }
+
+    public function testLaRecommandationSePagineParTrente(): void
+    {
+        $client = static::createClient();
+        $token = $this->register($client, 'pages@example.test');
+        $annee = (int) date('Y');
+        for ($i = 1; $i <= 70; $i++) {
+            $this->creerJeu(sprintf('Zzpage %02d', $i), $annee - 5, 2.0, 7.0 + $i / 100, 1000 + $i);
+        }
+
+        $un    = $this->call($client, 'GET', '/api/games/recommendation?scope=discover', token: $token);
+        $deux  = $this->call($client, 'GET', '/api/games/recommendation?scope=discover&page=2', token: $token);
+        $trois = $this->call($client, 'GET', '/api/games/recommendation?scope=discover&page=3', token: $token);
+
+        self::assertGreaterThanOrEqual(70, $un['total']);
+        self::assertCount(30, $un['items']);
+        self::assertCount(30, $deux['items']);
+        self::assertSame(2, $deux['page']);
+        self::assertGreaterThanOrEqual(10, count($trois['items']));
+        $ids = array_merge(...array_map(fn(array $p) => array_column(array_column($p['items'], 'game'), 'id'), [$un, $deux, $trois]));
+        self::assertSame($ids, array_values(array_unique($ids)), 'une même fiche ne revient pas d\'une page à l\'autre');
     }
 
     public function testLePerimetreLudothequeNeGardeQueLesJeuxDeLAssociationEtDesMembres(): void
@@ -224,7 +246,7 @@ final class HomeRecommendationTest extends ApiTestCase
         sort($noms);
         self::assertSame(['Zzper Asso', 'Zzper Le Mien', 'Zzper Modeste', 'Zzper Voisin'], $noms);
 
-        $liste = $this->call($client, 'GET', '/api/games/recommendation?scope=library', token: $moi);
+        $liste = $this->call($client, 'GET', '/api/games/recommendation?scope=library', token: $moi)['items'];
         $noms = array_column(array_column($liste, 'game'), 'name');
         sort($noms);
         self::assertSame(['Zzper Asso', 'Zzper Le Mien', 'Zzper Modeste', 'Zzper Voisin'], $noms);

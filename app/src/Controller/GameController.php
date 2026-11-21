@@ -66,6 +66,8 @@ class GameController extends AbstractController
         return $this->json($repository->findByCriteria(null, null));
     }
 
+    private const RECOMMENDATION_PAGE_SIZE = 30;
+
     #[Route('/api/games/recommendation', name: 'api_games_recommendation', methods: ['GET'])]
     public function recommendation(
         Request $request,
@@ -91,11 +93,19 @@ class GameController extends AbstractController
             default    => $service->recommend($user, $criteria),
         };
 
-        return $this->json(array_map(fn($r) => [
-            'game'   => $r['game'],
-            'score'  => round($r['score'], 2),
-            'reason' => $r['reason'],
-        ], $results));
+        // La liste complète est classée une fois ; la page n'en découpe qu'une tranche (« Voir plus » côté front).
+        $page = max(1, $request->query->getInt('page', 1));
+        $slice = array_slice($results, ($page - 1) * self::RECOMMENDATION_PAGE_SIZE, self::RECOMMENDATION_PAGE_SIZE);
+
+        return $this->json([
+            'items' => array_map(fn($r) => [
+                'game'   => $r['game'],
+                'score'  => round($r['score'], 2),
+                'reason' => $r['reason'],
+            ], $slice),
+            'total' => count($results),
+            'page'  => $page,
+        ]);
     }
 
     #[Route('/api/games/home-reco', name: 'api_games_home_reco', methods: ['GET'])]

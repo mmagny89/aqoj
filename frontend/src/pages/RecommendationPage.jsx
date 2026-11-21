@@ -39,7 +39,7 @@ function FilterSection({ title, children, defaultOpen = true }) {
 }
 
 /* ── Grille de résultats avec sous-onglets base / extension ─────────── */
-function ResultsGrid({ results, loading, error }) {
+function ResultsGrid({ results, loading, error, total, loadingMore, onLoadMore }) {
   const [sub, setSub] = useState('base')
 
   const base = (results ?? []).filter(r => !r.game.isExpansion)
@@ -91,6 +91,13 @@ function ResultsGrid({ results, loading, error }) {
               <li key={game.id}><GameCard game={game} reason={reason} rank={i + 1} /></li>
             ))}
           </ul>
+          {results.length < total && (
+            <div className="mt-6 flex justify-center">
+              <button type="button" onClick={onLoadMore} disabled={loadingMore} className="btn btn-primary">
+                {loadingMore ? 'Chargement…' : `Voir plus de jeux (${total - results.length} restants)`}
+              </button>
+            </div>
+          )}
         </>
       )}
     </div>
@@ -104,7 +111,7 @@ const SCOPE_TABS = [
   { key: 'discover',   label: 'Tout le catalogue' },
 ]
 
-function ResultsPanel({ results, activeTab, onTabChange }) {
+function ResultsPanel({ results, activeTab, onTabChange, onLoadMore }) {
   return (
     <div>
       <div role="tablist" aria-label="Où chercher" className="tab-list mb-5">
@@ -120,19 +127,20 @@ function ResultsPanel({ results, activeTab, onTabChange }) {
             className="tab"
           >
             {tab.label}
-            <span className="ml-2 text-sm opacity-80">{results[tab.key].data?.length ?? '…'}</span>
+            <span className="ml-2 text-sm opacity-80">{results[tab.key].total ?? '…'}</span>
           </button>
         ))}
       </div>
 
       <div id="reco-panneau" role="tabpanel" aria-labelledby={`reco-${activeTab}`}>
-        <ResultsGrid results={results[activeTab].data} loading={results[activeTab].loading} error={results[activeTab].error} />
+        <ResultsGrid results={results[activeTab].data} loading={results[activeTab].loading} error={results[activeTab].error}
+          total={results[activeTab].total ?? 0} loadingMore={results[activeTab].loadingMore} onLoadMore={() => onLoadMore(activeTab)} />
       </div>
     </div>
   )
 }
 
-const EMPTY_RESULTS = Object.fromEntries(SCOPE_TABS.map(t => [t.key, { data: null, loading: false, error: null }]))
+const EMPTY_RESULTS = Object.fromEntries(SCOPE_TABS.map(t => [t.key, { data: null, total: 0, page: 1, loading: false, loadingMore: false, error: null }]))
 
 /* ── Page principale ─────────────────────────────────────────────────── */
 export default function RecommendationPage() {
@@ -205,19 +213,23 @@ export default function RecommendationPage() {
 
   // Résultats en direct : tout changement de critère relance les trois recherches (légère attente pour le curseur de durée).
   const firstLoad = useRef(true)
+  // Critères de la recherche en cours : « Voir plus » demande la page suivante avec les mêmes ; `current` écarte une réponse périmée.
+  const searchRef = useRef({ params: null, token: 0 })
   useEffect(() => {
     if (!user || !ready) return
     let current = true
     const expandedCats = selectedCategories.flatMap(label => themeLabelToCats[label] ?? [])
     const params = { players, maxTime, families: selectedFamilies, categories: expandedCats, difficulty }
+    searchRef.current.token++
+    searchRef.current.params = params
 
     const timer = setTimeout(() => {
       const settled = {}
       SCOPE_TABS.forEach(({ key }) => {
         setResults(prev => ({ ...prev, [key]: { ...prev[key], loading: true, error: null } }))
         getRecommendations({ ...params, scope: key })
-          .then(data => { settled[key] = data; if (current) setResults(prev => ({ ...prev, [key]: { data, loading: false, error: null } })) })
-          .catch(err => { settled[key] = []; if (current) setResults(prev => ({ ...prev, [key]: { data: prev[key].data, loading: false, error: err.message || 'Erreur de chargement' } })) })
+          .then(({ items, total }) => { settled[key] = items; if (current) setResults(prev => ({ ...prev, [key]: { data: items, total, page: 1, loading: false, loadingMore: false, error: null } })) })
+          .catch(err => { settled[key] = []; if (current) setResults(prev => ({ ...prev, [key]: { ...prev[key], loading: false, error: err.message || 'Erreur de chargement' } })) })
           .finally(() => {
             // À la première arrivée, on ouvre le premier onglet qui a quelque chose à montrer.
             if (!current || !firstLoad.current || Object.keys(settled).length < SCOPE_TABS.length) return
@@ -230,6 +242,21 @@ export default function RecommendationPage() {
 
     return () => { current = false; clearTimeout(timer) }
   }, [user, ready, players, maxTime, difficulty, selectedFamilies, selectedCategories, themeLabelToCats])
+
+  const loadMore = (key) => {
+    const { params, token } = searchRef.current
+    const { page } = results[key]
+    setResults(prev => ({ ...prev, [key]: { ...prev[key], loadingMore: true } }))
+    getRecommendations({ ...params, scope: key, page: page + 1 })
+      .then(({ items, total }) => {
+        if (token !== searchRef.current.token) return
+        setResults(prev => ({ ...prev, [key]: { ...prev[key], data: [...prev[key].data, ...items], total, page: page + 1, loadingMore: false } }))
+      })
+      .catch(err => {
+        if (token !== searchRef.current.token) return
+        setResults(prev => ({ ...prev, [key]: { ...prev[key], loadingMore: false, error: err.message || 'Erreur de chargement' } }))
+      })
+  }
 
   if (!user) return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-10">
@@ -400,7 +427,7 @@ export default function RecommendationPage() {
 
           {/* ── Zone résultats ────────────────────────────────────────── */}
           <div className="flex-1 min-w-0">
-            <ResultsPanel results={results} activeTab={activeTab} onTabChange={setActiveTab} />
+            <ResultsPanel results={results} activeTab={activeTab} onTabChange={setActiveTab} onLoadMore={loadMore} />
           </div>
 
         </div>
