@@ -56,6 +56,8 @@ class GameRepository extends ServiceEntityRepository
         ?int $maxTime,
         array $familyKeys = [],
         array $categoryKeys = [],
+        ?float $minComplexity = null,
+        ?float $maxComplexity = null,
     ): array {
         $conn = $this->getEntityManager()->getConnection();
         $conditions = ['ug.user_id = ?'];
@@ -87,6 +89,16 @@ class GameRepository extends ServiceEntityRepository
         if ($maxTime !== null) {
             $conditions[] = '(g.playing_time <= ? OR g.playing_time = 0)';
             $params[] = $maxTime;
+        }
+
+        if ($minComplexity !== null || $maxComplexity !== null) {
+            // 0 = complexité inconnue : écartée dès qu'une difficulté est demandée
+            $conditions[] = 'g.complexity > ?';
+            $params[] = $minComplexity ?? 0;
+            if ($maxComplexity !== null) {
+                $conditions[] = 'g.complexity <= ?';
+                $params[] = $maxComplexity;
+            }
         }
 
         $where = implode(' AND ', $conditions);

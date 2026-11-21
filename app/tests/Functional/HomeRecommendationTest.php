@@ -165,6 +165,30 @@ final class HomeRecommendationTest extends ApiTestCase
         self::assertSame(['Zzdif Costaud'], $noms('heavy'));
     }
 
+    public function testLaDifficulteFiltreAussiLaPageRecommander(): void
+    {
+        $client = static::createClient();
+        $token = $this->register($client, 'recodif@example.test');
+        $annee = (int) date('Y');
+        $this->creerJeu('Zzrd Leger', $annee - 2, 1.5, 7.6, 5000);
+        $this->creerJeu('Zzrd Costaud', $annee - 2, 3.8, 8.0, 5000);
+        $conn = static::getContainer()->get(Connection::class);
+        foreach (['Zzrd Leger', 'Zzrd Costaud'] as $nom) {
+            $conn->executeStatement(
+                'INSERT INTO user_game (user_id, game_id) VALUES ((SELECT id FROM app_user WHERE email = ?), (SELECT id FROM game WHERE name = ?))',
+                ['recodif@example.test', $nom],
+            );
+        }
+
+        foreach (['collection', 'discover'] as $perimetre) {
+            $reco = $this->call($client, 'GET', '/api/games/recommendation?scope=' . $perimetre . '&difficulty=heavy', token: $token);
+            $noms = array_column(array_column($reco, 'game'), 'name');
+            self::assertNotContains('Zzrd Leger', $noms, $perimetre);
+        }
+        $collection = $this->call($client, 'GET', '/api/games/recommendation?difficulty=heavy', token: $token);
+        self::assertSame(['Zzrd Costaud'], array_column(array_column($collection, 'game'), 'name'));
+    }
+
     public function testLePerimetreLudothequeNeGardeQueLesJeuxDeLAssociationEtDesMembres(): void
     {
         $client = static::createClient();

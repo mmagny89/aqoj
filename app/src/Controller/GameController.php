@@ -81,6 +81,7 @@ class GameController extends AbstractController
             'maxTime'    => $request->query->getInt('maxTime') ?: null,
             'families'   => $request->query->all('families'),
             'categories' => $request->query->all('categories'),
+            'difficulty' => $request->query->getString('difficulty'),
         ];
 
         $scope   = $request->query->getString('scope', 'collection');

@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { getRecommendations, getUserPreferences, getThemeMappings } from '../api'
 import GameCard from '../components/GameCard'
 import { useAuth } from '../context/AuthContext'
+import { DIFFICULTIES, storedDifficulty, storeDifficulty } from '../utils/difficulte'
 import { ENGINES, SUPPORT_FAMILIES, EXTRA_FAMILIES, familyLabel } from '../utils/engelstein'
 
 /* ── Chip sélectionnable ─────────────────────────────────────────────── */
@@ -146,6 +147,7 @@ export default function RecommendationPage() {
 
   const [players,            setPlayers]            = useState(() => positive('joueurs', 4))
   const [maxTime,            setMaxTime]            = useState(() => positive('duree', 60))
+  const [difficulty,         setDifficulty]         = useState(storedDifficulty)
   const [selectedFamilies,   setSelectedFamilies]   = useState([])
   const [selectedCategories, setSelectedCategories] = useState([])
   const [results,            setResults]            = useState(EMPTY_RESULTS)
@@ -207,7 +209,7 @@ export default function RecommendationPage() {
     if (!user || !ready) return
     let current = true
     const expandedCats = selectedCategories.flatMap(label => themeLabelToCats[label] ?? [])
-    const params = { players, maxTime, families: selectedFamilies, categories: expandedCats }
+    const params = { players, maxTime, families: selectedFamilies, categories: expandedCats, difficulty }
 
     const timer = setTimeout(() => {
       const settled = {}
@@ -227,7 +229,7 @@ export default function RecommendationPage() {
     }, 250)
 
     return () => { current = false; clearTimeout(timer) }
-  }, [user, ready, players, maxTime, selectedFamilies, selectedCategories, themeLabelToCats])
+  }, [user, ready, players, maxTime, difficulty, selectedFamilies, selectedCategories, themeLabelToCats])
 
   if (!user) return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-10">
@@ -293,6 +295,16 @@ export default function RecommendationPage() {
               />
               <div className="mt-1 flex justify-between text-sm text-stone-600">
                 <span>15m</span><span>1h</span><span>2h</span><span>3h</span><span>4h</span>
+              </div>
+            </FilterSection>
+
+            {/* Difficulté */}
+            <FilterSection title="Difficulté">
+              <div className="flex flex-wrap gap-2">
+                {DIFFICULTIES.map(({ label, value }) => (
+                  <Chip key={label} active={difficulty === value} label={label}
+                    onClick={() => { setDifficulty(value); storeDifficulty(value) }} />
+                ))}
               </div>
             </FilterSection>
 

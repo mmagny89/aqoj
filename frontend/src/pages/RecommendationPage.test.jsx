@@ -28,7 +28,7 @@ describe('RecommendationPage', () => {
 
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('À quoi on joue…')
     await waitFor(() => expect(getRecommendations).toHaveBeenCalledTimes(3))
-    expect(getRecommendations).toHaveBeenCalledWith({ players: 5, maxTime: 90, families: ['cooperation'], categories: [], scope: 'library' })
+    expect(getRecommendations).toHaveBeenCalledWith({ players: 5, maxTime: 90, families: ['cooperation'], categories: [], difficulty: null, scope: 'library' })
     expect(screen.queryByRole('button', { name: /Trouver des jeux/ })).not.toBeInTheDocument()
     expect(await screen.findByText('Jeu Perso')).toBeInTheDocument()
   })
@@ -54,5 +54,15 @@ describe('RecommendationPage', () => {
 
     await waitFor(() => expect(getRecommendations).toHaveBeenCalledTimes(6))
     expect(getRecommendations).toHaveBeenLastCalledWith(expect.objectContaining({ players: 2, maxTime: 90 }))
+  })
+
+  it('relance les résultats avec la difficulté choisie', async () => {
+    render(<MemoryRouter><RecommendationPage /></MemoryRouter>)
+    await waitFor(() => expect(getRecommendations).toHaveBeenCalledTimes(3))
+
+    await userEvent.click(screen.getByRole('button', { name: 'Costaud' }))
+
+    await waitFor(() => expect(getRecommendations).toHaveBeenCalledTimes(6))
+    expect(getRecommendations).toHaveBeenLastCalledWith(expect.objectContaining({ difficulty: 'heavy' }))
   })
 })
