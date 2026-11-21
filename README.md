@@ -408,4 +408,4 @@ Les données de jeux viennent de [BoardGameGeek](https://boardgamegeek.com).
 
 Pages légales : l'éditeur, le contact et l'hébergeur s'affichent depuis `frontend/src/legal.js`, lu dans les variables de build
 `VITE_PUBLISHER_NAME`, `VITE_PUBLISHER_FORM`, `VITE_PUBLISHER_ADDRESS`, `VITE_PUBLISHER_ID` (RNA/SIRET), `VITE_PUBLICATION_DIRECTOR`, `VITE_CONTACT_EMAIL`, `VITE_HOST_NAME` et `VITE_HOST_ADDRESS` (valeurs par défaut : l'association Envie de Jouer, d'après enviedejouer89.fr/mentions-legales ; hébergeur Hostinger ; e-mails Brevo). Tant qu'elles manquent, les pages affichent
-« [à renseigner avant la mise en ligne] » : à renseigner avant toute mise en ligne.
+« [à renseigner avant la mise en ligne] ». Par défaut : l'association, son hébergeur et son contact sont ceux de enviedejouer89.fr. Les journaux Docker sont plafonnés (`x-journaux` dans `compose.yml`, voir `README.docker.md`) ; la politique de confidentialité le décrit, à tenir à jour avec toute modification.
