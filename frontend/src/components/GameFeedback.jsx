@@ -64,7 +64,7 @@ export function FeedbackButtons({ game, verdict = null, onFeedback }) {
           onFocus={() => setTip(option)}
           onBlur={hideTip}
           onClick={() => onFeedback(game, verdict === option.verdict ? null : option.verdict, verdict)}
-          className="relative z-10 grid min-h-11 flex-1 place-items-center rounded-lg text-stone-600 hover:text-ink aria-pressed:bg-brand-yellow aria-pressed:text-ink"
+          className="relative z-10 grid min-h-11 flex-1 cursor-pointer place-items-center rounded-lg text-stone-600 hover:text-ink aria-pressed:bg-brand-yellow aria-pressed:text-ink"
         >
           <option.Icon aria-hidden="true" className="h-5 w-5" />
         </button>
@@ -92,13 +92,13 @@ export function FeedbackNotice({ feedback }) {
       ) : (
         <>
           <span>« {notice.game.name} » {VERDICT_TEXT[notice.verdict]}.</span>
-          <button type="button" onClick={undo} className="inline-flex min-h-11 items-center font-bold text-brand-blue underline underline-offset-4">
+          <button type="button" onClick={undo} className="inline-flex min-h-11 cursor-pointer items-center font-bold text-brand-blue underline underline-offset-4">
             Annuler
           </button>
         </>
       )}
       {notice.error && (
-        <button type="button" onClick={dismiss} className="inline-flex min-h-11 items-center font-bold text-brand-blue underline underline-offset-4">
+        <button type="button" onClick={dismiss} className="inline-flex min-h-11 cursor-pointer items-center font-bold text-brand-blue underline underline-offset-4">
           Fermer
         </button>
       )}
