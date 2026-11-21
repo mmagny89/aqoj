@@ -132,7 +132,7 @@ export function AdminExplorerPage() {
   return (
     <>
       <PageHeader title="Explorer le catalogue" intro="Chercher une fiche, voir ce qui lui manque, la resynchroniser." />
-      <GamesPanel filter={filter} onFilter={(next) => setParams({ filtre: next }, { replace: true })} />
+      <div className="panel p-5"><GamesPanel filter={filter} onFilter={(next) => setParams({ filtre: next }, { replace: true })} /></div>
     </>
   )
 }
@@ -141,7 +141,7 @@ export function AdminJobsPage() {
   return (
     <>
       <PageHeader title="Tâches" intro="Imports et synchronisations : l’historique, ce qui tourne, de quoi l’arrêter." />
-      <JobsPanel />
+      <div className="panel p-5"><JobsPanel /></div>
     </>
   )
 }
@@ -150,7 +150,7 @@ export function AdminMembersPage() {
   return (
     <>
       <PageHeader title="Membres" intro="Les comptes, leurs rôles et les codes d’invitation." />
-      <AdminMembers />
+      <div className="panel p-5"><AdminMembers /></div>
     </>
   )
 }

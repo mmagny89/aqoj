@@ -175,7 +175,7 @@ export default function AdminMechanicsPage() {
   const supportKeys = Object.keys(families).filter(k => !ENGINE_FAMILIES.includes(k) && !EXTRA_FAMILIES_LIST.includes(k))
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="panel flex flex-col gap-6 p-5 sm:p-6">
 
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>

@@ -75,10 +75,9 @@ export default function AdminLayout() {
   const badges = { unmapped: stats ? Number(stats.mappings.unmapped_bgg_mechanics) + Number(stats.themes.unmapped_bgg_categories) : 0 }
 
   return (
-    // Fond papier sur toute la largeur : l'administration se lit sur blanc, pas sur le plateau bleu.
-    <div className="min-h-dvh bg-paper">
+    <div className="admin-zone">
       <div className="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:flex-row lg:items-start lg:gap-8 lg:px-10 lg:py-8">
-        <nav aria-label="Administration" className="lg:sticky lg:top-6 lg:w-60 lg:shrink-0 lg:rounded-2xl lg:border-[3px] lg:border-ink lg:bg-cream lg:p-3 lg:shadow-token-sm">
+        <nav aria-label="Administration" className="lg:sticky lg:top-6 lg:w-60 lg:shrink-0 lg:rounded-2xl lg:border-[3px] lg:border-ink lg:bg-snow lg:p-3 lg:shadow-token-sm">
           <p className="mb-2 hidden px-1.5 pt-1 font-display text-2xl lg:block">Administration</p>
           <div className="-mx-1 flex gap-1.5 overflow-x-auto overflow-y-hidden px-1 py-1 lg:mx-0 lg:flex-col lg:gap-4 lg:overflow-visible lg:p-0">
             {GROUPS.map(({ label, items }) => (

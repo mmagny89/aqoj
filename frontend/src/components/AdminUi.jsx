@@ -41,7 +41,7 @@ export function Section({ id, title, intro, children }) {
 
 /** Chiffre clé. `warn` le met en jaune ; `to` ou `onClick` en font un lien vers la liste concernée. */
 export function StatCard({ label, value, sub, warn = false, to, onClick }) {
-  const base = `flex min-h-11 flex-col gap-0.5 rounded-xl border-[3px] border-ink p-3.5 text-left ${warn ? 'bg-brand-yellow' : 'bg-paper'}`
+  const base = `flex min-h-11 flex-col gap-0.5 rounded-xl border-[3px] border-ink p-3.5 text-left ${warn ? 'bg-brand-yellow' : 'bg-snow'}`
   const content = (
     <>
       <span className="text-xs font-bold uppercase text-stone-700">{label}</span>
@@ -70,7 +70,7 @@ export function ProgressBar({ value, max, label, hint, to }) {
         <span className="tabular-nums text-stone-700">{fmtNum(value)} / {fmtNum(max)} ({done} %)</span>
       </div>
       <div role="progressbar" aria-label={label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={done}
-        className="h-3 overflow-hidden rounded-full border-2 border-ink bg-paper">
+        className="h-3 overflow-hidden rounded-full border-2 border-ink bg-snow">
         <div className="h-full bg-brand-green" style={{ width: `${done}%` }} />
       </div>
       {hint && value < max && (
@@ -86,7 +86,7 @@ export function ProgressBar({ value, max, label, hint, to }) {
 /** Ligne « à traiter » : un constat chiffré et le lien qui mène à sa liste. */
 export function Notice({ children, to, cta = 'Voir la liste' }) {
   return (
-    <li className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-xl border-[3px] border-ink border-l-[10px] border-l-brand-yellow bg-cream px-4 py-2.5">
+    <li className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-xl border-[3px] border-ink border-l-[10px] border-l-brand-yellow bg-snow px-4 py-2.5">
       <span>{children}</span>
       {to && <Link to={to} className="inline-flex min-h-11 items-center font-bold underline underline-offset-4">{cta}</Link>}
     </li>
