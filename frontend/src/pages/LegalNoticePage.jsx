@@ -6,11 +6,11 @@ export default function LegalNoticePage() {
     <LegalPage title="Mentions légales" updated="novembre 2026">
       <LegalSection title="Éditeur du site">
         <p>
-          « À quoi on joue » est édité par l'{publisher.form} {publisher.name}, à titre non commercial.
+          « À quoi on joue » est édité par {publisher.name}, {publisher.form}, à titre non commercial.
         </p>
         <p>Siège : {publisher.address}</p>
-        <p>Identification (RNA ou SIREN) : {publisher.id}</p>
-        <p>Directeur ou directrice de la publication : {publisher.director}</p>
+        <p>Identification : {publisher.id}</p>
+        <p>Directrice de la publication : {publisher.director}</p>
         <p>Contact : {publisher.email}</p>
       </LegalSection>
 
