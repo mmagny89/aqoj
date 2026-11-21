@@ -217,14 +217,13 @@ final class HomeRecommendationTest extends ApiTestCase
         self::assertArrayNotHasKey('players', $table['popular'][0]);
     }
 
-    public function testLaTableDuSoirExigeUneSessionSansRienReveler(): void
+    public function testLaTableDuSoirExigeUneSession(): void
     {
         $client = static::createClient();
 
-        $table = $this->call($client, 'GET', '/api/games/home-tonight');
+        $this->call($client, 'GET', '/api/games/home-tonight');
 
-        self::assertResponseIsSuccessful();
-        self::assertSame(['easy' => [], 'popular' => []], $table);
+        self::assertResponseStatusCodeSame(401);
     }
 
     public function testLesGoutsDeclaresPassentDevantLHistoriqueEtLeCompletent(): void

@@ -2,6 +2,7 @@
 
 React 18, Vite 6, Tailwind v4 (plugin `@tailwindcss/vite`, configuration dans le CSS), React Router 6. Servi par Vite en dev derrière Caddy ; l'API est appelée en relatif (`/api`).
 
+- Accès fermé : seules `/connexion`, `/inscription`, `/mot-de-passe-oublie`, `/verifier-adresse`, `/reinitialiser-mot-de-passe` et les pages légales sont publiques ; toute autre route passe par `ProtectedRoute` (`Members` dans `App.jsx`). `/` rend `LandingPage` (présentation, mention « réservé aux adhérents d'Envie de jouer », captures de `public/captures/`) à un visiteur et `HomePage` à un membre ; un visiteur a `GuestShell` (ni menu ni recherche). Les captures se refont avec un compte local, recadrées pour ne montrer aucune adresse.
 - Appels API : `src/api.js` uniquement (jeton `aqoj_token` dans `localStorage`, redirection vers `/connexion` sur 401).
 - Lint : `npm run lint` ; `react-hooks/set-state-in-effect` est en avertissement (chargements lancés depuis un effet : à refondre page par page), tout le reste doit passer.
 - Tests : Vitest + Testing Library (`npm test`), requêtes par rôle ou texte visible plutôt que par classe CSS ; `src/test/setup.js` nettoie le DOM et le `localStorage`.

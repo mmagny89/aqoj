@@ -14,7 +14,10 @@ security:
                 - App\Security\JwtAuthenticator
 
     # Garde-fou central : une route d'administration est protégée même si son contrôleur oublie le contrôle.
-    # Les routes ouvertes (santé, authentification, catalogue, recherche) restent publiques.
+    # Seuls la santé et le parcours d'accès (connexion, inscription, mot de passe, vérification) sont publics :
+    # le catalogue en lecture seule (consommé par BG-TCG) reste ouvert ; le reste de l'API est réservé aux membres connectés.
     access_control:
         - { path: ^/api/admin, roles: ROLE_ADMIN }
-        - { path: ^/api/(auth/(me|refresh)|bgg|sessions|user|myludo), roles: ROLE_USER }
+        - { path: ^/api/(catalogue|docs)(/|\.|$), roles: PUBLIC_ACCESS }
+        - { path: ^/api/(health|auth/(login|register|registration|forgot-password|reset-password|verify-email|resend-verification))$, roles: PUBLIC_ACCESS }
+        - { path: ^/api, roles: ROLE_USER }

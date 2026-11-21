@@ -30,12 +30,14 @@ final class ApiRateLimitTest extends ApiTestCase
     public function testLaRechercheEstPlusSerreeQueLeReste(): void
     {
         $client = static::createClient();
+        $token = $this->register($client, 'recherche-plafond@example.test');
+        $serveur = ['HTTP_AUTHORIZATION' => 'Bearer ' . $token];
 
         for ($i = 0; $i < 120; $i++) {
-            $client->request('GET', '/api/games/search?q=zzzxqjw-introuvable&local=1');
+            $client->request('GET', '/api/games/search?q=zzzxqjw-introuvable&local=1', server: $serveur);
             self::assertResponseIsSuccessful();
         }
-        $client->request('GET', '/api/games/search?q=zzzxqjw-introuvable&local=1');
+        $client->request('GET', '/api/games/search?q=zzzxqjw-introuvable&local=1', server: $serveur);
         self::assertResponseStatusCodeSame(429);
 
         // Le catalogue a son propre compteur : la recherche épuisée ne l'affecte pas.

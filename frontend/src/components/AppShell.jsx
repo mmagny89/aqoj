@@ -150,9 +150,28 @@ function TabBar({ user }) {
   )
 }
 
+/* Visiteur sans compte : ni menu ni recherche, seulement la marque et l'accès à la connexion. */
+function GuestShell({ children }) {
+  return (
+    <div className="flex min-h-dvh flex-col">
+      <a href="#contenu" className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-50 focus:rounded-lg focus:bg-brand-yellow focus:px-4 focus:py-2 focus:font-bold">
+        Aller au contenu
+      </a>
+      <header className="flex items-center justify-between gap-3 border-b-[3px] border-ink/15 bg-paper px-4 py-3 sm:px-6 lg:px-10">
+        <Brand />
+        <Link to="/connexion" className="btn btn-secondary">Connexion</Link>
+      </header>
+      <main id="contenu" className="flex-1">{children}</main>
+      <Footer guest />
+    </div>
+  )
+}
+
 export default function AppShell({ children }) {
-  const { user, logout } = useAuth()
+  const { user, loading, logout } = useAuth()
   const navigate = useNavigate()
+
+  if (!user && !loading) return <GuestShell>{children}</GuestShell>
 
   const handleLogout = () => {
     logout()
