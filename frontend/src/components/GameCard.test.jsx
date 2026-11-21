@@ -23,7 +23,25 @@ describe('GameCard', () => {
 
     expect(screen.getByTestId('why')).toHaveTextContent(/^Vous aimez les mécaniques .+, .+\.$/)
     await userEvent.click(screen.getByRole('button', { name: /Déjà joué, bof/ }))
-    expect(onFeedback).toHaveBeenCalledWith(game, 'played_meh')
+    expect(onFeedback).toHaveBeenCalledWith(game, 'played_meh', null)
+  })
+
+  it('propose quatre retours en icônes, avec une infobulle, et retire celui qui est enfoncé', async () => {
+    const onFeedback = vi.fn()
+    renderCard({ verdict: 'want_to_play', onFeedback })
+
+    expect(screen.getAllByRole('button')).toHaveLength(4)
+    const envie = screen.getByRole('button', { name: /J’aimerais jouer/ })
+    expect(envie).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: /J’ai joué, et j’aime/ })).toHaveAttribute('aria-pressed', 'false')
+
+    await userEvent.hover(screen.getByRole('button', { name: /Pas intéressé/ }))
+    expect(screen.getByRole('tooltip')).toHaveTextContent('Ne plus me proposer ce jeu.')
+    await userEvent.keyboard('{Escape}')
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
+
+    await userEvent.click(envie)
+    expect(onFeedback).toHaveBeenCalledWith(game, null, 'want_to_play')
   })
 
   it('n’affiche ni explication ni retour sans données', () => {

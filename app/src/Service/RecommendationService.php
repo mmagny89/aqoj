@@ -39,6 +39,12 @@ class RecommendationService
     /** Nombre de jeux « bof » partageant une famille pour qu'elle sorte du profil déduit. */
     private const AVOIDED_MIN_GAMES = 3;
 
+    /** Retours qui écartent un jeu des propositions (un jeu qu'on veut essayer, lui, reste proposé). */
+    private const EXCLUDING_VERDICTS = "'not_interested', 'played_meh', 'played_liked'";
+
+    /** Retours qui comptent comme un goût : les mécaniques du jeu entrent dans le profil et dans « parce que vous avez aimé ». */
+    private const POSITIVE_VERDICTS = "'played_liked', 'want_to_play'";
+
     /** Jeux aimés comparés à chaque proposition pour la phrase « parce que vous avez aimé… » ; ressemblance minimale (comme `findSimilar`). */
     private const EXPLAIN_LIKED_GAMES = 12;
     private const EXPLAIN_MIN_SIMILARITY = 25;
@@ -472,6 +478,12 @@ class RecommendationService
     /** Les 4 familles Engelstein du profil : goûts déclarés d'abord, puis celles des jeux aimés. */
     private function getUserTopFamilies(User $user, array $declared = []): array
     {
+        // Les jeux « j'ai joué, et j'aime » ou « j'aimerais jouer » comptent comme des jeux aimés.
+        $positiveFamilies = "SELECT json_array_elements_text(g.mechanic_families) AS family_key
+                 FROM game_feedback f
+                 JOIN game g ON g.id = f.game_id
+                 WHERE f.user_id = ? AND f.verdict IN (" . self::POSITIVE_VERDICTS . ") AND g.mechanic_families::text != '[]'";
+
         // Priorité 1 : jeux bien notés sur BGG (>= 6) — signal fort "j'aime"
         $rows = $this->conn->fetchAllAssociative(
             "SELECT family_key, COUNT(*) AS cnt
@@ -482,11 +494,13 @@ class RecommendationService
                  WHERE ug.user_id = ?
                    AND ug.bgg_user_rating >= 6
                    AND g.mechanic_families::text != '[]'
+                 UNION ALL
+                 " . $positiveFamilies . "
              ) sub
              GROUP BY family_key
              ORDER BY cnt DESC
              LIMIT 4",
-            [$user->getId()]
+            [$user->getId(), $user->getId()]
         );
 
         $families = array_column($rows, 'family_key');
@@ -502,11 +516,13 @@ class RecommendationService
                      WHERE gs.user_id = ?
                        AND gs.rating = 5
                        AND g.mechanic_families::text != '[]'
+                     UNION ALL
+                     " . $positiveFamilies . "
                  ) sub
                  GROUP BY family_key
                  ORDER BY cnt DESC
                  LIMIT 4",
-                [$user->getId()]
+                [$user->getId(), $user->getId()]
             );
             $families = array_column($rows, 'family_key');
         }
@@ -554,7 +570,7 @@ class RecommendationService
                  WHERE gs.user_id = ? AND gs.rating = 1
                  UNION
                  SELECT f.game_id FROM game_feedback f
-                 WHERE f.user_id = ?
+                 WHERE f.user_id = ? AND f.verdict IN (" . self::EXCLUDING_VERDICTS . ")
              ) sub",
             [$user->getId(), $user->getId(), $user->getId()]
         );
@@ -562,10 +578,29 @@ class RecommendationService
         return array_map('intval', $rows);
     }
 
-    /** Jeux que le joueur a écartés d'un « pas intéressé » ou d'un « déjà joué, bof » : plus jamais proposés. */
+    /** Jeux que le joueur a écartés (« pas intéressé », « bof », « j'ai joué, et j'aime ») : plus jamais proposés. */
     private function getFeedbackGameIds(User $user): array
     {
-        return array_map('intval', $this->conn->fetchFirstColumn('SELECT game_id FROM game_feedback WHERE user_id = ?', [$user->getId()]));
+        return array_map('intval', $this->conn->fetchFirstColumn(
+            'SELECT game_id FROM game_feedback WHERE user_id = ? AND verdict IN (' . self::EXCLUDING_VERDICTS . ')',
+            [$user->getId()]
+        ));
+    }
+
+    /**
+     * Le retour courant du joueur sur chaque jeu (`not_interested`, `played_meh`, `want_to_play`, `played_liked`),
+     * pour que la carte montre le bouton enfoncé.
+     *
+     * @return array<int, string>
+     */
+    public function feedbackMap(User $user): array
+    {
+        $map = [];
+        foreach ($this->conn->fetchAllKeyValue('SELECT game_id, verdict FROM game_feedback WHERE user_id = ?', [$user->getId()]) as $id => $verdict) {
+            $map[(int) $id] = (string) $verdict;
+        }
+
+        return $map;
     }
 
     /**
@@ -611,11 +646,15 @@ class RecommendationService
                  SELECT gs.game_id, 10 AS score
                  FROM game_session gs JOIN game g ON g.id = gs.game_id
                  WHERE gs.user_id = ? AND gs.rating = 5 AND g.is_expansion = false
+                 UNION ALL
+                 SELECT f.game_id, 10 AS score
+                 FROM game_feedback f JOIN game g ON g.id = f.game_id
+                 WHERE f.user_id = ? AND f.verdict IN (" . self::POSITIVE_VERDICTS . ") AND g.is_expansion = false
              ) sub
              GROUP BY game_id
              ORDER BY MAX(score) DESC, game_id
              LIMIT " . self::EXPLAIN_LIKED_GAMES,
-            [$user->getId(), $user->getId()]
+            [$user->getId(), $user->getId(), $user->getId()]
         );
         $liked = $ids === [] ? [] : $this->gameRepository->findBy(['id' => array_map('intval', $ids)]);
 

@@ -1,5 +1,6 @@
+import { useEffect, useId, useState } from 'react'
 import { familyLabel } from '../utils/engelstein'
-import { NotInterestedIcon, ThumbDownIcon } from './icons'
+import { BookmarkIcon, NotInterestedIcon, ThumbDownIcon, ThumbUpIcon } from './icons'
 
 /* « Parce que vous avez aimé X, et que vous aimez les mécaniques Y » : rend visible ce qui a fait proposer le jeu. */
 export function WhyLine({ why }) {
@@ -18,20 +19,56 @@ export function WhyLine({ why }) {
   )
 }
 
-/* Les deux retours possibles sur une proposition. Chaque bouton nomme le jeu pour les lecteurs d'écran. */
-export function FeedbackButtons({ game, onFeedback }) {
-  const button = 'relative z-10 inline-flex min-h-11 items-center gap-1.5 text-left text-sm font-bold text-stone-600 hover:text-ink'
+/* Les quatre retours possibles : icônes seules, expliquées par une infobulle au survol et au focus (Échap la ferme). */
+const OPTIONS = [
+  { verdict: 'not_interested', label: 'Pas intéressé', help: 'Ne plus me proposer ce jeu.', Icon: NotInterestedIcon },
+  { verdict: 'played_meh', label: 'Déjà joué, bof', help: 'J’y ai joué sans accrocher : ne plus me le proposer.', Icon: ThumbDownIcon },
+  { verdict: 'want_to_play', label: 'J’aimerais jouer', help: 'Ce jeu me tente : mes goûts en tiennent compte.', Icon: BookmarkIcon },
+  { verdict: 'played_liked', label: 'J’ai joué, et j’aime', help: 'J’y ai joué et j’ai aimé : mes goûts en tiennent compte, ne plus me le proposer.', Icon: ThumbUpIcon },
+]
+
+export function FeedbackButtons({ game, verdict = null, onFeedback }) {
+  const [tip, setTip] = useState(null)
+  const tipId = useId()
+  const hideTip = () => setTip(null)
+
+  // Échap ferme l'infobulle, qu'elle soit ouverte par le survol ou par le focus.
+  useEffect(() => {
+    if (!tip) return
+    const onKey = (e) => { if (e.key === 'Escape') setTip(null) }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [tip])
 
   return (
-    <div className="mt-auto flex flex-wrap gap-x-4">
-      <button type="button" className={button} onClick={() => onFeedback(game, 'not_interested')}>
-        <NotInterestedIcon aria-hidden="true" className="h-5 w-5 shrink-0" />
-        <span className="underline underline-offset-4">Pas intéressé<span className="sr-only"> par {game.name}</span></span>
-      </button>
-      <button type="button" className={button} onClick={() => onFeedback(game, 'played_meh')}>
-        <ThumbDownIcon aria-hidden="true" className="h-5 w-5 shrink-0" />
-        <span className="underline underline-offset-4">Déjà joué, bof<span className="sr-only"> : {game.name}</span></span>
-      </button>
+    <div
+      role="group"
+      aria-label={`Votre avis sur ${game.name}`}
+      className="relative -mx-2 mt-auto flex"
+      onMouseLeave={hideTip}
+    >
+      {tip && (
+        <div id={tipId} role="tooltip" className="pointer-events-none absolute inset-x-0 bottom-full z-20 mb-1 rounded-xl border-[3px] border-ink bg-paper p-2 text-xs leading-snug shadow-token-sm">
+          <strong className="block">{tip.label}</strong>
+          {tip.help}
+        </div>
+      )}
+      {OPTIONS.map(option => (
+        <button
+          key={option.verdict}
+          type="button"
+          aria-label={`${option.label} : ${game.name}`}
+          aria-pressed={verdict === option.verdict}
+          aria-describedby={tip?.verdict === option.verdict ? tipId : undefined}
+          onMouseEnter={() => setTip(option)}
+          onFocus={() => setTip(option)}
+          onBlur={hideTip}
+          onClick={() => onFeedback(game, verdict === option.verdict ? null : option.verdict, verdict)}
+          className="relative z-10 grid min-h-11 flex-1 place-items-center rounded-lg text-stone-600 hover:text-ink aria-pressed:bg-brand-yellow aria-pressed:text-ink"
+        >
+          <option.Icon aria-hidden="true" className="h-5 w-5" />
+        </button>
+      ))}
     </div>
   )
 }
@@ -39,6 +76,8 @@ export function FeedbackButtons({ game, onFeedback }) {
 const VERDICT_TEXT = {
   not_interested: 'ne vous sera plus proposé',
   played_meh: 'ne vous sera plus proposé (déjà joué, bof)',
+  played_liked: 'compte parmi vos goûts et ne vous sera plus proposé (déjà joué)',
+  want_to_play: 'est noté comme une envie de jeu',
 }
 
 /* Message de confirmation, avec annulation ; une zone `status` pour que le retrait soit annoncé. */

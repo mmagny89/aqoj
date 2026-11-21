@@ -20,7 +20,7 @@ export default function PrivacyPage() {
           <li>Votre ludothèque : les jeux que vous possédez et vos notes personnelles, y compris les parties importées de MyLudo.</li>
           <li>Vos parties jouées : jeu, nombre de joueurs, note, commentaire, date.</li>
           <li>Vos préférences, calculées à partir de votre ludothèque pour les recommandations.</li>
-          <li>Vos retours sur les propositions (« pas intéressé », « déjà joué, bof ») : le jeu concerné et votre choix, pour ne plus vous le proposer ; vous pouvez les annuler, et ils disparaissent avec votre compte.</li>
+          <li>Vos retours sur les propositions (« pas intéressé », « déjà joué, bof », « j’aimerais jouer », « j’ai joué, et j’aime ») : le jeu concerné et votre choix, pour affiner vos suggestions ; vous pouvez les annuler, et ils disparaissent avec votre compte.</li>
           <li>Vos goûts, si vous les indiquez, et la table (nombre de joueurs, durée) que vous choisissez sur l'accueil.</li>
         </ul>
         <p>

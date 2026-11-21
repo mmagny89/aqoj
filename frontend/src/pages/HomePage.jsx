@@ -67,7 +67,7 @@ function Hero({ table, onTableChange, difficulty, onDifficultyChange, saved, sco
 }
 
 /* ── Carrousel horizontal ────────────────────────────────────────────── */
-function Carousel({ items, label, onFeedback }) {
+function Carousel({ items, label, feedback }) {
   const ref = useRef(null)
   const scroll = (dir) => ref.current?.scrollBy({ left: dir * 300, behavior: 'smooth' })
 
@@ -76,9 +76,9 @@ function Carousel({ items, label, onFeedback }) {
       <button type="button" onClick={() => scroll(-1)} aria-label={`${label} : précédents`}
         className="btn absolute -left-3 top-1/3 z-10 hidden !min-h-11 w-11 !px-0 bg-paper shadow-token-sm lg:flex">‹</button>
       <ul ref={ref} aria-label={label} className="m-0 flex list-none snap-x snap-mandatory gap-5 overflow-x-auto px-1 pb-4 pt-1" style={{ scrollbarWidth: 'thin' }}>
-        {items.map(({ game, why }) => (
+        {items.map(({ game, why, feedback: saved }) => (
           <li key={game.id} className="w-48 shrink-0 snap-start sm:w-56">
-            <GameCard game={game} why={why} onFeedback={onFeedback} />
+            <GameCard game={game} why={why} verdict={feedback?.verdictOf(game.id, saved)} onFeedback={feedback?.send} />
           </li>
         ))}
       </ul>
@@ -89,7 +89,7 @@ function Carousel({ items, label, onFeedback }) {
 }
 
 /* ── Pour la table du soir ───────────────────────────────────────────── */
-function TonightSection({ tonight, players, maxTime, difficulty, onFeedback }) {
+function TonightSection({ tonight, players, maxTime, difficulty, feedback }) {
   const easyTitle = { light: 'Légers à sortir', medium: 'Entre deux : ni légers ni lourds', heavy: 'Pour les costauds' }[difficulty] ?? 'Faciles à expliquer'
   const durationLabel = maxTime < 240 ? DURATIONS.find(d => d.value === maxTime)?.label : 'Durée libre'
 
@@ -106,13 +106,13 @@ function TonightSection({ tonight, players, maxTime, difficulty, onFeedback }) {
       {tonight.popular.length > 0 && (
         <div>
           <h3 className="mb-3 text-xl sm:text-2xl">Ce que jouent les autres membres</h3>
-          <Carousel items={tonight.popular} label="Ce que jouent les autres membres" onFeedback={onFeedback} />
+          <Carousel items={tonight.popular} label="Ce que jouent les autres membres" feedback={feedback} />
         </div>
       )}
       {tonight.easy.length > 0 && (
         <div>
           <h3 className="mb-3 text-xl sm:text-2xl">{easyTitle}</h3>
-          <Carousel items={tonight.easy} label={easyTitle} onFeedback={onFeedback} />
+          <Carousel items={tonight.easy} label={easyTitle} feedback={feedback} />
         </div>
       )}
     </section>
@@ -223,7 +223,7 @@ function ScopeSwitch({ scope, onChange }) {
 }
 
 /* ── Onglets décennie ────────────────────────────────────────────────── */
-function DecadeTabs({ byDecade, onFeedback }) {
+function DecadeTabs({ byDecade, feedback }) {
   const labels = Object.keys(byDecade)
   const [active, setActive] = useState(labels[0])
 
@@ -242,8 +242,8 @@ function DecadeTabs({ byDecade, onFeedback }) {
         ))}
       </div>
       <ul id="epoque-panneau" role="tabpanel" aria-labelledby={`epoque-${active}`} className="m-0 grid list-none grid-cols-2 gap-4 p-0 sm:grid-cols-3 sm:gap-5 xl:grid-cols-4 2xl:grid-cols-5">
-        {games.map(({ game, why }) => (
-          <li key={game.id}><GameCard game={game} why={why} onFeedback={onFeedback} /></li>
+        {games.map(({ game, why, feedback: saved }) => (
+          <li key={game.id}><GameCard game={game} why={why} verdict={feedback?.verdictOf(game.id, saved)} onFeedback={feedback?.send} /></li>
         ))}
       </ul>
     </div>
@@ -374,7 +374,7 @@ export default function HomePage() {
       content: (
         <>
           <p className="mb-4 mt-0 text-stone-600">Dix nouveautés parmi les plus suivies sur BGG, sorties récemment ou à paraître, qui ne sont pas dans votre ludothèque.</p>
-          <Carousel items={recentList} label="Nouveautés pour vous" onFeedback={feedback.send} />
+          <Carousel items={recentList} label="Nouveautés pour vous" feedback={feedback} />
         </>
       ),
     },
@@ -390,7 +390,7 @@ export default function HomePage() {
         </>
       ),
     },
-    hasDecades && { id: 'epoque', label: 'Par époque', content: <DecadeTabs byDecade={byDecade} onFeedback={feedback.send} /> },
+    hasDecades && { id: 'epoque', label: 'Par époque', content: <DecadeTabs byDecade={byDecade} feedback={feedback} /> },
   ].filter(Boolean)
 
   return (
@@ -400,7 +400,7 @@ export default function HomePage() {
 
       {!authLoading && user && noHistory && <HistoryInvite hasTastes={reco.declared?.length > 0} />}
 
-      {!authLoading && user && hasTonight && <TonightSection tonight={tonightShown} players={players} maxTime={maxTime} difficulty={difficulty} onFeedback={feedback.send} />}
+      {!authLoading && user && hasTonight && <TonightSection tonight={tonightShown} players={players} maxTime={maxTime} difficulty={difficulty} feedback={feedback} />}
 
       {/* ── Non connecté ───────────────────────────────────────────── */}
       {!authLoading && !user && (
