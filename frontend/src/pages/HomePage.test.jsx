@@ -3,16 +3,17 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import HomePage from './HomePage'
-import { getForgottenGems, getHomeRecommendations, getTonightRecommendations, saveTable } from '../api'
+import { clearGameFeedback, getForgottenGems, getHomeRecommendations, getTonightRecommendations, getWishlist, saveTable, setGameFeedback } from '../api'
 
 const auth = vi.hoisted(() => ({ user: null }))
 vi.mock('../context/AuthContext', () => ({ useAuth: () => ({ user: auth.user, loading: false }) }))
-vi.mock('../api', () => ({ getHomeRecommendations: vi.fn(), getForgottenGems: vi.fn(), getTonightRecommendations: vi.fn(), saveTable: vi.fn() }))
+vi.mock('../api', () => ({ getHomeRecommendations: vi.fn(), getForgottenGems: vi.fn(), getTonightRecommendations: vi.fn(), saveTable: vi.fn(), setGameFeedback: vi.fn(), clearGameFeedback: vi.fn(), getWishlist: vi.fn() }))
 
 describe('HomePage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     auth.user = null
+    getWishlist.mockResolvedValue([])
   })
 
   it('n’a ni bouton d’envoi ni lien de recherche dans le bandeau : le filtrage est immédiat', () => {
@@ -26,13 +27,13 @@ describe('HomePage', () => {
   it('propose les entrées principales quand on n’est pas connecté', () => {
     render(<MemoryRouter><HomePage /></MemoryRouter>)
 
-    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent("Qu'est-ce qu'on joue ce soir")
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(/À quoi on joue (ce matin|ce midi|cet après-midi|ce soir|cette nuit)/)
     expect(screen.getByRole('link', { name: /Ma ludothèque/ })).toHaveAttribute('href', '/ludotheque')
   })
 
   describe('connecté, sans profil', () => {
     const jeu = { id: 1, name: 'Nouveauté Test', yearPublished: 2025, ratingBgg: 7.9, minPlayers: 2, maxPlayers: 4, playingTime: 30, complexity: 2 }
-    const froid = { families: [], recent: [{ game: jeu, reason: 'Nouveauté 2025 · 7.9/10 sur BGG · facile à aborder' }], byDecade: {}, coldStart: true, declared: [] }
+    const froid = { families: [], recent: [{ game: jeu, reason: 'Facile à aborder' }], byDecade: {}, coldStart: true, declared: [], hasHistory: false }
 
     beforeEach(() => {
       auth.user = { id: 1, email: 'a@example.test' }
@@ -41,7 +42,7 @@ describe('HomePage', () => {
     })
 
     it('propose les nouveautés BGG et renvoie au questionnaire du compte', async () => {
-      getHomeRecommendations.mockResolvedValue(froid)
+      getHomeRecommendations.mockResolvedValue({ ...froid, hasHistory: true })
       render(<MemoryRouter><HomePage /></MemoryRouter>)
 
       expect(await screen.findByRole('tab', { name: 'Nouveautés pour vous' })).toBeInTheDocument()
@@ -49,6 +50,76 @@ describe('HomePage', () => {
       expect(screen.getByRole('link', { name: 'Choisir mes goûts' })).toHaveAttribute('href', '/compte#gouts')
       expect(screen.queryByRole('heading', { name: 'Ce que vous aimez' })).not.toBeInTheDocument()
       expect(screen.queryByText(/Importez votre collection/)).not.toBeInTheDocument()
+    })
+
+    it('explique la proposition, la retire sur « Pas intéressé » et la remet sur « Annuler »', async () => {
+      getHomeRecommendations.mockResolvedValue({
+        ...froid,
+        hasHistory: true,
+        recent: [{ game: jeu, reason: '', why: { liked: { id: 9, name: 'Catan' }, families: ['deck_building'] } }],
+      })
+      setGameFeedback.mockResolvedValue({})
+      clearGameFeedback.mockResolvedValue(null)
+      render(<MemoryRouter><HomePage /></MemoryRouter>)
+
+      expect(await screen.findByTestId('why')).toHaveTextContent(/Parce que vous avez aimé Catan, et que vous aimez la mécanique\s*:/)
+
+      await userEvent.click(screen.getByRole('button', { name: /Pas intéressé/ }))
+      expect(setGameFeedback).toHaveBeenCalledWith(1, 'not_interested')
+      expect(screen.queryByRole('link', { name: 'Nouveauté Test' })).not.toBeInTheDocument()
+      expect(screen.getByText(/« Nouveauté Test » ne vous sera plus proposé/)).toBeInTheDocument()
+
+      await userEvent.click(screen.getByRole('button', { name: 'Annuler' }))
+      expect(clearGameFeedback).toHaveBeenCalledWith(1)
+      expect(await screen.findByRole('link', { name: 'Nouveauté Test' })).toBeInTheDocument()
+    })
+
+    it('range les envies de jeu dans leur onglet, et un jeu marqué « J’aimerais jouer » y arrive aussitôt', async () => {
+      const envie = { id: 7, name: 'Jeu Convoité', yearPublished: 2020, ratingBgg: 7.5, minPlayers: 2, maxPlayers: 4, playingTime: 30, complexity: 2 }
+      getWishlist.mockResolvedValue([{ game: envie, why: null, feedback: 'want_to_play' }])
+      getHomeRecommendations.mockResolvedValue({ ...froid, hasHistory: true })
+      setGameFeedback.mockResolvedValue({})
+      clearGameFeedback.mockResolvedValue(null)
+      render(<MemoryRouter><HomePage /></MemoryRouter>)
+
+      const onglet = await screen.findByRole('tab', { name: 'Mes envies de jeu (1)' })
+      expect(onglet).toHaveAttribute('aria-selected', 'true')
+      expect(screen.getByRole('link', { name: 'Jeu Convoité' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /J’aimerais jouer : Jeu Convoité/ })).toHaveAttribute('aria-pressed', 'true')
+
+      // Retirer l'envie vide la liste ; l'onglet disparaît.
+      await userEvent.click(screen.getByRole('button', { name: /J’aimerais jouer : Jeu Convoité/ }))
+      expect(clearGameFeedback).toHaveBeenCalledWith(7)
+      expect(screen.queryByRole('tab', { name: /Mes envies de jeu/ })).not.toBeInTheDocument()
+
+      // Marquer une nouveauté l'ajoute à la liste sans rechargement.
+      await userEvent.click(screen.getByRole('button', { name: /J’aimerais jouer : Nouveauté Test/ }))
+      expect(setGameFeedback).toHaveBeenCalledWith(1, 'want_to_play')
+      expect(await screen.findByRole('tab', { name: 'Mes envies de jeu (1)' })).toBeInTheDocument()
+    })
+
+    it('invite à renseigner BGG, MyLudo ou des parties tant qu’il n’y a aucun historique, et se masque une semaine', async () => {
+      getHomeRecommendations.mockResolvedValue(froid)
+      render(<MemoryRouter><HomePage /></MemoryRouter>)
+
+      expect(await screen.findByRole('link', { name: /^Renseigner mon compte BGG/ })).toHaveAttribute('href', '/importer?onglet=bgg')
+      expect(screen.getByRole('link', { name: /^Importer ma ludothèque MyLudo/ })).toHaveAttribute('href', '/importer?onglet=myludo')
+      expect(screen.getByRole('link', { name: /^Enregistrer des parties/ })).toHaveAttribute('href', '/parties')
+      expect(screen.getByRole('link', { name: 'Ou choisir mes goûts' })).toHaveAttribute('href', '/compte#gouts')
+      expect(screen.queryByRole('link', { name: 'Choisir mes goûts' })).not.toBeInTheDocument()
+
+      await userEvent.click(screen.getByRole('button', { name: 'Plus tard' }))
+
+      expect(screen.queryByRole('link', { name: /^Renseigner mon compte BGG/ })).not.toBeInTheDocument()
+    })
+
+    it('n’invite pas à fournir un historique quand il y en a un', async () => {
+      getHomeRecommendations.mockResolvedValue({ ...froid, hasHistory: true })
+      render(<MemoryRouter><HomePage /></MemoryRouter>)
+
+      await screen.findByRole('tab', { name: 'Nouveautés pour vous' })
+      expect(screen.queryByRole('link', { name: /^Renseigner mon compte BGG/ })).not.toBeInTheDocument()
+      expect(screen.getByRole('link', { name: 'Choisir mes goûts' })).toBeInTheDocument()
     })
 
     it('cherche dans la ludothèque par défaut, retient le choix « Tout le catalogue » et redemande les idées', async () => {
@@ -102,14 +173,14 @@ describe('HomePage', () => {
     })
 
     it('retrouve la table enregistrée et la propose pour les idées du soir', async () => {
-      getHomeRecommendations.mockResolvedValue({ ...reco, table: { players: 6, maxTime: 90, scope: 'library' } })
+      getHomeRecommendations.mockResolvedValue({ ...reco, table: { players: 6, maxTime: 90, scope: 'library', difficulty: null } })
       render(<MemoryRouter><HomePage /></MemoryRouter>)
 
       await waitFor(() => expect(getTonightRecommendations).toHaveBeenCalled())
       expect(screen.getByRole('button', { name: '6' })).toHaveAttribute('aria-pressed', 'true')
       expect(screen.getByRole('button', { name: '≤ 1 h 30' })).toHaveAttribute('aria-pressed', 'true')
       expect(getTonightRecommendations).toHaveBeenCalledTimes(1)
-      expect(getTonightRecommendations).toHaveBeenCalledWith({ players: 6, maxTime: 90, scope: 'library' })
+      expect(getTonightRecommendations).toHaveBeenCalledWith({ players: 6, maxTime: 90, scope: 'library', difficulty: null })
     })
 
     it('enregistre chaque changement de table et le dit', async () => {
@@ -138,15 +209,14 @@ describe('HomePage', () => {
     it('affiche ce que jouent les autres membres et les jeux faciles pour la table choisie', async () => {
       getTonightRecommendations.mockResolvedValue({
         popular: [{ game: jeu(1, 'Jeu Partagé'), reason: 'Joué par 3 membres cette année' }],
-        easy: [{ game: jeu(2, 'Jeu Facile'), reason: 'Facile à aborder · 7.5/10 sur BGG' }],
+        easy: [{ game: jeu(2, 'Jeu Facile'), reason: 'Facile à aborder' }],
       })
       render(<MemoryRouter><HomePage /></MemoryRouter>)
 
       expect(await screen.findByRole('heading', { name: 'Pour votre table' })).toBeInTheDocument()
       expect(screen.getByRole('heading', { name: 'Ce que jouent les autres membres' })).toBeInTheDocument()
       expect(screen.getByRole('heading', { name: 'Faciles à expliquer' })).toBeInTheDocument()
-      expect(screen.getByText('Joué par 3 membres cette année')).toBeInTheDocument()
-      expect(getTonightRecommendations).toHaveBeenCalledWith({ players: 4, maxTime: 60, scope: 'library' })
+      expect(getTonightRecommendations).toHaveBeenCalledWith({ players: 4, maxTime: 60, scope: 'library', difficulty: null })
     })
 
     it('redemande les idées quand on change la table, et ne filtre plus la durée avec « Peu importe »', async () => {
@@ -157,8 +227,19 @@ describe('HomePage', () => {
       await userEvent.click(screen.getByRole('button', { name: '2' }))
       await userEvent.click(screen.getByRole('button', { name: 'Peu importe' }))
 
-      expect(getTonightRecommendations).toHaveBeenLastCalledWith({ players: 2, maxTime: null, scope: 'library' })
+      expect(getTonightRecommendations).toHaveBeenLastCalledWith({ players: 2, maxTime: null, scope: 'library', difficulty: null })
       expect(await screen.findByText('2 joueurs')).toBeInTheDocument()
+    })
+
+    it('filtre les idées selon la difficulté choisie', async () => {
+      getTonightRecommendations.mockResolvedValue({ popular: [], easy: [{ game: jeu(2, 'Jeu Costaud'), reason: '' }] })
+      render(<MemoryRouter><HomePage /></MemoryRouter>)
+      await screen.findByRole('heading', { name: 'Pour votre table' })
+
+      await userEvent.click(screen.getByRole('button', { name: 'Costaud' }))
+
+      expect(getTonightRecommendations).toHaveBeenLastCalledWith({ players: 4, maxTime: 60, scope: 'library', difficulty: 'heavy' })
+      expect(await screen.findByRole('heading', { name: 'Pour les costauds' })).toBeInTheDocument()
     })
 
     it('n’affiche un jeu qu’une fois, même s’il est à la fois récent et facile', async () => {

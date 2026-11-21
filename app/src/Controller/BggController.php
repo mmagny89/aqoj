@@ -103,7 +103,7 @@ class BggController extends AbstractController
             }
 
             foreach ($gamesData as $gameData) {
-                $game = $enrichment->hydrate(new Game(), $gameData);
+                $game = $enrichment->hydrate(new Game(), $gameData)->markDiscovered();
                 $em->persist($game);
                 $existingByBggId[$gameData['bggId']] = $game;
                 $imported++;
@@ -183,5 +183,36 @@ class BggController extends AbstractController
             'target'    => $target,
             'message'   => "{$imported} nouveaux jeux ajoutés, {$enriched} jeux enrichis depuis BGG, {$linked} jeux liés à " . ($forAssociation ? 'la ludothèque de l\'association.' : 'votre collection.'),
         ]);
+    }
+
+    /**
+     * Délie le compte BGG du profil ; avec `clearLibrary`, vide aussi la ludothèque du joueur
+     * (les parties jouées et les goûts déclarés restent). Une ludothèque vidée relance le calcul du profil.
+     */
+    #[Route('/api/bgg/link', name: 'api_bgg_unlink', methods: ['DELETE'])]
+    public function unlink(
+        Request $request,
+        EntityManagerInterface $em,
+        UserGameRepository $userGameRepository,
+        UserPreferenceService $prefService,
+    ): JsonResponse {
+        $user = $this->appUser();
+        if (!$user) {
+            return $this->json(['error' => 'Authentification requise.'], 401);
+        }
+
+        $data = json_decode($request->getContent(), true);
+        $clearLibrary = is_array($data) && ($data['clearLibrary'] ?? false) === true;
+
+        $user->setBggUsername(null);
+        $em->flush();
+
+        $removed = 0;
+        if ($clearLibrary) {
+            $removed = $userGameRepository->clearForUser($user);
+            $prefService->recompute($user);
+        }
+
+        return $this->json(['unlinked' => true, 'cleared' => $clearLibrary, 'removed' => $removed]);
     }
 }

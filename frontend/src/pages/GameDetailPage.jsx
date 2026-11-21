@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { getGame, createSession, getSimilarGames } from '../api'
 import GameCard, { coverColor, initials } from '../components/GameCard'
+import { AddPlayIcon } from '../components/icons'
+import { ErrorMessage, inputClass } from '../components/forms'
 import { familyLabel, familyColor, isEngine, isExtra } from '../utils/engelstein'
 import { groupCategories } from '../utils/categories'
 import { frenchEditionLabel, gameImage, originalEditionLabel } from '../utils/game'
@@ -86,49 +88,53 @@ const SHOPS = [
   },
 ]
 
+function CartIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 4h2.5l2.2 10.2a1.5 1.5 0 0 0 1.5 1.2h7.6a1.5 1.5 0 0 0 1.5-1.1L20 8H6.2" />
+      <circle cx="9.5" cy="19.5" r="1.3" />
+      <circle cx="17" cy="19.5" r="1.3" />
+    </svg>
+  )
+}
+
 function ShopButtons({ gameName }) {
   return (
-    <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
-      <span className="text-xs font-bold text-stone-600">Acheter</span>
-      {SHOPS.map(shop => (
-        <a
-          key={shop.key}
-          href={shop.url(gameName)}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="chip chip-sm"
-        >
-          {shop.label}
-        </a>
-      ))}
+    <div>
+      <h2 className="mb-2 font-display text-xl leading-none">Où l'acheter</h2>
+      <ul className="flex flex-wrap gap-2">
+        {SHOPS.map(shop => (
+          <li key={shop.key}>
+            <a
+              href={shop.url(gameName)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn bg-paper text-sm font-bold"
+              aria-label={`Chercher ${gameName} chez ${shop.label} (nouvel onglet)`}
+            >
+              <CartIcon />
+              {shop.label}
+            </a>
+          </li>
+        ))}
+      </ul>
     </div>
   )
 }
 
-/* ── Extensions : les connues d'abord, les confidentielles (< 50 votes, ni à nous ni prêtables) repliées ── */
+/* ── Extensions : toutes, classées côté API (les nôtres, puis les mieux notées) ── */
 function ExpansionsPanel({ expansions }) {
-  const [showAll, setShowAll] = useState(false)
-  const known  = expansions.filter(e => e.owned || e.inAssociation || e.withMember || (e.usersRated ?? 0) >= 50)
-  const hidden = expansions.filter(e => !known.includes(e))
-  const shown  = showAll ? [...known, ...hidden] : known
-
   return (
     <section aria-labelledby="titre-extensions" className="panel p-4">
       <h2 id="titre-extensions" className="mb-1 text-xl">
-        Extensions <span className="text-base font-normal text-stone-600">({shown.length})</span>
+        Extensions <span className="text-base font-normal text-stone-600">({expansions.length})</span>
       </h2>
       <p className="mb-3 mt-0 text-xs text-stone-600">Les vôtres d’abord, puis celles que l’association ou un membre peut prêter, puis les mieux notées.</p>
       <div className="space-y-2">
-        {shown.map(exp => (
+        {expansions.map(exp => (
           <GameRow key={exp.id} g={exp} currentId={null} />
         ))}
       </div>
-      {hidden.length > 0 && (
-        <button type="button" onClick={() => setShowAll(v => !v)} aria-expanded={showAll}
-          className="mt-2 inline-flex min-h-11 items-center text-sm font-bold text-brand-blue underline underline-offset-4">
-          {showAll ? 'Masquer les extensions peu notées' : `Voir les ${hidden.length} autre${hidden.length > 1 ? 's' : ''} (peu de votes)`}
-        </button>
-      )}
     </section>
   )
 }
@@ -150,6 +156,7 @@ export default function GameDetailPage() {
   const [sessionForm, setSessionForm] = useState({ playersCount: 4, rating: null, note: '' })
   const [submitting, setSubmitting] = useState(false)
   const [sessionDone, setSessionDone] = useState(false)
+  const [sessionError, setSessionError] = useState('')
   const sessionRef = useRef(null)
 
   useEffect(() => {
@@ -183,6 +190,7 @@ export default function GameDetailPage() {
   const handleSession = async (e) => {
     e.preventDefault()
     setSubmitting(true)
+    setSessionError('')
     try {
       await createSession({
         gameId: Number(id),
@@ -193,7 +201,7 @@ export default function GameDetailPage() {
       setSessionDone(true)
       setShowSessionForm(false)
     } catch (err) {
-      alert(err.message)
+      setSessionError(err.message)
     } finally {
       setSubmitting(false)
     }
@@ -345,6 +353,7 @@ export default function GameDetailPage() {
                 </div>
               ) : (
                 <button type="button" onClick={openSessionForm} className="btn btn-primary w-full sm:w-auto sm:px-8">
+                  <AddPlayIcon aria-hidden="true" className="h-6 w-6" />
                   Enregistrer une partie
                 </button>
               )}
@@ -443,18 +452,20 @@ export default function GameDetailPage() {
         )
       })()}
 
-      {/* ── Achat et fiche BGG, sur une ligne ─────────────────────────────── */}
-      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 px-1">
+      {/* ── Achat et fiche BGG ────────────────────────────────────────────── */}
+      <section className="panel flex flex-wrap items-end justify-between gap-x-6 gap-y-4 p-4">
         <ShopButtons gameName={game.name} />
         <a
           href={`https://boardgamegeek.com/${game.bggType === 'boardgameexpansion' ? 'boardgameexpansion' : 'boardgame'}/${game.bggId}`}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex min-h-8 items-center gap-1.5 text-xs font-bold text-brand-blue underline underline-offset-4"
+          className="btn btn-secondary font-bold"
         >
-          Fiche BoardGameGeek{game.bggRank ? ` · rang #${game.bggRank.toLocaleString('fr')}` : ''}
+          Voir la fiche sur BoardGameGeek{game.bggRank ? ` · rang #${game.bggRank.toLocaleString('fr')}` : ''}
+          <span aria-hidden="true">↗</span>
+          <span className="sr-only">(nouvel onglet)</span>
         </a>
-      </div>
+      </section>
 
       {/* ── Jeu de base (quand on consulte une extension) ─────────────────── */}
       {game.isExpansion && game.baseGames?.length > 0 && (
@@ -486,7 +497,7 @@ export default function GameDetailPage() {
       {!game.isExpansion && game.expansions?.length > 0 && <ExpansionsPanel expansions={game.expansions} />}
 
       {/* ── Jeux similaires ──────────────────────────────────────────────── */}
-      {/* L'API /similar retourne des objets plats : { ...game, similarity, reason } */}
+      {/* L'API /similar retourne des objets plats : { ...game, similarity } */}
       {(similarGames?.length > 0 || similarLoading) && (
         <div className="panel p-5">
           <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-4">🎯 Jeux similaires</p>
@@ -503,7 +514,6 @@ export default function GameDetailPage() {
                   <GameCard
                     key={sg.id}
                     game={sg}
-                    reason={sg.reason}
                     similarity={sg.similarity}
                   />
                 ))}
@@ -533,66 +543,73 @@ export default function GameDetailPage() {
       )}
 
       {/* ── Enregistrer une partie ────────────────────────────────────────── */}
-      <div ref={sessionRef} className="bg-amber-50 rounded-2xl border border-amber-200 p-5">
+      <section ref={sessionRef} aria-labelledby="titre-partie" className="panel p-4">
         {sessionDone ? (
-          <div className="text-center">
-            <div className="text-3xl mb-2">✅</div>
-            <p className="font-bold text-stone-800">Partie enregistrée !</p>
-            <button onClick={() => setSessionDone(false)} className="mt-3 text-sm text-amber-600 hover:underline">
-              Enregistrer une autre partie
+          <div role="status" className="flex flex-wrap items-center justify-between gap-3">
+            <p id="titre-partie" className="font-display text-xl text-brand-green">Partie enregistrée, merci !</p>
+            <button type="button" onClick={() => setSessionDone(false)} className="btn bg-paper text-sm">
+              <AddPlayIcon aria-hidden="true" className="h-5 w-5" />
+              Une autre partie
             </button>
           </div>
         ) : !showSessionForm ? (
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="font-bold text-stone-800">Vous avez joué à ce jeu ?</p>
-              <p className="text-sm text-stone-500">Notez votre expérience</p>
+              <h2 id="titre-partie" className="font-display text-xl leading-tight">Vous avez joué à ce jeu ?</h2>
+              <p className="text-sm text-stone-600">Gardez la trace de la partie : elle nourrit vos recommandations.</p>
             </div>
-            <button onClick={() => setShowSessionForm(true)} className="bg-amber-500 hover:bg-amber-600 text-white font-bold px-4 py-2.5 rounded-xl transition-all">
-              + Partie
+            <button type="button" onClick={() => setShowSessionForm(true)} className="btn bg-paper text-sm">
+              <AddPlayIcon aria-hidden="true" className="h-5 w-5" />
+              Noter une partie
             </button>
           </div>
         ) : (
           <form onSubmit={handleSession} className="space-y-4">
-            <p className="font-bold text-stone-800">Enregistrer une partie</p>
-            <div>
-              <p className="text-sm font-semibold text-stone-600 mb-2">Joueurs</p>
-              <div className="flex gap-2 flex-wrap">
+            <h2 id="titre-partie" className="font-display text-xl leading-tight">Enregistrer une partie</h2>
+            <fieldset>
+              <legend className="mb-2 font-bold">Combien de joueurs ?</legend>
+              <div className="flex flex-wrap gap-2">
                 {[1, 2, 3, 4, 5, 6, 7, 8].map(n => (
-                  <button key={n} type="button" onClick={() => setSessionForm(f => ({ ...f, playersCount: n }))}
-                    className={'w-10 h-10 rounded-lg font-bold transition-all ' + (sessionForm.playersCount === n ? 'bg-amber-500 text-white' : 'bg-white text-stone-600 hover:bg-stone-100')}
-                  >{n}</button>
+                  <button key={n} type="button" aria-pressed={sessionForm.playersCount === n}
+                    onClick={() => setSessionForm(f => ({ ...f, playersCount: n }))}
+                    className="chip w-11 justify-center !px-0">{n}</button>
                 ))}
               </div>
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-stone-600 mb-2">Votre avis</p>
-              <div className="flex gap-3">
+            </fieldset>
+            <fieldset>
+              <legend className="mb-2 font-bold">Votre avis <span className="font-normal text-stone-600">(facultatif)</span></legend>
+              <div className="flex flex-wrap gap-2">
                 {[{ val: 5, icon: '👍', label: 'Aimé' }, { val: 1, icon: '👎', label: 'Pas aimé' }].map(({ val, icon, label }) => (
-                  <button key={val} type="button" onClick={() => setSessionForm(f => ({ ...f, rating: f.rating === val ? null : val }))}
-                    className={'flex items-center gap-2 px-4 py-2 rounded-xl font-medium text-sm transition-all ' + (sessionForm.rating === val ? 'bg-amber-500 text-white' : 'bg-white text-stone-600 hover:bg-stone-100')}
-                  >{icon} {label}</button>
+                  <button key={val} type="button" aria-pressed={sessionForm.rating === val}
+                    onClick={() => setSessionForm(f => ({ ...f, rating: f.rating === val ? null : val }))}
+                    className="chip gap-2"><span aria-hidden="true">{icon}</span>{label}</button>
                 ))}
               </div>
+            </fieldset>
+            <div>
+              <label htmlFor="note-partie" className="mb-1 block font-bold">
+                Un commentaire <span className="font-normal text-stone-600">(facultatif)</span>
+              </label>
+              <textarea
+                id="note-partie"
+                value={sessionForm.note}
+                onChange={e => setSessionForm(f => ({ ...f, note: e.target.value }))}
+                rows={2}
+                className={`${inputClass} resize-none`}
+              />
             </div>
-            <textarea
-              value={sessionForm.note}
-              onChange={e => setSessionForm(f => ({ ...f, note: e.target.value }))}
-              placeholder="Un commentaire ? (optionnel)"
-              rows={2}
-              className="w-full px-3 py-2 rounded-xl border border-stone-300 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none bg-white"
-            />
-            <div className="flex gap-3">
-              <button type="submit" disabled={submitting} className="flex-1 bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-white font-bold py-2.5 rounded-xl">
-                {submitting ? 'Enregistrement…' : 'Enregistrer'}
+            {sessionError && <ErrorMessage>{sessionError}</ErrorMessage>}
+            <div className="flex flex-wrap gap-3">
+              <button type="submit" disabled={submitting} className="btn btn-primary">
+                {submitting ? 'Enregistrement…' : 'Enregistrer la partie'}
               </button>
-              <button type="button" onClick={() => setShowSessionForm(false)} className="px-4 py-2.5 bg-white text-stone-600 rounded-xl font-medium hover:bg-stone-100">
+              <button type="button" onClick={() => { setShowSessionForm(false); setSessionError('') }} className="btn bg-paper">
                 Annuler
               </button>
             </div>
           </form>
         )}
-      </div>
+      </section>
 
     </div>
   )

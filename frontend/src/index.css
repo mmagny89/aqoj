@@ -21,6 +21,7 @@
   --color-ink: #171922;
   --color-paper: #fffaf1;
   --color-cream: #efdec6;
+  --color-snow: #ffffff; /* blanc franc : les blocs de l'administration */
   --color-board: #a8b7df;
   --color-board-deep: #889bd3;
   --color-brand-red: #fb5a48;
@@ -112,6 +113,11 @@
     box-shadow: var(--shadow-token);
   }
 
+  /* Administration : les blocs se posent en blanc sur le plateau, pour séparer l'outil du reste du site. */
+  .admin-zone .panel {
+    background: var(--color-snow);
+  }
+
   .token-card {
     display: flex;
     flex-direction: column;
@@ -191,6 +197,7 @@
     display: flex;
     gap: 0.25rem;
     overflow-x: auto;
+    overflow-y: hidden; /* le -3px des onglets déborde : sans cela, un ascenseur vertical apparaît */
     border-bottom: 3px solid var(--color-ink);
   }
 

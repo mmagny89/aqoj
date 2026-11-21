@@ -17,11 +17,74 @@ describe('GameCard', () => {
     expect(screen.getByText('★ 7.1')).toBeInTheDocument()
   })
 
+  it('dit « idéal à N » et ce qu’on ignore du jeu quand des filtres de contexte sont actifs', () => {
+    const filters = { players: 4, fit: null, maxTime: 60, weight: 'light', coop: null, age: null, played: null }
+    renderCard({ context: filters, game: { ...game, bestPlayers: [4], recommendedPlayers: [3, 4], playingTime: 0, complexity: 0 } })
+
+    expect(screen.getByText('Idéal à 4')).toBeInTheDocument()
+    expect(screen.getByText('Durée inconnue')).toBeInTheDocument()
+    expect(screen.getByText('Difficulté inconnue')).toBeInTheDocument()
+  })
+
+  it('n’ajoute aucune étiquette de contexte sans filtre', () => {
+    renderCard({ game: { ...game, bestPlayers: [4], playingTime: 0 } })
+
+    expect(screen.queryByText(/Idéal à|inconnu/)).not.toBeInTheDocument()
+  })
+
+  it('dit pourquoi le jeu est proposé et offre les deux retours', async () => {
+    const onFeedback = vi.fn()
+    renderCard({ why: { liked: null, families: ['auction', 'cooperation'] }, onFeedback })
+
+    // Discret : replié tant qu'on ne le demande pas.
+    expect(screen.getByTestId('why')).not.toHaveAttribute('open')
+    await userEvent.click(screen.getByText('Pourquoi ce jeu ?'))
+    expect(screen.getByTestId('why')).toHaveAttribute('open')
+    expect(screen.getByTestId('why')).toHaveTextContent(/Pourquoi ce jeu \?Vous aimez les mécaniques\s*:/)
+    expect(screen.getByRole('list', { name: '' })).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: /Déjà joué, bof/ }))
+    expect(onFeedback).toHaveBeenCalledWith(game, 'played_meh', null)
+  })
+
+  it('propose quatre retours en icônes, avec une infobulle, et retire celui qui est enfoncé', async () => {
+    const onFeedback = vi.fn()
+    renderCard({ verdict: 'want_to_play', onFeedback })
+
+    expect(screen.getAllByRole('button')).toHaveLength(4)
+    const envie = screen.getByRole('button', { name: /J’aimerais jouer/ })
+    expect(envie).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: /J’ai joué, et j’aime/ })).toHaveAttribute('aria-pressed', 'false')
+
+    await userEvent.hover(screen.getByRole('button', { name: /Pas intéressé/ }))
+    expect(screen.getByRole('tooltip')).toHaveTextContent('Ne plus me proposer ce jeu.')
+    await userEvent.keyboard('{Escape}')
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
+
+    await userEvent.click(envie)
+    expect(onFeedback).toHaveBeenCalledWith(game, null, 'want_to_play')
+  })
+
+  it('n’affiche ni explication ni retour sans données', () => {
+    renderCard()
+    expect(screen.queryByTestId('why')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Pas intéressé/ })).not.toBeInTheDocument()
+  })
+
+  it('affiche le tag de sortie fourni par l’API', () => {
+    renderCard()
+    expect(screen.queryByText('Nouveauté')).not.toBeInTheDocument()
+  })
+
+  it.each([['new', 'Nouveauté'], ['upcoming', 'À paraître']])('affiche « %s » comme étiquette', (release, texte) => {
+    render(<MemoryRouter><GameCard game={{ ...game, release }} /></MemoryRouter>)
+    expect(screen.getByText(texte)).toBeInTheDocument()
+  })
+
   it('garde le bouton d’action indépendant du lien', async () => {
     const onAddSession = vi.fn()
     renderCard({ onAddSession })
 
-    await userEvent.click(screen.getByRole('button', { name: '+ Enregistrer une partie' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Enregistrer une partie' }))
 
     expect(onAddSession).toHaveBeenCalledWith(game)
   })

@@ -65,6 +65,17 @@ export const getGames = (params = {}) => {
   return request('/games' + (qs.toString() ? '?' + qs : ''))
 }
 
+// Filtres de contexte (voir utils/contexte.js) : joueurs, ajustement, durée, poids, mode, âge, déjà joué.
+const setContext = (qs, { players, fit, maxTime, weight, coop, age, played } = {}) => {
+  if (players) qs.set('players', players)
+  if (fit) qs.set('fit', fit)
+  if (maxTime) qs.set('maxTime', maxTime)
+  if (weight) qs.set('weight', weight)
+  if (coop != null) qs.set('coop', coop ? '1' : '0')
+  if (age) qs.set('age', age)
+  if (played != null) qs.set('played', played ? '1' : '0')
+}
+
 export const searchGames = (params = {}) => {
   const qs = new URLSearchParams()
   if (params.q) qs.set('q', params.q)
@@ -80,11 +91,13 @@ export const searchGames = (params = {}) => {
 export const getGame = (id) => request(`/games/${id}`)
 
 export const getRecommendations = (params = {}) => {
-  const { players, maxTime, families = [], categories = [], scope = 'collection' } = params
+  const { families = [], categories = [], scope = 'collection', difficulty, page = 1, type } = params
   const qs = new URLSearchParams()
-  if (players) qs.set('players', players)
-  if (maxTime) qs.set('maxTime', maxTime)
+  setContext(qs, params)
   if (scope !== 'collection') qs.set('scope', scope)
+  if (difficulty) qs.set('difficulty', difficulty)
+  if (page > 1) qs.set('page', page)
+  if (type === 'expansion') qs.set('type', type)
   families.forEach(f => qs.append('families[]', f))
   categories.forEach(c => qs.append('categories[]', c))
   return request('/games/recommendation?' + qs)
@@ -93,13 +106,21 @@ export const getRecommendations = (params = {}) => {
 export const getForgottenGems = ({ scope } = {}) => request('/games/forgotten' + (scope === 'library' ? '?scope=library' : ''))
 
 export const getHomeRecommendations = ({ scope } = {}) => request('/games/home-reco' + (scope === 'library' ? '?scope=library' : ''))
-export const getTonightRecommendations = ({ players, maxTime, scope } = {}) => {
+export const getTonightRecommendations = ({ players, maxTime, scope, difficulty } = {}) => {
   const qs = new URLSearchParams()
+  if (difficulty) qs.set('difficulty', difficulty)
   if (scope === 'library') qs.set('scope', scope)
   if (players) qs.set('players', players)
   if (maxTime) qs.set('maxTime', maxTime)
   return request('/games/home-tonight?' + qs)
 }
+// Retour sur une proposition : 'not_interested' ou 'played_meh' ; l'annulation remet le jeu en circulation.
+export const setGameFeedback = (id, verdict) => request(`/games/${id}/feedback`, { method: 'PUT', body: JSON.stringify({ verdict }) })
+// Jeux que le joueur aimerait jouer ([{ game, why, feedback }]) ; une partie enregistrée sur un jeu le retire.
+export const getWishlist = () => request('/user/wishlist')
+// Tous les votes du joueur ([{ game, verdict, source, votedAt }]), dernier d'abord.
+export const getFeedbackHistory = () => request('/user/feedback')
+export const clearGameFeedback = (id) => request(`/games/${id}/feedback`, { method: 'DELETE' })
 export const getSimilarGames = (id, limit = 5) => request(`/games/${id}/similar?limit=${limit}`)
 
 // Préférences utilisateur
@@ -132,6 +153,9 @@ export const deleteAccount = (password) =>
 // BGG import
 export const importBgg = (username, target = 'me') =>
   request('/bgg/import', { method: 'POST', body: JSON.stringify({ username, target }) })
+
+export const unlinkBgg = (clearLibrary = false) =>
+  request('/bgg/link', { method: 'DELETE', body: JSON.stringify({ clearLibrary }) })
 
 // Ludothèque de l'association (administrateurs)
 export const getAssociationGames = () => request('/admin/association/games')

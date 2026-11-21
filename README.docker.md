@@ -248,6 +248,10 @@ d'agence (ecart signale) : il s'ajoute aux services `php`, `worker`, `database`.
 - Premier `up` apres cette mise a jour : `docker compose up -d --build --wait` recree aussi `php` et `worker` pour qu'ils recoivent
   `LIBRETRANSLATE_URL` et `TRANSLATE_CRON`. **Ne pas le lancer pendant un enrichissement BGG en cours** (il le tue ; la reprise est sans perte).
 
+### Rotation des journaux
+
+`compose.yml` plafonne les journaux Docker de `php` (accès Caddy, adresses IP comprises), `worker`, `database` et `libretranslate` : 3 fichiers de 10 Mo au plus par service (`x-journaux`). Ils sont supprimés avec le conteneur, à chaque redeploiement. La politique de confidentialite le dit : toute modification de ces valeurs s'y reporte.
+
 ### Observabilite
 
 Metriques Caddy — la source pour tout ce qui est HTTP : trafic, codes, histogrammes de

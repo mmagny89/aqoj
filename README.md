@@ -33,8 +33,8 @@ Plateforme de découverte et de recommandation de jeux de société pour les mem
 - Import de la collection depuis **BoardGameGeek** (pseudo BGG) ou depuis l'**export CSV de MyLudo** (voir « Import »)
 - Notes personnelles (1–10) reprises de BGG ou de MyLudo
 - Vue en deux onglets principaux :
-  - **⭐ Déjà joués** — jeux avec une note, triés par note décroissante
-  - **🎁 Pas encore joués** — jeux sans note, triés alphabétiquement
+  - **⭐ Déjà joués** — jeux notés sur BGG ou avec au moins une partie enregistrée, triés par note décroissante
+  - **🎁 Pas encore joués** — les autres, triés alphabétiquement
 - Chaque onglet dispose de deux sous-onglets **🎲 Jeux de base** et **➕ Extensions**
 - Infinite scroll sur chaque onglet
 - **Préférences mécaniques** calculées automatiquement depuis la collection :
@@ -44,19 +44,24 @@ Plateforme de découverte et de recommandation de jeux de société pour les mem
   - Recalcul automatique si les préférences sont absentes
 
 ### Accueil
-- **La table** : le bandeau « Qu'est-ce qu'on joue ce soir ? » se règle librement (1 à 8 joueurs, de 15 min à « peu importe ») et **s'enregistre sur le compte** à chaque changement. On la retrouve à la visite suivante et sur la page de recommandation.
+- **La table** : le bandeau « À quoi on joue ce soir ? » (« ce matin », « cet après-midi »… selon l'heure) se règle librement (1 à 8 joueurs, de 15 min à « peu importe », difficulté léger / intermédiaire / costaud) et **s'enregistre sur le compte** à chaque changement. On la retrouve à la visite suivante et sur la page de recommandation.
 - **Pour votre table** — deux rangées qui suivent la table :
   - **Ce que jouent les autres membres** : jeux de base joués dans l'année par au moins deux joueurs distincts. Seuls des totaux sortent, jamais qui a joué.
   - **Faciles à expliquer** : jeux du catalogue de complexité ≤ 2,5, nouveautés favorisées.
 - **Nouveautés pour vous** : jeux des **5 dernières années** proches de votre profil. Bonus de récence continu et seuil de confiance réduit pour les jeux peu votés.
 - **Oubliés de votre ludothèque**, puis **Par époque** (décennies précédant les nouveautés).
 - **Sans historique ni compte BGG** (démarrage à froid) : « Nouveautés à découvrir », jeux de base récents, abordables (complexité ≤ 3) et assez votés, sans filtre de mécanique, puis le questionnaire de goûts.
+- **Mes envies de jeu** (premier onglet, absent s'il est vide) : les jeux marqués « J'aimerais jouer » ; enregistrer une partie sur un jeu le retire de la liste.
 - Un même jeu ne s'affiche qu'une fois sur la page.
 
 ### Mes goûts (questionnaire)
 - Jusqu'à six styles de jeu, à remplir sur l'accueil (démarrage à froid) ou dans **Mon compte → Mes goûts**, où on peut aussi tout effacer.
 - Ils passent **avant** les goûts déduits de l'historique (notes, parties aimées), qui les complètent jusqu'à quatre familles ; le recalcul des préférences ne les efface jamais.
 - Tant que rien n'est déclaré, l'accueil le rappelle (« Plus tard » masque le rappel une semaine).
+
+### Mon compte
+- Menu latéral à quatre entrées : **Mes votes** (tous les retours donnés, à modifier ou annuler, filtrables par verdict), **Mes goûts**, **Mon profil** (numéro d'adhérent, mot de passe) et **Mes données** (export JSON, suppression définitive).
+- L'inscription se fait par **code d'invitation** ; un lien `/inscription?code=…` pré-remplit le code. Le mot de passe se saisit une seule fois.
 
 ### Import (menu « Import »)
 - Trois onglets : **Compte BGG**, **Ma collection MyLudo**, **Mes parties MyLudo**.
@@ -70,14 +75,18 @@ Plateforme de découverte et de recommandation de jeux de société pour les mem
 - **Tout le catalogue** — suggère des jeux hors collection (qualité BGG ≥ 6.5), avec un lot de nouveautés ajouté à la sélection et une qualité notée de façon continue, pour que les jeux récents ne soient pas noyés par les classiques
 - Les résultats arrivent à l'ouverture, selon les styles favoris (goûts déclarés d'abord) et la table enregistrée, puis **se mettent à jour à chaque changement** de critère (pas de bouton)
 - Jusqu'à **30 résultats** par onglet, séparés en sous-onglets Jeux de base / Extensions
+- **Filtres de contexte** (« qu'est-ce qu'on joue maintenant, avec ces gens et ce temps ? ») : des scénarios en un clic (« 4 joueurs · 1 h · léger ») et « déjà joué / jamais joué » en haut de la liste, le reste dans la barre latérale ; le choix est dans l'adresse, donc partageable. Seulement sur cette page (Explorer et Ma ludothèque n'en ont pas) :
+  - Nombre de joueurs, en distinguant **jouable**, **conseillé** et **idéal** (vote de la communauté BGG, `suggested_numplayers`, rempli par l'enrichissement planifié)
+  - Durée maximale (jauges pour les joueurs et la durée), difficulté en trois paliers (léger ≤ 2, moyen 2 à 3, costaud > 3), coopératif ou compétitif, âge du plus jeune joueur
+  - Un jeu sans donnée (poids, durée, âge, sondage) reste affiché, étiqueté « inconnu » ; aucun appel à BGG à la requête
 - Filtres disponibles dans la barre latérale :
-  - Nombre de joueurs
-  - Durée maximale (15 min → 4h)
   - Style / Moteur de jeu (modèle Engelstein — 6 moteurs centraux)
   - Mécaniques de support (8 familles)
   - Caractéristiques (Solo, Temps réel, Dextérité, Legacy)
   - **Thèmes & univers** — catégories mappées dans l'interface admin
   - **Types de jeu** — catégories mappées dans l'interface admin
+- **Retours sur les propositions** (accueil, « À l'association » et « Tout le catalogue ») : quatre boutons en icônes sur chaque carte, **Pas intéressé**, **Déjà joué, bof**, **J'aimerais jouer** et **J'ai joué, et j'aime**. Les trois premiers écartent le jeu des propositions (sauf « J'aimerais jouer », qui le garde) ; le retour s'annule pendant 8 s ou en rappuyant sur le bouton. Un jeu déjà joué et bien noté coche tout seul « J'ai joué, et j'aime » (« bof » s'il est mal noté), sans jamais écraser un choix du joueur.
+- **Pourquoi ce jeu ?** : un lien discret sur chaque carte déplie « Parce que vous avez aimé X, et que vous aimez les mécaniques : … ».
 - Les filtres thématiques sont chargés dynamiquement depuis les mappings admin (plus de liste figée dans le code)
 - « Vos styles favoris » reprend les goûts déclarés puis les moteurs déduits de l'historique
 
@@ -115,7 +124,7 @@ L'interface d'administration permet de mapper des catégories BGG brutes (en ang
 Ces mappings alimentent directement les filtres de la page Recommandations.
 
 ### Page d'aide (`/aide`)
-Explications sur le fonctionnement du site, du modèle de recommandation, du modèle Engelstein, du score de similarité et du calcul de préférences mécaniques.
+Explications sur le fonctionnement du site, des filtres de « À quoi on joue » (scénarios, jouable / conseillé / idéal, jeux « inconnus »), des retours sur les propositions, du modèle de recommandation, du modèle Engelstein, du score de similarité et du calcul de préférences mécaniques.
 
 ### Recherche
 - Recherche textuelle dans le catalogue (jusqu'à 200 résultats), le titre exact d'abord, puis les titres qui commencent par la saisie, puis le reste
@@ -130,7 +139,7 @@ Explications sur le fonctionnement du site, du modèle de recommandation, du mod
 - Session : un jeton dure 8 h et se renouvelle tout seul tant que vous utilisez l'application (au plus 30 jours après la dernière connexion) ; changer son mot de passe déconnecte les autres appareils. L'API publique est plafonnée par adresse (catalogue 240 requêtes par minute) et répond `X-RateLimit-*` et `Retry-After`.
 - Mot de passe : l'œil affiche ou masque la saisie ; « Mot de passe oublié ? » envoie par e-mail un lien valable une heure et à usage unique (l'empreinte seule est stockée, la réponse est la même que le compte existe ou non) ; « Mon compte » change le mot de passe (exige l'actuel, déconnecte les autres appareils, avertit par e-mail) et enregistre le **numéro d'adhérent** (EDJ-0123, saisi par la personne, non vérifié ; visible et cherchable par l'administration).
 - Confirmation d'adresse : l'inscription n'ouvre aucune session. Un e-mail envoie un lien valable sept jours, à usage unique ; l'ouvrir confirme l'adresse et connecte. Tant qu'elle n'est pas confirmée, la connexion répond « Adresse e-mail non confirmée » (mot de passe juste seulement) et propose de renvoyer le lien. Réinitialiser son mot de passe confirme aussi l'adresse. Les comptes jamais confirmés sont supprimés au bout de 14 jours (ménage du dimanche), et les comptes antérieurs sont réputés confirmés. L'administration les repère par l'étiquette « Non confirmé ».
-- Rôles : un compte est **Membre** ou **VIP** (le statut administrateur est à part). L'inscription se fait par **code d'invitation** en préproduction et production : créé dans l'onglet Membres de `/admin` ou par `app:invitation:create "<libellé>" --role=member|vip --uses=N --until=AAAA-MM-JJ`, il accorde son rôle, sert N fois, expire et se révoque. `app:user:role <e-mail> member|vip` change un rôle, `app:user:admin <e-mail> [--revoke]` donne ou retire l'administration (jamais depuis l'interface). Le catalogue, la recherche et l'API `/api/catalogue` restent publics.
+- Rôles : un compte est **Membre** ou **VIP** (le statut administrateur est à part). L'inscription se fait par **code d'invitation** en préproduction et production : créé dans l'onglet Membres de `/admin` ou par `app:invitation:create "<libellé>" --role=member|vip --uses=N --until=AAAA-MM-JJ`, il accorde son rôle, sert N fois, expire et se révoque. `app:user:role <e-mail> member|vip` change un rôle, `app:user:admin <e-mail> [--revoke]` donne ou retire l'administration (jamais depuis l'interface). Le site est **réservé aux membres connectés** : un visiteur ne voit qu'une page de présentation (accès réservé aux adhérents d'Envie de jouer), la connexion et l'inscription ; seule l'API `/api/catalogue` (lecture seule, pour BG-TCG) reste publique.
 - Tableau de bord (`/admin`, six onglets : Catalogue, Tâches, Explorer, Membres, Communauté, Mappings ; l'onglet courant est dans l'URL, `?onglet=`) : dernière exécution et historique des tâches d'import et de synchronisation (bilan chiffré, durée, erreur), puis explorateur du catalogue filtrable (à enrichir, jamais demandés à BGG, sans réponse de BGG, à rafraîchir, sans image, extensions sans jeu de base…) avec fiche de diagnostic ; lecture seule. L'onglet Tâches permet d'**arrêter** une tâche en cours (elle finit son lot, l'enregistre et rend la main) puis, si elle ne réagit plus, de **forcer l'arrêt** (avec confirmation ; le lot en cours est perdu) ; c'est aussi ainsi qu'on clôture une exécution restée « en cours » dont le processus a disparu
 
 ---
@@ -310,6 +319,7 @@ aqoj/
 │   │   │   ├── BggController.php           # import BGG (ma ludothèque ou celle de l'association)
 │   │   │   ├── MyLudoController.php        # import MyLudo : analyse puis confirmation
 │   │   │   ├── UserPreferenceController.php # préférences, goûts (PUT /user/taste), table (PUT /user/table)
+│   │   │   ├── GameFeedbackController.php  # retours sur les propositions, envies de jeu, historique des votes
 │   │   │   ├── SessionController.php       # parties jouées
 │   │   │   └── Admin*Controller.php        # statistiques, membres, invitations, catalogue, mappings, ludothèque de l'asso
 │   │   ├── Entity/                 # Game, User, UserPreference, GameSession, InvitationCode, mappings
@@ -320,6 +330,7 @@ aqoj/
 │   │   ├── Security/               # Authentification JWT du pare-feu
 │   │   └── Service/                # Logique métier
 │   │       ├── BggApiService.php         # Appels API BGG
+│   │       ├── ContextFilters.php        # filtres de contexte de « À quoi on joue » (joueurs idéal/conseillé, poids, mode, âge, joué)
 │   │       ├── GameEnrichmentService.php # Hydratation des entités
 │   │       ├── MechanicFamilyResolver.php
 │   │       ├── RecommendationService.php # accueil, découverte, table du soir, démarrage à froid
@@ -330,7 +341,7 @@ aqoj/
     └── src/
         ├── pages/
         │   ├── HomePage.jsx           # Accueil : table, pour votre table, nouveautés, goûts
-        │   ├── RecommendationPage.jsx # Recommandations (filtres dynamiques)
+        │   ├── RecommendationPage.jsx # Recommandations (filtres de contexte, styles, thèmes)
         │   ├── LibraryPage.jsx        # Ludothèque (sous-onglets base/ext)
         │   ├── ImportPage.jsx         # Import : onglets BGG, MyLudo, parties
         │   ├── AccountPage.jsx        # Compte : numéro d'adhérent, goûts, mot de passe, données
@@ -341,11 +352,15 @@ aqoj/
         ├── components/
         │   ├── GameCard.jsx           # Carte jeu (badge extension, % similarité)
         │   ├── TasteForm.jsx          # Questionnaire de goûts (accueil et compte)
+        │   ├── ContextFilters.jsx     # Scénarios, « joué » et jauge des filtres de « À quoi on joue »
+        │   ├── GameFeedback.jsx, VoteHistory.jsx  # Boutons de retour, explication, historique des votes
         │   ├── ImportBggTab.jsx, ImportMyLudoTab.jsx  # Onglets de la page Import (rapprochement MyLudo)
         │   ├── AssociationLibraryPanel.jsx            # Contenu de la ludothèque de l'asso (admin)
         │   ├── GamePicker.jsx         # Choisir un jeu dans la base (recherche locale)
         │   └── AppShell.jsx           # Coque : rail latéral, barre d'onglets, recherche
+        ├── hooks/                     # useGameFeedback, useContextFilters (filtres portés par l'adresse)
         ├── utils/
+        │   ├── contexte.js            # Filtres de contexte : adresse, API, étiquettes « inconnu »
         │   ├── engelstein.js          # Familles de mécaniques + couleurs
         │   └── categories.js          # Catégories BGG (recherche)
         └── api.js                     # Appels API centralisés
@@ -407,5 +422,5 @@ Qualité : `make qualite` (PHPStan, PHPUnit, ESLint, Vitest) ; la même chaîne 
 Les données de jeux viennent de [BoardGameGeek](https://boardgamegeek.com).
 
 Pages légales : l'éditeur, le contact et l'hébergeur s'affichent depuis `frontend/src/legal.js`, lu dans les variables de build
-`VITE_PUBLISHER_NAME`, `VITE_CONTACT_EMAIL`, `VITE_HOST_NAME` et `VITE_HOST_ADDRESS`. Tant qu'elles manquent, les pages affichent
-« [à renseigner avant la mise en ligne] » : à renseigner avant toute mise en ligne.
+`VITE_PUBLISHER_NAME`, `VITE_PUBLISHER_FORM`, `VITE_PUBLISHER_ADDRESS`, `VITE_PUBLISHER_ID` (RNA/SIRET), `VITE_PUBLICATION_DIRECTOR`, `VITE_CONTACT_EMAIL`, `VITE_HOST_NAME` et `VITE_HOST_ADDRESS` (valeurs par défaut : l'association Envie de Jouer, d'après enviedejouer89.fr/mentions-legales ; hébergeur Hostinger ; e-mails Brevo). Tant qu'elles manquent, les pages affichent
+« [à renseigner avant la mise en ligne] ». Par défaut : l'association, son hébergeur et son contact sont ceux de enviedejouer89.fr. Les journaux Docker sont plafonnés (`x-journaux` dans `compose.yml`, voir `README.docker.md`) ; la politique de confidentialité le décrit, à tenir à jour avec toute modification.

@@ -1,23 +1,26 @@
 import { Link } from 'react-router-dom'
 import LegalPage, { LegalSection } from '../components/LegalPage'
-import { publisher } from '../legal'
+import { publisher, host, mailer } from '../legal'
 
 export default function PrivacyPage() {
   return (
-    <LegalPage title="Politique de confidentialité" updated="octobre 2026">
+    <LegalPage title="Politique de confidentialité" updated="novembre 2026">
       <LegalSection title="Qui est responsable">
         <p>
-          {publisher.name}, éditrice du site. Contact pour toute question ou demande : {publisher.email}.
+          {publisher.name}, {publisher.form}, éditrice du site (siège : {publisher.address}). Contact pour toute question
+          ou demande : {publisher.email}.
         </p>
       </LegalSection>
 
       <LegalSection title="Les données que nous gardons">
         <ul className="list-disc pl-5 space-y-1">
           <li>Votre adresse e-mail et votre mot de passe (conservé uniquement sous forme chiffrée, irréversible).</li>
+          <li>Votre numéro de membre et le code d'invitation utilisé pour vous inscrire.</li>
           <li>Votre nom d'utilisateur BoardGameGeek, si vous importez votre collection.</li>
-          <li>Votre ludothèque : les jeux que vous possédez et vos notes personnelles.</li>
+          <li>Votre ludothèque : les jeux que vous possédez et vos notes personnelles, y compris les parties importées de MyLudo.</li>
           <li>Vos parties jouées : jeu, nombre de joueurs, note, commentaire, date.</li>
           <li>Vos préférences, calculées à partir de votre ludothèque pour les recommandations.</li>
+          <li>Vos retours sur les propositions (« pas intéressé », « déjà joué, bof », « j’aimerais jouer », « j’ai joué, et j’aime ») : le jeu concerné et votre choix, pour affiner vos suggestions ; vous pouvez les annuler, et ils disparaissent avec votre compte.</li>
           <li>Vos goûts, si vous les indiquez, et la table (nombre de joueurs, durée) que vous choisissez sur l'accueil.</li>
         </ul>
         <p>
@@ -26,13 +29,19 @@ export default function PrivacyPage() {
           les jeux que vous confirmez entrent dans votre ludothèque. Vos parties comptent, sans votre nom, dans les totaux
           « joué par les autres membres » de l'accueil, qui n'apparaissent qu'à partir de deux joueurs distincts.
         </p>
+        <p>
+          Les administrateurs et administratrices du site voient la liste des membres (adresse e-mail, nom d'utilisateur
+          BoardGameGeek, numéro de membre, libellé de l'invitation) pour gérer les comptes et les invitations. Les
+          descriptions de jeux sont traduites par un outil installé sur notre propre serveur : aucune donnée ne le quitte.
+        </p>
       </LegalSection>
 
       <LegalSection title="Cookies et traceurs">
         <p>
           Le site n'utilise aucun cookie ni outil de mesure d'audience. Une fois connecté·e, un jeton de session est
           enregistré dans le stockage de votre navigateur : il est strictement nécessaire au fonctionnement du service,
-          expire au bout de 24 heures et disparaît à la déconnexion.
+          reste valable 8 heures, renouvelées tant que vous l'utilisez, dans la limite de 30 jours, et disparaît à la
+          déconnexion.
         </p>
       </LegalSection>
 
@@ -43,14 +52,26 @@ export default function PrivacyPage() {
             demande, pour lire votre collection publique. Il fournit aussi les images des jeux : votre navigateur les
             charge directement chez lui, ce qui lui révèle votre adresse IP.
           </li>
+          <li>
+            <strong>{mailer.name}</strong> (sous-traitant) : il envoie nos e-mails de service (confirmation d'adresse,
+            réinitialisation du mot de passe, alertes de sécurité). Il reçoit votre adresse e-mail et le contenu du
+            message, uniquement pour l'envoi.
+          </li>
+          <li>
+            <strong>{host.name}</strong> (hébergeur, en Europe) : il héberge le site et la base de données. Comme sur
+            tout serveur web, les requêtes (adresse IP, page demandée, date) sont enregistrées dans les journaux
+            techniques du serveur, pour la sécurité et le dépannage.
+          </li>
         </ul>
       </LegalSection>
 
       <LegalSection title="Combien de temps">
         <p>
           Vos données restent tant que votre compte existe. Si vous le supprimez, elles sont effacées immédiatement et
-          définitivement. Les adresses IP ne sont pas conservées au-delà de la limitation temporaire des tentatives de
-          connexion (quelques minutes).
+          définitivement. Pour limiter les tentatives abusives, votre adresse IP est retenue 15 minutes à la connexion et
+          une heure à l'inscription. Les jetons de confirmation et de réinitialisation sont supprimés au bout de 7 jours,
+          les journaux des tâches automatiques au bout de 90 jours. Les journaux techniques du serveur (accès au site, adresse IP comprise) sont plafonnés en taille : les plus anciennes lignes
+          sont écrasées au fil du trafic, et l'ensemble est supprimé à chaque mise à jour du site.
         </p>
       </LegalSection>
 

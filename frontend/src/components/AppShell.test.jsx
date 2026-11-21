@@ -21,7 +21,7 @@ const renderShell = () => render(
 
 describe('AppShell', () => {
   beforeEach(() => {
-    currentUser = null
+    currentUser = { email: 'membre@example.test' }
     logout.mockClear()
   })
 
@@ -31,7 +31,17 @@ describe('AppShell', () => {
     const navigations = screen.getAllByRole('navigation', { name: 'Navigation principale' })
     expect(navigations).toHaveLength(2)
     expect(within(navigations[0]).getByRole('link', { name: 'À quoi on joue' })).toHaveAttribute('href', '/recommander')
-    expect(within(navigations[1]).getByRole('link', { name: 'Connexion' })).toHaveAttribute('href', '/connexion')
+    expect(within(navigations[1]).getByRole('link', { name: 'Compte' })).toHaveAttribute('href', '/compte')
+  })
+
+  it('n’offre aux visiteurs ni menu, ni recherche, ni aide : seulement la connexion', () => {
+    currentUser = null
+    renderShell()
+
+    expect(screen.queryByRole('navigation', { name: 'Navigation principale' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('searchbox')).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Aide' })).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Connexion' })).toHaveAttribute('href', '/connexion')
   })
 
   it('n’affiche l’administration qu’aux administrateurs', () => {
@@ -60,5 +70,12 @@ describe('AppShell', () => {
   it('offre un lien d’évitement vers le contenu', () => {
     renderShell()
     expect(screen.getByRole('link', { name: 'Aller au contenu' })).toHaveAttribute('href', '#contenu')
+  })
+
+  it('n’affiche pas l’adresse e-mail dans le menu', () => {
+    render(<MemoryRouter><AppShell><p>Contenu</p></AppShell></MemoryRouter>)
+
+    expect(screen.queryByText('membre@example.test')).not.toBeInTheDocument()
+    expect(screen.getAllByRole('link', { name: /Mon compte/ })[0]).toHaveAttribute('href', '/compte')
   })
 })

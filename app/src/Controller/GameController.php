@@ -8,6 +8,7 @@ use App\Repository\GameRepository;
 use App\Repository\UserPreferenceRepository;
 use App\Repository\UserGameRepository;
 use App\Service\BggApiService;
+use App\Service\ContextFilters;
 use App\Service\MechanicFamilyResolver;
 use App\Service\GameEnrichmentService;
 use App\Service\RecommendationService;
@@ -66,6 +67,8 @@ class GameController extends AbstractController
         return $this->json($repository->findByCriteria(null, null));
     }
 
+    private const RECOMMENDATION_PAGE_SIZE = 30;
+
     #[Route('/api/games/recommendation', name: 'api_games_recommendation', methods: ['GET'])]
     public function recommendation(
         Request $request,
@@ -81,6 +84,8 @@ class GameController extends AbstractController
             'maxTime'    => $request->query->getInt('maxTime') ?: null,
             'families'   => $request->query->all('families'),
             'categories' => $request->query->all('categories'),
+            'difficulty' => $request->query->getString('difficulty'),
+            'context'    => ContextFilters::fromRequest($request),
         ];
 
         $scope   = $request->query->getString('scope', 'collection');
@@ -90,11 +95,33 @@ class GameController extends AbstractController
             default    => $service->recommend($user, $criteria),
         };
 
-        return $this->json(array_map(fn($r) => [
-            'game'   => $r['game'],
-            'score'  => round($r['score'], 2),
-            'reason' => $r['reason'],
-        ], $results));
+        // La liste complète est classée une fois ; la page n'en découpe qu'une tranche d'un seul type de fiche (jeux de base
+        // par défaut, `type=expansion` pour les extensions) : une page de 30 donne toujours 30 résultats du type affiché.
+        $totals = [
+            'base'      => count(array_filter($results, fn($r) => !$r['game']->isExpansion())),
+            'expansion' => count(array_filter($results, fn($r) => $r['game']->isExpansion())),
+        ];
+        $type = $request->query->getString('type') === 'expansion' ? 'expansion' : 'base';
+        $results = array_values(array_filter($results, fn($r) => $r['game']->isExpansion() === ($type === 'expansion')));
+
+        $page  = max(1, $request->query->getInt('page', 1));
+        $slice = array_slice($results, ($page - 1) * self::RECOMMENDATION_PAGE_SIZE, self::RECOMMENDATION_PAGE_SIZE);
+
+        $why      = $service->explainer($user);
+        $feedback = $service->feedbackMap($user);
+
+        return $this->json([
+            'items' => array_map(fn($r) => [
+                'game'     => $r['game'],
+                'score'    => round($r['score'], 2),
+                'reason'   => $r['reason'],
+                'why'      => $why($r['game']),
+                'feedback' => $feedback[$r['game']->getId()] ?? null,
+            ], $slice),
+            'total'  => count($results),
+            'totals' => $totals,
+            'page'   => $page,
+        ]);
     }
 
     #[Route('/api/games/home-reco', name: 'api_games_home_reco', methods: ['GET'])]
@@ -110,8 +137,10 @@ class GameController extends AbstractController
 
         $result = $service->recommendHomeDiscover($user, $request->query->getString('scope') === 'library');
 
+        $why       = $service->explainer($user);
+        $feedback  = $service->feedbackMap($user);
         $serialize = fn(array $list) => array_map(
-            fn($r) => ['game' => $r['game'], 'reason' => $r['reason']],
+            fn($r) => ['game' => $r['game'], 'reason' => $r['reason'], 'why' => $why($r['game']), 'feedback' => $feedback[$r['game']->getId()] ?? null],
             $list
         );
 
@@ -126,6 +155,7 @@ class GameController extends AbstractController
             'byDecade' => $byDecade,
             'coldStart' => $result['coldStart'],
             'declared'  => $result['declared'],
+            'hasHistory' => $result['hasHistory'],
             'table'     => $prefRepository->find($user->getId())?->getTable(),
         ]);
     }
@@ -142,9 +172,16 @@ class GameController extends AbstractController
 
         $players = $request->query->getInt('players') ?: null;
         $maxTime = $request->query->getInt('maxTime') ?: null;
-        $result  = $service->recommendTonight($user, $players, $maxTime, $request->query->getString('scope') === 'library');
+        $level   = $request->query->getString('difficulty');
+        $result  = $service->recommendTonight(
+            $user, $players, $maxTime,
+            $request->query->getString('scope') === 'library',
+            isset(RecommendationService::DIFFICULTY_BANDS[$level]) ? $level : null,
+        );
 
-        $serialize = fn(array $list) => array_map(fn($r) => ['game' => $r['game'], 'reason' => $r['reason']], $list);
+        $why       = $service->explainer($user);
+        $feedback  = $service->feedbackMap($user);
+        $serialize = fn(array $list) => array_map(fn($r) => ['game' => $r['game'], 'reason' => $r['reason'], 'why' => $why($r['game']), 'feedback' => $feedback[$r['game']->getId()] ?? null], $list);
 
         return $this->json(['easy' => $serialize($result['easy']), 'popular' => $serialize($result['popular'])]);
     }
@@ -218,7 +255,7 @@ class GameController extends AbstractController
                             }
 
                             foreach ($bggService->fetchGamesDetails(array_slice($newIds, 0, 5)) as $gameData) {
-                                $em->persist($enrichment->hydrate(new Game(), $gameData));
+                                $em->persist($enrichment->hydrate(new Game(), $gameData)->markDiscovered());
                             }
                             $em->flush();
 

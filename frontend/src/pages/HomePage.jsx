@@ -1,9 +1,13 @@
 import { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { getForgottenGems, getHomeRecommendations, getTonightRecommendations, saveTable } from '../api'
+import { getForgottenGems, getHomeRecommendations, getTonightRecommendations, getWishlist, saveTable } from '../api'
 import GameCard from '../components/GameCard'
+import { FeedbackNotice } from '../components/GameFeedback'
+import { useGameFeedback } from '../hooks/useGameFeedback'
 import FilterRow from '../components/FilterRow'
+import { momentDeLaJournee } from '../utils/moment'
+import { DIFFICULTIES, storedDifficulty, storeDifficulty } from '../utils/difficulte'
 import { DiceIcon, DownloadIcon, SearchIcon, ShelfIcon } from '../components/icons'
 
 const PLAYERS = [1, 2, 3, 4, 5, 6, 7, 8]
@@ -18,14 +22,14 @@ const DURATIONS = [
 ]
 const DEFAULT_TABLE = { players: 4, maxTime: 60 }
 
-/* ── Bandeau « Qu'est-ce qu'on joue ce soir ? » ──────────────────────── */
-function Hero({ table, onTableChange, saved, scopeSwitch }) {
+/* ── Bandeau « À quoi on joue ce soir ? » ──────────────────────── */
+function Hero({ table, onTableChange, difficulty, onDifficultyChange, saved, scopeSwitch }) {
   const { players, maxTime } = table
 
   return (
     <section aria-labelledby="titre-hero" className="panel px-4 py-4 sm:px-6 sm:py-5">
       <div className="flex min-w-0 flex-col gap-2.5">
-        <h1 id="titre-hero" className="text-2xl leading-tight sm:text-3xl">Qu'est-ce qu'on joue ce soir&nbsp;?</h1>
+        <h1 id="titre-hero" className="text-2xl leading-tight sm:text-3xl">À quoi on joue {momentDeLaJournee()}&nbsp;?</h1>
 
         <FilterRow id="filtre-joueurs" label="Joueurs">
           {PLAYERS.map(n => (
@@ -43,6 +47,14 @@ function Hero({ table, onTableChange, saved, scopeSwitch }) {
           ))}
         </FilterRow>
 
+        <FilterRow id="filtre-difficulte" label="Difficulté">
+          {DIFFICULTIES.map(({ label, value }) => (
+            <button key={label} type="button" className="chip chip-sm" aria-pressed={difficulty === value} onClick={() => onDifficultyChange(value)}>
+              {label}
+            </button>
+          ))}
+        </FilterRow>
+
         {scopeSwitch}
 
         <p role="status" className="m-0 text-sm text-stone-600 empty:hidden">
@@ -55,7 +67,7 @@ function Hero({ table, onTableChange, saved, scopeSwitch }) {
 }
 
 /* ── Carrousel horizontal ────────────────────────────────────────────── */
-function Carousel({ items, label }) {
+function Carousel({ items, label, feedback }) {
   const ref = useRef(null)
   const scroll = (dir) => ref.current?.scrollBy({ left: dir * 300, behavior: 'smooth' })
 
@@ -64,9 +76,9 @@ function Carousel({ items, label }) {
       <button type="button" onClick={() => scroll(-1)} aria-label={`${label} : précédents`}
         className="btn absolute -left-3 top-1/3 z-10 hidden !min-h-11 w-11 !px-0 bg-paper shadow-token-sm lg:flex">‹</button>
       <ul ref={ref} aria-label={label} className="m-0 flex list-none snap-x snap-mandatory gap-5 overflow-x-auto px-1 pb-4 pt-1" style={{ scrollbarWidth: 'thin' }}>
-        {items.map(({ game, reason }) => (
-          <li key={game.id} className="w-48 shrink-0 snap-start sm:w-56">
-            <GameCard game={game} reason={reason} />
+        {items.map(({ game, why, feedback: saved }) => (
+          <li key={game.id} className="w-56 shrink-0 snap-start sm:w-60">
+            <GameCard game={game} why={why} verdict={feedback?.verdictOf(game.id, saved)} onFeedback={feedback?.send} />
           </li>
         ))}
       </ul>
@@ -77,7 +89,8 @@ function Carousel({ items, label }) {
 }
 
 /* ── Pour la table du soir ───────────────────────────────────────────── */
-function TonightSection({ tonight, players, maxTime }) {
+function TonightSection({ tonight, players, maxTime, difficulty, feedback }) {
+  const easyTitle = { light: 'Légers à sortir', medium: 'Entre deux : ni légers ni lourds', heavy: 'Pour les costauds' }[difficulty] ?? 'Faciles à expliquer'
   const durationLabel = maxTime < 240 ? DURATIONS.find(d => d.value === maxTime)?.label : 'Durée libre'
 
   return (
@@ -87,18 +100,19 @@ function TonightSection({ tonight, players, maxTime }) {
         <ul aria-label="Table choisie" className="m-0 flex list-none flex-wrap gap-2 p-0">
           <li className="badge bg-brand-yellow">{players} joueur{players > 1 ? 's' : ''}</li>
           <li className="badge bg-brand-yellow">{durationLabel}</li>
+          {difficulty && <li className="badge bg-brand-yellow">{DIFFICULTIES.find(d => d.value === difficulty)?.label}</li>}
         </ul>
       </div>
       {tonight.popular.length > 0 && (
         <div>
           <h3 className="mb-3 text-xl sm:text-2xl">Ce que jouent les autres membres</h3>
-          <Carousel items={tonight.popular} label="Ce que jouent les autres membres" />
+          <Carousel items={tonight.popular} label="Ce que jouent les autres membres" feedback={feedback} />
         </div>
       )}
       {tonight.easy.length > 0 && (
         <div>
-          <h3 className="mb-3 text-xl sm:text-2xl">Faciles à expliquer</h3>
-          <Carousel items={tonight.easy} label="Faciles à expliquer" />
+          <h3 className="mb-3 text-xl sm:text-2xl">{easyTitle}</h3>
+          <Carousel items={tonight.easy} label={easyTitle} feedback={feedback} />
         </div>
       )}
     </section>
@@ -109,12 +123,53 @@ function TonightSection({ tonight, players, maxTime }) {
 const INVITE_KEY = 'aqoj_gouts_plus_tard'
 const INVITE_DELAY = 7 * 24 * 3600 * 1000
 
-function inviteSnoozed() {
+function inviteSnoozed(key = INVITE_KEY) {
   try {
-    return Date.now() - Number(localStorage.getItem(INVITE_KEY) ?? 0) < INVITE_DELAY
+    return Date.now() - Number(localStorage.getItem(key) ?? 0) < INVITE_DELAY
   } catch {
     return false
   }
+}
+
+// Plus rien à recommander sans matière : ni ludothèque ni partie. Trois façons d'en fournir, la plus rapide en premier.
+const HISTORY_KEY = 'aqoj_historique_plus_tard'
+const HISTORY_WAYS = [
+  { to: '/importer?onglet=bgg', label: 'Renseigner mon compte BGG', text: 'Votre collection et vos notes arrivent en un clic.' },
+  { to: '/importer?onglet=myludo', label: 'Importer ma ludothèque MyLudo', text: 'Depuis le fichier CSV exporté de MyLudo.' },
+  { to: '/parties', label: 'Enregistrer des parties', text: 'Quelques parties jouées suffisent pour cerner vos goûts.' },
+]
+
+function HistoryInvite({ hasTastes }) {
+  const [hidden, setHidden] = useState(() => inviteSnoozed(HISTORY_KEY))
+  if (hidden) return null
+
+  const later = () => {
+    try { localStorage.setItem(HISTORY_KEY, String(Date.now())) } catch { /* stockage indisponible : le rappel reviendra */ }
+    setHidden(true)
+  }
+
+  return (
+    <section aria-labelledby="titre-historique" className="panel flex flex-col gap-4 bg-amber-100 p-5">
+      <div>
+        <h2 id="titre-historique" className="text-xl sm:text-2xl">Des suggestions à votre image</h2>
+        <p className="mt-1 text-stone-700">Dites-nous à quoi vous avez déjà joué : les idées de cette page s’ajusteront à vos goûts.</p>
+      </div>
+      <ul className="m-0 grid list-none gap-3 p-0 sm:grid-cols-3">
+        {HISTORY_WAYS.map(({ to, label, text }) => (
+          <li key={to}>
+            <Link to={to} className="token-card h-full gap-1 p-4">
+              <span className="font-bold">{label}</span>
+              <span className="text-sm text-stone-600">{text}</span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-1">
+        {!hasTastes && <Link to="/compte#gouts" className="inline-flex min-h-11 items-center font-bold text-brand-blue underline underline-offset-4">Ou choisir mes goûts</Link>}
+        <button type="button" onClick={later} className="inline-flex min-h-11 items-center font-bold text-brand-blue underline underline-offset-4">Plus tard</button>
+      </div>
+    </section>
+  )
 }
 
 function TasteInvite() {
@@ -168,7 +223,7 @@ function ScopeSwitch({ scope, onChange }) {
 }
 
 /* ── Onglets décennie ────────────────────────────────────────────────── */
-function DecadeTabs({ byDecade }) {
+function DecadeTabs({ byDecade, feedback }) {
   const labels = Object.keys(byDecade)
   const [active, setActive] = useState(labels[0])
 
@@ -177,7 +232,7 @@ function DecadeTabs({ byDecade }) {
 
   return (
     <div>
-      <div role="tablist" aria-label="Décennies" className="mb-4 flex gap-1.5 overflow-x-auto pb-1">
+      <div role="tablist" aria-label="Décennies" className="-mt-2 mb-2 flex gap-1.5 overflow-x-auto overflow-y-hidden py-2">
         {labels.map(label => (
           <button key={label} type="button" role="tab" id={`epoque-${label}`} aria-selected={active === label} aria-controls="epoque-panneau"
             onClick={() => setActive(label)} className="chip chip-sm shrink-0">
@@ -187,8 +242,8 @@ function DecadeTabs({ byDecade }) {
         ))}
       </div>
       <ul id="epoque-panneau" role="tabpanel" aria-labelledby={`epoque-${active}`} className="m-0 grid list-none grid-cols-2 gap-4 p-0 sm:grid-cols-3 sm:gap-5 xl:grid-cols-4 2xl:grid-cols-5">
-        {games.map(({ game, reason }) => (
-          <li key={game.id}><GameCard game={game} reason={reason} /></li>
+        {games.map(({ game, why, feedback: saved }) => (
+          <li key={game.id}><GameCard game={game} why={why} verdict={feedback?.verdictOf(game.id, saved)} onFeedback={feedback?.send} /></li>
         ))}
       </ul>
     </div>
@@ -228,9 +283,11 @@ const ENTRIES = [
 /* ── Page ────────────────────────────────────────────────────────────── */
 export default function HomePage() {
   const { user, loading: authLoading } = useAuth()
+  const feedback = useGameFeedback()
 
   const [reco, setReco]               = useState(null)
   const [forgotten, setForgotten]     = useState([])
+  const [wishlist, setWishlist]       = useState([])
   const [recoLoading, setRecoLoading] = useState(false)
   const [recoError, setRecoError]     = useState(null)
   const [scope, setScope]             = useState(storedScope)
@@ -240,12 +297,18 @@ export default function HomePage() {
   const [table, setTable]           = useState(DEFAULT_TABLE)
   const [tableReady, setTableReady] = useState(false)
   const [tableSaved, setTableSaved] = useState(null)
+  const [difficulty, setDifficulty] = useState(storedDifficulty)
   const [tonight, setTonight]       = useState({ easy: [], popular: [] })
   const { players, maxTime } = table
 
   const changeScope = (next) => {
     setScope(next)
     try { localStorage.setItem(SCOPE_KEY, next) } catch { /* stockage indisponible : le choix ne sera pas retenu */ }
+  }
+
+  const changeDifficulty = (next) => {
+    setDifficulty(next)
+    storeDifficulty(next)
   }
 
   const changeTable = (next) => {
@@ -269,6 +332,12 @@ export default function HomePage() {
       .finally(() => { setRecoLoading(false); setTableReady(true) })
   }, [user, authLoading, scope])
 
+  // Les envies de jeu : indépendantes du périmètre, une partie enregistrée les retire côté serveur.
+  useEffect(() => {
+    if (authLoading || !user) return
+    getWishlist().then(setWishlist).catch(() => setWishlist([]))
+  }, [user, authLoading])
+
   // Les « oubliés » sont ceux de la ludothèque commune : sans objet quand on cherche dans tout le catalogue.
   useEffect(() => {
     if (authLoading || !user) return
@@ -282,32 +351,57 @@ export default function HomePage() {
   useEffect(() => {
     if (authLoading || !user || !tableReady) return
     let current = true
-    getTonightRecommendations({ players, maxTime: maxTime >= 240 ? null : maxTime, scope })
+    getTonightRecommendations({ players, maxTime: maxTime >= 240 ? null : maxTime, scope, difficulty })
       .then(data => { if (current) setTonight(data) })
       .catch(() => { if (current) setTonight({ easy: [], popular: [] }) })
     return () => { current = false }
-  }, [user, authLoading, tableReady, players, maxTime, scope])
+  }, [user, authLoading, tableReady, players, maxTime, scope, difficulty])
 
   // Un même jeu ne s'affiche qu'une fois : ce que jouent les membres d'abord, les nouveautés avant les « faciles ».
-  const shown      = new Set(tonight.popular.map(({ game }) => game.id))
-  const recentList = (reco?.recent ?? []).filter(({ game }) => !shown.has(game.id))
+  // Un jeu écarté (« pas intéressé », « bof ») disparaît des listes sans attendre le rechargement.
+  const kept       = (list) => list.filter(({ game }) => !feedback.isHidden(game.id))
+  const popular    = kept(tonight.popular)
+  const shown      = new Set(popular.map(({ game }) => game.id))
+  const recentList = kept(reco?.recent ?? []).filter(({ game }) => !shown.has(game.id))
   recentList.forEach(({ game }) => shown.add(game.id))
-  const tonightShown = { popular: tonight.popular, easy: tonight.easy.filter(({ game }) => !shown.has(game.id)) }
+  const tonightShown = { popular, easy: kept(tonight.easy).filter(({ game }) => !shown.has(game.id)) }
+  // Envies du serveur + celles marquées ici depuis, sans celles retirées ou écartées entre-temps ; chaque jeu une fois.
+  const wishIds  = new Set()
+  const wished   = [
+    ...feedback.wanted.map(game => ({ game, feedback: 'want_to_play' })),
+    ...wishlist,
+  ].filter(({ game }) => {
+    if (wishIds.has(game.id) || feedback.verdictOf(game.id, 'want_to_play') !== 'want_to_play') return false
+    wishIds.add(game.id)
+    return true
+  })
+  const byDecade     = Object.fromEntries(Object.entries(reco?.byDecade ?? {}).map(([label, list]) => [label, kept(list)]).filter(([, list]) => list.length > 0))
 
   const hasTonight   = tonightShown.easy.length > 0 || tonightShown.popular.length > 0
   const hasRecent    = recentList.length > 0
-  const hasDecades   = reco?.byDecade && Object.keys(reco.byDecade).length > 0
+  const hasDecades   = Object.keys(byDecade).length > 0
   const hasForgotten = forgotten.length > 0
-  const showInvite   = !recoLoading && reco !== null && !(reco.declared?.length > 0)
+  const noHistory    = !recoLoading && reco !== null && reco.hasHistory === false
+  const showInvite   = !recoLoading && reco !== null && !noHistory && !(reco.declared?.length > 0)
 
   const tabs = [
+    wished.length > 0 && {
+      id: 'envies',
+      label: `Mes envies de jeu (${wished.length})`,
+      content: (
+        <>
+          <p className="mb-4 mt-0 text-stone-600">Les jeux que vous aimeriez jouer. Une partie enregistrée sur un jeu le retire de cette liste.</p>
+          <Carousel items={wished} label="Mes envies de jeu" feedback={feedback} />
+        </>
+      ),
+    },
     hasRecent && {
       id: 'nouveautes',
       label: 'Nouveautés pour vous',
       content: (
         <>
           <p className="mb-4 mt-0 text-stone-600">Dix nouveautés parmi les plus suivies sur BGG, sorties récemment ou à paraître, qui ne sont pas dans votre ludothèque.</p>
-          <Carousel items={recentList} label="Nouveautés pour vous" />
+          <Carousel items={recentList} label="Nouveautés pour vous" feedback={feedback} />
         </>
       ),
     },
@@ -323,15 +417,17 @@ export default function HomePage() {
         </>
       ),
     },
-    hasDecades && { id: 'epoque', label: 'Par époque', content: <DecadeTabs byDecade={reco.byDecade} /> },
+    hasDecades && { id: 'epoque', label: 'Par époque', content: <DecadeTabs byDecade={byDecade} feedback={feedback} /> },
   ].filter(Boolean)
 
   return (
     <div className="mx-auto flex max-w-7xl flex-col gap-10 px-4 py-6 sm:px-6 lg:px-10 lg:py-8">
-      <Hero table={table} onTableChange={changeTable} saved={tableSaved}
+      <Hero table={table} onTableChange={changeTable} difficulty={difficulty} onDifficultyChange={changeDifficulty} saved={tableSaved}
         scopeSwitch={!authLoading && user ? <ScopeSwitch scope={scope} onChange={changeScope} /> : null} />
 
-      {!authLoading && user && hasTonight && <TonightSection tonight={tonightShown} players={players} maxTime={maxTime} />}
+      {!authLoading && user && noHistory && <HistoryInvite hasTastes={reco.declared?.length > 0} />}
+
+      {!authLoading && user && hasTonight && <TonightSection tonight={tonightShown} players={players} maxTime={maxTime} difficulty={difficulty} feedback={feedback} />}
 
       {/* ── Non connecté ───────────────────────────────────────────── */}
       {!authLoading && !user && (
@@ -382,6 +478,8 @@ export default function HomePage() {
           )}
         </>
       )}
+
+      <FeedbackNotice feedback={feedback} />
     </div>
   )
 }

@@ -125,13 +125,14 @@ final class MyLudoImportTest extends ApiTestCase
     public function testLaRechercheMetLeTitreExactEnTeteMemeMoinsNote(): void
     {
         $client = static::createClient();
+        $token = $this->register($client, 'recherche-titre@example.test');
         $this->jeu('Zzrech Lama Trek', null, 2019, votes: 90000);
         $this->jeu('Zzrech Lama', null, 2019, votes: 10);
         $this->jeu('Un Zzrech Lama Autre', null, 2019, votes: 80000);
         $conn = static::getContainer()->get(Connection::class);
         $conn->executeStatement("UPDATE game SET rating_bgg = 9 WHERE name = 'Zzrech Lama Trek'");
 
-        $trouves = $this->call($client, 'GET', '/api/games/search?q=Zzrech Lama&local=1');
+        $trouves = $this->call($client, 'GET', '/api/games/search?q=Zzrech Lama&local=1', token: $token);
 
         self::assertSame(['Zzrech Lama', 'Zzrech Lama Trek', 'Un Zzrech Lama Autre'], array_column(array_values($trouves), 'name'));
     }

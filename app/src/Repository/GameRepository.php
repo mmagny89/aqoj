@@ -4,6 +4,7 @@ namespace App\Repository;
 
 use App\Entity\Game;
 use App\Entity\User;
+use App\Service\ContextFilters;
 use Doctrine\DBAL\ArrayParameterType;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
@@ -17,6 +18,16 @@ class GameRepository extends ServiceEntityRepository
     public function __construct(ManagerRegistry $registry)
     {
         parent::__construct($registry, Game::class);
+    }
+
+    /**
+     * Conditions et paramètres des filtres de contexte (alias `g`), à empiler dans une requête native.
+     *
+     * @return array{0: string[], 1: array<int, mixed>}
+     */
+    private function contextSql(?ContextFilters $context, ?User $user): array
+    {
+        return $context === null ? [[], []] : $context->conditions($user?->getId());
     }
 
     public function findByCriteria(?int $players, ?int $maxTime, array $categories = [], array $mechanics = [], int $page = 1, int $limit = 50): array
@@ -56,6 +67,9 @@ class GameRepository extends ServiceEntityRepository
         ?int $maxTime,
         array $familyKeys = [],
         array $categoryKeys = [],
+        ?float $minComplexity = null,
+        ?float $maxComplexity = null,
+        ?ContextFilters $context = null,
     ): array {
         $conn = $this->getEntityManager()->getConnection();
         $conditions = ['ug.user_id = ?'];
@@ -88,6 +102,20 @@ class GameRepository extends ServiceEntityRepository
             $conditions[] = '(g.playing_time <= ? OR g.playing_time = 0)';
             $params[] = $maxTime;
         }
+
+        if ($minComplexity !== null || $maxComplexity !== null) {
+            // 0 = complexité inconnue : écartée dès qu'une difficulté est demandée
+            $conditions[] = 'g.complexity > ?';
+            $params[] = $minComplexity ?? 0;
+            if ($maxComplexity !== null) {
+                $conditions[] = 'g.complexity <= ?';
+                $params[] = $maxComplexity;
+            }
+        }
+
+        [$contextConditions, $contextParams] = $this->contextSql($context, $user);
+        array_push($conditions, ...$contextConditions);
+        array_push($params, ...$contextParams);
 
         $where = implode(' AND ', $conditions);
 
@@ -139,6 +167,8 @@ class GameRepository extends ServiceEntityRepository
         ?float $maxComplexity = null,
         ?int $minVotes = null,
         bool $library = false,
+        ?float $minComplexity = null,
+        ?ContextFilters $context = null,
     ): array {
         $conn = $this->getEntityManager()->getConnection();
 
@@ -216,6 +246,11 @@ class GameRepository extends ServiceEntityRepository
             $params[] = $maxComplexity;
         }
 
+        if ($minComplexity !== null) {
+            $conditions[] = 'g.complexity > ?';
+            $params[] = $minComplexity;
+        }
+
         if ($minVotes !== null) {
             $conditions[] = 'g.users_rated >= ?';
             $params[] = $minVotes;
@@ -228,6 +263,10 @@ class GameRepository extends ServiceEntityRepository
                 $params[] = $id;
             }
         }
+
+        [$contextConditions, $contextParams] = $this->contextSql($context, $user);
+        array_push($conditions, ...$contextConditions);
+        array_push($params, ...$contextParams);
 
         $where = implode(' AND ', $conditions);
         $params[] = $limit;
@@ -381,16 +420,18 @@ class GameRepository extends ServiceEntityRepository
             ->getResult();
     }
 
+    /** « Déjà joué » : noté sur BGG, ou au moins une partie enregistrée (saisie ici ou importée de MyLudo). Alias `ug` requis. */
+    private const USER_GAME_PLAYED = '(ug.bgg_user_rating IS NOT NULL
+        OR EXISTS (SELECT 1 FROM game_session gs WHERE gs.user_id = ug.user_id AND gs.game_id = ug.game_id))';
+
     /**
-     * @param bool|null $played  true = déjà notés (bgg_user_rating IS NOT NULL),
-     *                            false = pas encore notés,
-     *                            null = tous
+     * @param bool|null $played  true = déjà joués (notés sur BGG ou avec une partie), false = pas encore joués, null = tous
      */
     public function findByUserCollection(User $user, int $page = 1, int $limit = 50, ?bool $played = null, ?bool $isExpansion = null): array
     {
         $playedClause = match ($played) {
-            true  => 'AND ug.bgg_user_rating IS NOT NULL',
-            false => 'AND ug.bgg_user_rating IS NULL',
+            true  => 'AND ' . self::USER_GAME_PLAYED,
+            false => 'AND NOT ' . self::USER_GAME_PLAYED,
             null  => '',
         };
 
@@ -446,8 +487,8 @@ class GameRepository extends ServiceEntityRepository
     public function countUserCollection(User $user, ?bool $played = null, ?bool $isExpansion = null): int
     {
         $playedClause = match ($played) {
-            true  => 'AND ug.bgg_user_rating IS NOT NULL',
-            false => 'AND ug.bgg_user_rating IS NULL',
+            true  => 'AND ' . self::USER_GAME_PLAYED,
+            false => 'AND NOT ' . self::USER_GAME_PLAYED,
             null  => '',
         };
 
@@ -466,7 +507,7 @@ class GameRepository extends ServiceEntityRepository
         }
 
         return (int) $this->getEntityManager()->getConnection()->fetchOne(
-            "SELECT COUNT(*) FROM user_game WHERE user_id = ? {$playedClause}",
+            "SELECT COUNT(*) FROM user_game ug WHERE ug.user_id = ? {$playedClause}",
             [$user->getId()]
         );
     }

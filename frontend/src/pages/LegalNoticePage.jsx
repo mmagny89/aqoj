@@ -3,15 +3,25 @@ import { publisher, host } from '../legal'
 
 export default function LegalNoticePage() {
   return (
-    <LegalPage title="Mentions légales" updated="octobre 2026">
+    <LegalPage title="Mentions légales" updated="novembre 2026">
       <LegalSection title="Éditeur du site">
-        <p>« À quoi on joue » est édité à titre non professionnel par {publisher.name}.</p>
+        <p>
+          « À quoi on joue » est édité par {publisher.name}, {publisher.form}, à titre non commercial.
+        </p>
+        <p>Siège : {publisher.address}</p>
+        <p>Identification : {publisher.id}</p>
+        <p>Directrice de la publication : {publisher.director}</p>
         <p>Contact : {publisher.email}</p>
       </LegalSection>
 
       <LegalSection title="Hébergement">
-        <p>{host.name}</p>
-        <p>{host.address}</p>
+        <p>
+          Le site est hébergé par {host.name}, {host.address} —{' '}
+          <a href="https://www.hostinger.fr" className="text-amber-700 underline" target="_blank" rel="noopener noreferrer">
+            hostinger.fr
+          </a>
+          . Les données sont hébergées en Europe.
+        </p>
       </LegalSection>
 
       <LegalSection title="Données de jeux">

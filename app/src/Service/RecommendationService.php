@@ -23,8 +23,31 @@ class RecommendationService
     /** Complexité BGG (1-5) au plus : un jeu qu'on explique en cinq minutes autour d'une table. */
     private const EASY_MAX_COMPLEXITY = 2.5;
 
+    /**
+     * Niveaux de difficulté choisis sur l'accueil, en poids BGG (1 à 5) : [exclu, inclus].
+     * null = pas de borne.
+     */
+    public const DIFFICULTY_BANDS = [
+        'light'  => [null, 2.0],
+        'medium' => [2.0, 3.0],
+        'heavy'  => [3.0, null],
+    ];
+
     /** Un jeu n'est « joué par les autres membres » qu'à partir de ce nombre de joueurs distincts : jamais le choix d'une seule personne. */
     private const POPULAR_MIN_PLAYERS = 2;
+
+    /** Nombre de jeux « bof » partageant une famille pour qu'elle sorte du profil déduit. */
+    private const AVOIDED_MIN_GAMES = 3;
+
+    /** Retours qui écartent un jeu des propositions (un jeu qu'on veut essayer, lui, reste proposé). */
+    private const EXCLUDING_VERDICTS = "'not_interested', 'played_meh'";
+
+    /** Retours qui comptent comme un goût : les mécaniques du jeu entrent dans le profil et dans « parce que vous avez aimé ». */
+    private const POSITIVE_VERDICTS = "'played_liked', 'want_to_play'";
+
+    /** Jeux aimés comparés à chaque proposition pour la phrase « parce que vous avez aimé… » ; ressemblance minimale (comme `findSimilar`). */
+    private const EXPLAIN_LIKED_GAMES = 12;
+    private const EXPLAIN_MIN_SIMILARITY = 25;
 
     public function __construct(
         private readonly GameRepository $gameRepository,
@@ -32,6 +55,18 @@ class RecommendationService
         private readonly UserGameRepository $userGameRepository,
         private readonly Connection $conn,
     ) {}
+
+    /**
+     * Bornes de poids BGG du niveau `difficulty` des critères ; [null, null] sans niveau (ou inconnu).
+     *
+     * @return array{0: ?float, 1: ?float}
+     */
+    private function difficultyBand(array $criteria): array
+    {
+        $level = $criteria['difficulty'] ?? null;
+
+        return is_string($level) ? (self::DIFFICULTY_BANDS[$level] ?? [null, null]) : [null, null];
+    }
 
     /**
      * Recommande des jeux depuis la collection de l'utilisateur.
@@ -46,6 +81,7 @@ class RecommendationService
      */
     public function recommend(User $user, array $criteria): array
     {
+        [$minComplexity, $maxComplexity] = $this->difficultyBand($criteria);
         $players    = isset($criteria['players']) && $criteria['players'] > 0
             ? (int) $criteria['players'] : null;
         $maxTime    = isset($criteria['maxTime']) && $criteria['maxTime'] > 0
@@ -59,6 +95,9 @@ class RecommendationService
             $maxTime,
             $families,
             $categories,
+            $minComplexity,
+            $maxComplexity,
+            $criteria['context'] ?? null,
         );
 
         if (empty($games)) {
@@ -87,7 +126,7 @@ class RecommendationService
 
         usort($scored, fn($a, $b) => $b['score'] <=> $a['score']);
 
-        return array_slice($scored, 0, 30);
+        return $scored;
     }
 
     /**
@@ -98,28 +137,38 @@ class RecommendationService
      */
     public function recommendDiscover(User $user, array $criteria, bool $library = false): array
     {
+        [$minComplexity, $maxComplexity] = $this->difficultyBand($criteria);
         $players    = isset($criteria['players']) && $criteria['players'] > 0 ? (int) $criteria['players'] : null;
         $maxTime    = isset($criteria['maxTime']) && $criteria['maxTime'] > 0 ? (int) $criteria['maxTime'] : null;
         $families   = (array) ($criteria['families']   ?? []);
         $categories = (array) ($criteria['categories'] ?? []);
 
         $currentYear = (int) date('Y');
+        $excludeIds  = $this->getFeedbackGameIds($user);
 
         // Triée par note brute, la réserve générale ne contient presque que des classiques : on y ajoute
         // un second lot de jeux récents, sinon aucune nouveauté n'atteindrait jamais le classement.
         $general = $this->gameRepository->findDiscoverForRecommendation(
             $user, $players, $maxTime, $families,
-            limit: 100,
+            limit: 300,
+            excludeIds: $excludeIds,
             categoryKeys: $categories,
             library: $library,
+            maxComplexity: $maxComplexity,
+            minComplexity: $minComplexity,
+            context: $criteria['context'] ?? null,
         );
         $recentPool = $this->gameRepository->findDiscoverForRecommendation(
             $user, $players, $maxTime, $families,
-            limit: 60,
+            limit: 100,
             minYear: $this->recentFromYear($currentYear),
+            excludeIds: $excludeIds,
             categoryKeys: $categories,
             minVotes: self::RECENT_MIN_VOTES,
             library: $library,
+            maxComplexity: $maxComplexity,
+            minComplexity: $minComplexity,
+            context: $criteria['context'] ?? null,
         );
 
         $games = [];
@@ -147,20 +196,13 @@ class RecommendationService
                 $score += 5;
             }
 
-            $rawRating = $game->getRatingBgg() ?? 0;
-            $reason = $rawRating >= 7.5
-                ? 'Très bien noté sur BGG (' . number_format($rawRating, 1) . '/10)'
-                : 'Noté ' . number_format($rawRating, 1) . '/10 sur BGG';
-            if ($this->isRecent($game, $currentYear)) {
-                $reason = 'Nouveauté ' . $game->getYearPublished() . ' · ' . $reason;
-            }
-
-            return ['game' => $game, 'score' => $score, 'reason' => $reason];
+            // La note BGG est déjà sur la carte : aucune raison à redire dans le catalogue.
+            return ['game' => $game, 'score' => $score, 'reason' => ''];
         }, $games);
 
         usort($scored, fn($a, $b) => $b['score'] <=> $a['score']);
 
-        return array_slice($scored, 0, 30);
+        return $scored;
     }
 
     /**
@@ -173,6 +215,7 @@ class RecommendationService
      *   - `coldStart` : true quand ni l'historique ni le questionnaire ne donnent de profil ;
      *                   `recent` propose alors des nouveautés accessibles, sans filtre de mécanique
      *   - `declared`  : goûts déclarés par le joueur (pour préremplir le questionnaire)
+     *   - `hasHistory` : false tant que ni ludothèque ni partie n'existent (l'accueil invite à importer ou saisir)
      */
     public function recommendHomeDiscover(User $user, bool $library = false): array
     {
@@ -191,6 +234,7 @@ class RecommendationService
                 'byDecade'  => [],
                 'coldStart' => true,
                 'declared'  => $declared,
+                'hasHistory' => $this->hasHistory($user),
             ];
         }
 
@@ -242,7 +286,17 @@ class RecommendationService
             'byDecade'  => $byDecade,
             'coldStart' => false,
             'declared'  => $declared,
+            'hasHistory' => $this->hasHistory($user),
         ];
+    }
+
+    /** Le joueur a-t-il au moins un jeu en ludothèque ou une partie enregistrée ? Sinon l'accueil l'invite à en fournir. */
+    private function hasHistory(User $user): bool
+    {
+        return (bool) $this->conn->fetchOne(
+            'SELECT EXISTS (SELECT 1 FROM user_game WHERE user_id = ?) OR EXISTS (SELECT 1 FROM game_session WHERE user_id = ?)',
+            [$user->getId(), $user->getId()],
+        );
     }
 
     /**
@@ -278,20 +332,18 @@ class RecommendationService
         $currentYear = (int) date('Y');
         $fromYear    = (int) date('n') <= 6 ? $currentYear - 1 : $currentYear;
         // Les 30 plus suivies, dont 10 au hasard : d'autres nouveautés à chaque chargement.
-        $games = $this->pickRandom($this->gameRepository->findNewReleases($user, $fromYear, $currentYear + 1, 30), 30, 10);
+        $excluded = array_flip($this->getFeedbackGameIds($user));
+        $pool     = array_filter(
+            $this->gameRepository->findNewReleases($user, $fromYear, $currentYear + 1, 30),
+            fn(Game $game): bool => !isset($excluded[$game->getId()]),
+        );
+        $games = $this->pickRandom($pool, 30, 10);
 
-        return array_map(function (Game $game) use ($currentYear): array {
-            $year   = $game->getYearPublished();
-            $reason = $year !== null && $year > $currentYear ? "À paraître en {$year}" : "Sorti en {$year}";
-            if (($game->getUsersRated() ?? 0) > 0) {
-                $reason .= ' · ' . number_format($game->getUsersRated(), 0, ',', "\u{202F}") . ' votes';
-            }
-            if ($game->getRatingBgg() !== null) {
-                $reason .= ' · ' . number_format($game->getRatingBgg(), 1) . '/10 sur BGG';
-            }
-
-            return ['game' => $game, 'score' => (float) ($game->getUsersRated() ?? 0), 'reason' => $reason];
-        }, $games);
+        // Aucune raison : le tag « Nouveauté » / « À paraître » de la carte (Game::getRelease) dit déjà tout.
+        return array_map(
+            fn(Game $game): array => ['game' => $game, 'score' => (float) ($game->getUsersRated() ?? 0), 'reason' => ''],
+            $games,
+        );
     }
 
     /** Goûts que le joueur a déclarés lui-même (questionnaire de l'accueil). */
@@ -311,8 +363,9 @@ class RecommendationService
      *
      * @return array{easy: array, popular: array}
      */
-    public function recommendTonight(User $user, ?int $players, ?int $maxTime, bool $library = false): array
+    public function recommendTonight(User $user, ?int $players, ?int $maxTime, bool $library = false, ?string $difficulty = null): array
     {
+        [$minComplexity, $maxComplexity] = self::DIFFICULTY_BANDS[$difficulty ?? ''] ?? [null, self::EASY_MAX_COMPLEXITY];
         $currentYear = (int) date('Y');
         $excludeIds  = $this->getDislikedGameIds($user);
 
@@ -327,21 +380,19 @@ class RecommendationService
                 minYear:       $lot['minYear'],
                 excludeIds:    $excludeIds,
                 baseGamesOnly: true,
-                maxComplexity: self::EASY_MAX_COMPLEXITY,
+                maxComplexity: $maxComplexity,
                 minVotes:      $lot['minVotes'],
                 library:       $library,
+                minComplexity: $minComplexity,
             );
             foreach ($games as $game) {
                 $pool[$game->getId()] = $game;
             }
         }
 
-        $easy = array_map(function (Game $game) use ($currentYear): array {
-            $reason = 'Facile à aborder · ' . number_format((float) $game->getRatingBgg(), 1) . '/10 sur BGG';
-            if ($this->isRecent($game, $currentYear)) {
-                $reason = 'Nouveauté ' . $game->getYearPublished() . ' · ' . $reason;
-            }
-
+        $easy = array_map(function (Game $game) use ($currentYear, $difficulty): array {
+            // Avec un niveau choisi, le poids figure déjà sur la carte (points) : rien à ajouter.
+            $reason = $difficulty === null ? 'Facile à aborder' : '';
             return [
                 'game'   => $game,
                 'score'  => $this->qualityRating($game, $currentYear) * 5 + $this->recencyBonus($game, $currentYear),
@@ -352,7 +403,7 @@ class RecommendationService
 
         return [
             'easy'    => $this->pickRandom($easy, 30, 10),
-            'popular' => $this->popularAmongMembers($user, $players, $maxTime, $excludeIds, $library),
+            'popular' => $this->popularAmongMembers($user, $players, $maxTime, $excludeIds, $library, $difficulty),
         ];
     }
 
@@ -360,7 +411,7 @@ class RecommendationService
      * Jeux de base les plus joués par les autres membres sur douze mois. Seuls des totaux sortent :
      * jamais qui a joué, et rien tant que deux joueurs distincts ne l'ont pas joué.
      */
-    private function popularAmongMembers(User $user, ?int $players, ?int $maxTime, array $excludeIds, bool $library): array
+    private function popularAmongMembers(User $user, ?int $players, ?int $maxTime, array $excludeIds, bool $library, ?string $difficulty = null): array
     {
         $conditions = [
             'gs.user_id IS NOT NULL',
@@ -380,6 +431,15 @@ class RecommendationService
         if ($maxTime !== null) {
             $conditions[] = '(g.playing_time <= ? OR g.playing_time = 0)';
             $params[] = $maxTime;
+        }
+        if (isset(self::DIFFICULTY_BANDS[$difficulty ?? ''])) {
+            [$min, $max] = self::DIFFICULTY_BANDS[$difficulty];
+            $conditions[] = 'g.complexity > ?';
+            $params[]     = $min ?? 0;
+            if ($max !== null) {
+                $conditions[] = 'g.complexity <= ?';
+                $params[]     = $max;
+            }
         }
         if ($excludeIds !== []) {
             $conditions[] = 'g.id NOT IN (' . implode(',', array_fill(0, count($excludeIds), '?')) . ')';
@@ -421,6 +481,12 @@ class RecommendationService
     /** Les 4 familles Engelstein du profil : goûts déclarés d'abord, puis celles des jeux aimés. */
     private function getUserTopFamilies(User $user, array $declared = []): array
     {
+        // Les jeux « j'ai joué, et j'aime » ou « j'aimerais jouer » comptent comme des jeux aimés.
+        $positiveFamilies = "SELECT json_array_elements_text(g.mechanic_families) AS family_key
+                 FROM game_feedback f
+                 JOIN game g ON g.id = f.game_id
+                 WHERE f.user_id = ? AND f.source = 'user' AND f.verdict IN (" . self::POSITIVE_VERDICTS . ") AND g.mechanic_families::text != '[]'";
+
         // Priorité 1 : jeux bien notés sur BGG (>= 6) — signal fort "j'aime"
         $rows = $this->conn->fetchAllAssociative(
             "SELECT family_key, COUNT(*) AS cnt
@@ -431,11 +497,13 @@ class RecommendationService
                  WHERE ug.user_id = ?
                    AND ug.bgg_user_rating >= 6
                    AND g.mechanic_families::text != '[]'
+                 UNION ALL
+                 " . $positiveFamilies . "
              ) sub
              GROUP BY family_key
              ORDER BY cnt DESC
              LIMIT 4",
-            [$user->getId()]
+            [$user->getId(), $user->getId()]
         );
 
         $families = array_column($rows, 'family_key');
@@ -451,14 +519,20 @@ class RecommendationService
                      WHERE gs.user_id = ?
                        AND gs.rating = 5
                        AND g.mechanic_families::text != '[]'
+                     UNION ALL
+                     " . $positiveFamilies . "
                  ) sub
                  GROUP BY family_key
                  ORDER BY cnt DESC
                  LIMIT 4",
-                [$user->getId()]
+                [$user->getId(), $user->getId()]
             );
             $families = array_column($rows, 'family_key');
         }
+
+        // Les familles de jeux « déjà joué, bof » ne se déduisent plus de l'historique (un goût déclaré les garde).
+        $avoided  = $this->getAvoidedFamilies($user);
+        $families = array_values(array_diff($families, $avoided));
 
         // Les goûts déclarés passent devant : un choix explicite vaut mieux qu'une déduction, et l'historique
         // complète ce que le joueur n'a pas dit (jusqu'à quatre familles).
@@ -481,13 +555,13 @@ class RecommendationService
                  LIMIT 4",
                 [$user->getId()]
             );
-            $families = array_column($rows, 'family_key');
+            $families = array_values(array_diff(array_column($rows, 'family_key'), $avoided));
         }
 
         return $families;
     }
 
-    /** IDs des jeux explicitement détestés (note BGG < 5, ou session avec rating = 1). */
+    /** IDs des jeux explicitement détestés (note BGG < 5, session avec rating = 1) ou écartés par un retour du joueur. */
     private function getDislikedGameIds(User $user): array
     {
         $rows = $this->conn->fetchFirstColumn(
@@ -497,11 +571,121 @@ class RecommendationService
                  UNION
                  SELECT gs.game_id FROM game_session gs
                  WHERE gs.user_id = ? AND gs.rating = 1
+                 UNION
+                 SELECT f.game_id FROM game_feedback f
+                 WHERE f.user_id = ? AND f.source = 'user' AND f.verdict IN (" . self::EXCLUDING_VERDICTS . ")
              ) sub",
-            [$user->getId(), $user->getId()]
+            [$user->getId(), $user->getId(), $user->getId()]
         );
 
         return array_map('intval', $rows);
+    }
+
+    /** Jeux que le joueur a écartés (« pas intéressé », « bof », « j'ai joué, et j'aime ») : plus jamais proposés. */
+    private function getFeedbackGameIds(User $user): array
+    {
+        return array_map('intval', $this->conn->fetchFirstColumn(
+            "SELECT game_id FROM game_feedback WHERE user_id = ? AND source = 'user' AND verdict IN (" . self::EXCLUDING_VERDICTS . ')',
+            [$user->getId()]
+        ));
+    }
+
+    /**
+     * Le retour courant du joueur sur chaque jeu (`not_interested`, `played_meh`, `want_to_play`, `played_liked`),
+     * pour que la carte montre le bouton enfoncé.
+     *
+     * @return array<int, string>
+     */
+    public function feedbackMap(User $user): array
+    {
+        $map = [];
+        foreach ($this->conn->fetchAllKeyValue('SELECT game_id, verdict FROM game_feedback WHERE user_id = ?', [$user->getId()]) as $id => $verdict) {
+            $map[(int) $id] = (string) $verdict;
+        }
+
+        return $map;
+    }
+
+    /**
+     * Familles que le joueur évite : celles d'au moins trois jeux « déjà joué, bof ». Elles sortent du profil déduit
+     * de l'historique ; seul un goût déclaré les y remet.
+     *
+     * @return list<string>
+     */
+    private function getAvoidedFamilies(User $user): array
+    {
+        return array_map('strval', $this->conn->fetchFirstColumn(
+            "SELECT family_key FROM (
+                 SELECT json_array_elements_text(g.mechanic_families) AS family_key
+                 FROM game_feedback f
+                 JOIN game g ON g.id = f.game_id
+                 WHERE f.user_id = ? AND f.verdict = 'played_meh' AND g.mechanic_families::text != '[]'
+             ) sub
+             GROUP BY family_key
+             HAVING COUNT(*) >= " . self::AVOIDED_MIN_GAMES,
+            [$user->getId()]
+        ));
+    }
+
+    /**
+     * De quoi expliquer une proposition : « parce que vous avez aimé X, et que vous aimez les mécaniques Y ».
+     * Le profil et les jeux aimés sont lus une fois ; la fonction rendue se joue pour chaque jeu proposé.
+     *
+     * `liked` = le jeu aimé (note BGG ou MyLudo ≥ 7, partie aimée) le plus ressemblant, à partir de `EXPLAIN_MIN_SIMILARITY` ;
+     * `families` = ses familles de mécaniques qui font partie du profil du joueur. Rien à dire = null.
+     *
+     * @return \Closure(Game): (array{liked: ?array{id: int, name: string}, families: list<string>}|null)
+     */
+    public function explainer(User $user): \Closure
+    {
+        $profile = $this->getUserTopFamilies($user, $this->getDeclaredFamilies($user));
+
+        $ids = $this->conn->fetchFirstColumn(
+            "SELECT game_id FROM (
+                 SELECT ug.game_id, ug.bgg_user_rating AS score
+                 FROM user_game ug JOIN game g ON g.id = ug.game_id
+                 WHERE ug.user_id = ? AND ug.bgg_user_rating >= 7 AND g.is_expansion = false
+                 UNION ALL
+                 SELECT gs.game_id, 10 AS score
+                 FROM game_session gs JOIN game g ON g.id = gs.game_id
+                 WHERE gs.user_id = ? AND gs.rating = 5 AND g.is_expansion = false
+                 UNION ALL
+                 SELECT f.game_id, 10 AS score
+                 FROM game_feedback f JOIN game g ON g.id = f.game_id
+                 WHERE f.user_id = ? AND f.source = 'user' AND f.verdict IN (" . self::POSITIVE_VERDICTS . ") AND g.is_expansion = false
+             ) sub
+             GROUP BY game_id
+             ORDER BY MAX(score) DESC, game_id
+             LIMIT " . self::EXPLAIN_LIKED_GAMES,
+            [$user->getId(), $user->getId(), $user->getId()]
+        );
+        $liked = $ids === [] ? [] : $this->gameRepository->findBy(['id' => array_map('intval', $ids)]);
+
+        return function (Game $game) use ($profile, $liked): ?array {
+            $families = array_values(array_intersect($profile, $game->getMechanicFamilies()));
+
+            $best      = null;
+            $bestScore = self::EXPLAIN_MIN_SIMILARITY - 1;
+            foreach ($liked as $candidate) {
+                if ($candidate->getId() === $game->getId()) {
+                    continue;
+                }
+                $score = $this->computeSimilarity($candidate, $game);
+                if ($score > $bestScore) {
+                    $best      = $candidate;
+                    $bestScore = $score;
+                }
+            }
+
+            if ($best === null && $families === []) {
+                return null;
+            }
+
+            return [
+                'liked'    => $best === null ? null : ['id' => $best->getId(), 'name' => $best->getName()],
+                'families' => $families,
+            ];
+        };
     }
 
     /**
@@ -534,13 +718,6 @@ class RecommendationService
                 $overlap === 2 => 'Partage 2 de vos mécaniques préférées',
                 default        => 'Correspond à votre style de jeu',
             };
-            if ($rating >= 7.5) {
-                $reason .= ' · ' . number_format($rating, 1) . '/10 sur BGG';
-            }
-            if ($recentBoost && $this->isRecent($game, $currentYear)) {
-                $reason = 'Nouveauté ' . $year . ' · ' . $reason;
-            }
-
             return ['game' => $game, 'score' => $score, 'reason' => $reason];
         }, $games);
 
@@ -659,9 +836,6 @@ class RecommendationService
         $parts = [];
         if ($shared !== []) {
             $parts[] = 'en commun : ' . implode(', ', array_slice($shared, 0, 2));
-        }
-        if ($candidate->getRatingBgg() !== null && $candidate->getRatingBgg() >= 7.5 && ($candidate->getUsersRated() ?? 0) >= 100) {
-            $parts[] = number_format($candidate->getRatingBgg(), 1) . '/10 BGG';
         }
 
         $prefix = $sim >= 75 ? 'Très proche' : ($sim >= 55 ? 'Proche' : 'Dans le même style');
@@ -905,11 +1079,6 @@ class RecommendationService
                     $parts[] = 'pas joué depuis 6+ mois';
                 }
             }
-        }
-
-        if ($game->getRatingBgg() !== null && $game->getRatingBgg() >= 7.5) {
-            $rating = number_format($game->getRatingBgg(), 1, '.', '');
-            $parts[] = "noté {$rating}/10 sur BGG";
         }
 
         if (empty($parts)) {

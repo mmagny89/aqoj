@@ -57,7 +57,7 @@ function Account({ user, onLogout }) {
       <Link to="/compte" className="flex min-h-11 items-center gap-3">
         <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full border-[3px] border-ink bg-brand-red font-display text-xl" aria-hidden="true">{initial}</span>
         <span className="block min-w-0">
-          <strong className="block truncate">{user.email}</strong>
+          <strong className="block truncate">Mon compte</strong>
           {user.memberNumber && <span className="block text-sm text-stone-600">{user.memberNumber}</span>}
           <span className="flex flex-wrap gap-1">
             <span className={`badge ${user.role === 'vip' ? 'bg-brand-yellow' : 'bg-paper'}`}>{user.role === 'vip' ? 'VIP' : 'Membre'}</span>
@@ -150,9 +150,28 @@ function TabBar({ user }) {
   )
 }
 
+/* Visiteur sans compte : ni menu ni recherche, seulement la marque et l'accès à la connexion. */
+function GuestShell({ children }) {
+  return (
+    <div className="flex min-h-dvh flex-col">
+      <a href="#contenu" className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-50 focus:rounded-lg focus:bg-brand-yellow focus:px-4 focus:py-2 focus:font-bold">
+        Aller au contenu
+      </a>
+      <header className="flex items-center justify-between gap-3 border-b-[3px] border-ink/15 bg-paper px-4 py-3 sm:px-6 lg:px-10">
+        <Brand />
+        <Link to="/connexion" className="btn btn-secondary">Connexion</Link>
+      </header>
+      <main id="contenu" className="flex-1">{children}</main>
+      <Footer guest />
+    </div>
+  )
+}
+
 export default function AppShell({ children }) {
-  const { user, logout } = useAuth()
+  const { user, loading, logout } = useAuth()
   const navigate = useNavigate()
+
+  if (!user && !loading) return <GuestShell>{children}</GuestShell>
 
   const handleLogout = () => {
     logout()

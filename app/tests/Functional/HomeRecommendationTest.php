@@ -11,7 +11,7 @@ final class HomeRecommendationTest extends ApiTestCase
         $client = static::createClient();
         $token = $this->register($client, 'froid@example.test');
         $annee = (int) date('Y');
-        $this->creerJeu('Zznouv Suivi', $annee, 2.3, 8.0, 5000);
+        $this->creerJeu('Zznouv Suivi', $annee, 2.3, 8.0, 5000, decouvert: true);
         $this->creerJeu('Zznouv AVenir', $annee + 1, 3.0, 7.0, 800);
         $this->creerJeu('Zznouv Discret', $annee, 2.3, 7.5, 60);
         $this->creerJeu('Zznouv Ancien', $annee - 3, 2.3, 8.5, 9000);
@@ -28,12 +28,14 @@ final class HomeRecommendationTest extends ApiTestCase
         $parNom = array_column(array_column($reco['recent'], 'game'), 'name');
         sort($parNom);
         self::assertSame(['Zznouv AVenir', 'Zznouv Discret', 'Zznouv Suivi'], $parNom);
-        $raisons = [];
+        $tags = [];
         foreach ($reco['recent'] as $r) {
-            $raisons[$r['game']['name']] = $r['reason'];
+            $tags[$r['game']['name']] = $r['game']['release'];
         }
-        self::assertStringContainsString('Sorti en ' . $annee, $raisons['Zznouv Suivi']);
-        self::assertStringContainsString('À paraître en ' . ($annee + 1), $raisons['Zznouv AVenir']);
+        self::assertSame('new', $tags['Zznouv Suivi']);
+        self::assertSame('upcoming', $tags['Zznouv AVenir']);
+        // Arrivé avec l'import initial : jamais « Nouveauté », même de l'année en cours.
+        self::assertNull($tags['Zznouv Discret']);
     }
 
     public function testLesNouveautesNeProposentPasCeQueLeJoueurAdejaEtSontDixTireesParmiLesTrenteDeTete(): void
@@ -97,13 +99,13 @@ final class HomeRecommendationTest extends ApiTestCase
         }
         $this->creerJeu('Zzdec Nouveau', $annee - 1, 2.5, 7.6, 800);
 
-        $reco = $this->call($client, 'GET', '/api/games/recommendation?scope=discover', token: $token);
+        $reco = $this->call($client, 'GET', '/api/games/recommendation?scope=discover', token: $token)['items'];
 
         self::assertResponseIsSuccessful();
         $noms = array_column(array_column($reco, 'game'), 'name');
         self::assertContains('Zzdec Nouveau', $noms);
         $nouveau = array_values(array_filter($reco, fn(array $r) => $r['game']['name'] === 'Zzdec Nouveau'))[0];
-        self::assertStringStartsWith('Nouveauté ' . ($annee - 1), $nouveau['reason']);
+        self::assertStringNotContainsString('Nouveauté', $nouveau['reason']);
     }
 
     public function testLesListesDeLAccueilChangentAChaqueChargement(): void
@@ -146,6 +148,136 @@ final class HomeRecommendationTest extends ApiTestCase
         self::assertStringContainsString('Facile à aborder', $table['easy'][0]['reason']);
     }
 
+    public function testLaDifficulteChoisieBorneLePoidsDesJeuxProposes(): void
+    {
+        $client = static::createClient();
+        $token = $this->register($client, 'difficulte@example.test');
+        $annee = (int) date('Y');
+        $this->creerJeu('Zzdif Leger', $annee - 2, 1.5, 7.6, 5000);
+        $this->creerJeu('Zzdif Moyen', $annee - 2, 2.6, 7.6, 5000);
+        $this->creerJeu('Zzdif Costaud', $annee - 2, 3.8, 8.0, 5000);
+
+        $noms = fn(string $niveau): array => array_column(array_column(
+            $this->call($client, 'GET', '/api/games/home-tonight?difficulty=' . $niveau, token: $token)['easy'],
+            'game',
+        ), 'name');
+
+        self::assertSame(['Zzdif Leger'], $noms('light'));
+        self::assertSame(['Zzdif Moyen'], $noms('medium'));
+        self::assertSame(['Zzdif Costaud'], $noms('heavy'));
+    }
+
+    public function testLaDifficulteFiltreAussiLaPageRecommander(): void
+    {
+        $client = static::createClient();
+        $token = $this->register($client, 'recodif@example.test');
+        $annee = (int) date('Y');
+        $this->creerJeu('Zzrd Leger', $annee - 2, 1.5, 7.6, 5000);
+        $this->creerJeu('Zzrd Costaud', $annee - 2, 3.8, 8.0, 5000);
+        $conn = static::getContainer()->get(Connection::class);
+        foreach (['Zzrd Leger', 'Zzrd Costaud'] as $nom) {
+            $conn->executeStatement(
+                'INSERT INTO user_game (user_id, game_id) VALUES ((SELECT id FROM app_user WHERE email = ?), (SELECT id FROM game WHERE name = ?))',
+                ['recodif@example.test', $nom],
+            );
+        }
+
+        foreach (['collection', 'discover'] as $perimetre) {
+            $reco = $this->call($client, 'GET', '/api/games/recommendation?scope=' . $perimetre . '&difficulty=heavy', token: $token)['items'];
+            $noms = array_column(array_column($reco, 'game'), 'name');
+            self::assertNotContains('Zzrd Leger', $noms, $perimetre);
+        }
+        $collection = $this->call($client, 'GET', '/api/games/recommendation?difficulty=heavy', token: $token)['items'];
+        self::assertSame(['Zzrd Costaud'], array_column(array_column($collection, 'game'), 'name'));
+    }
+
+    public function testLaRecommandationSePagineParTrente(): void
+    {
+        $client = static::createClient();
+        $token = $this->register($client, 'pages@example.test');
+        $annee = (int) date('Y');
+        for ($i = 1; $i <= 70; $i++) {
+            $this->creerJeu(sprintf('Zzpage %02d', $i), $annee - 5, 2.0, 7.0 + $i / 100, 1000 + $i);
+        }
+
+        $un    = $this->call($client, 'GET', '/api/games/recommendation?scope=discover', token: $token);
+        $deux  = $this->call($client, 'GET', '/api/games/recommendation?scope=discover&page=2', token: $token);
+        $trois = $this->call($client, 'GET', '/api/games/recommendation?scope=discover&page=3', token: $token);
+
+        self::assertGreaterThanOrEqual(70, $un['total']);
+        self::assertCount(30, $un['items']);
+        self::assertCount(30, $deux['items']);
+        self::assertSame(2, $deux['page']);
+        self::assertGreaterThanOrEqual(10, count($trois['items']));
+        $ids = array_merge(...array_map(fn(array $p) => array_column(array_column($p['items'], 'game'), 'id'), [$un, $deux, $trois]));
+        self::assertSame($ids, array_values(array_unique($ids)), 'une même fiche ne revient pas d\'une page à l\'autre');
+    }
+
+    public function testLAccueilSaitSiLeJoueurAUnHistorique(): void
+    {
+        $client = static::createClient();
+        $token = $this->register($client, 'histo@example.test');
+        $this->creerJeu('Zzhis Jeu', (int) date('Y') - 4, 2.0, 7.5, 3000);
+
+        $avant = $this->call($client, 'GET', '/api/games/home-reco', token: $token);
+        self::assertFalse($avant['hasHistory']);
+
+        static::getContainer()->get(Connection::class)->executeStatement(
+            'INSERT INTO user_game (user_id, game_id) VALUES ((SELECT id FROM app_user WHERE email = ?), (SELECT id FROM game WHERE name = ?))',
+            ['histo@example.test', 'Zzhis Jeu'],
+        );
+
+        $apres = $this->call($client, 'GET', '/api/games/home-reco', token: $token);
+        self::assertTrue($apres['hasHistory']);
+    }
+
+    public function testUnJeuAvecUnePartieCompteCommeDejaJoueDansLaLudotheque(): void
+    {
+        $client = static::createClient();
+        $token = $this->register($client, 'joue@example.test');
+        $this->creerJeu('Zzjoue Jeu', (int) date('Y') - 4, 2.0, 7.5, 3000);
+        static::getContainer()->get(Connection::class)->executeStatement(
+            'INSERT INTO user_game (user_id, game_id) VALUES ((SELECT id FROM app_user WHERE email = ?), (SELECT id FROM game WHERE name = ?))',
+            ['joue@example.test', 'Zzjoue Jeu'],
+        );
+
+        $avant = $this->call($client, 'GET', '/api/library?played=1', token: $token);
+        $nonJoue = $this->call($client, 'GET', '/api/library?played=0', token: $token);
+        self::assertSame(0, $avant['total']);
+        self::assertSame(1, $nonJoue['total']);
+
+        $this->partie('Zzjoue Jeu', 'joue@example.test');
+
+        $apres = $this->call($client, 'GET', '/api/library?played=1', token: $token);
+        $nonJoueApres = $this->call($client, 'GET', '/api/library?played=0', token: $token);
+        self::assertSame(1, $apres['total']);
+        self::assertSame(['Zzjoue Jeu'], array_column($apres['games'], 'name'));
+        self::assertSame(0, $nonJoueApres['total']);
+    }
+
+    public function testChaquePageNeContientQueDesFichesDuMemeType(): void
+    {
+        $client = static::createClient();
+        $token = $this->register($client, 'types@example.test');
+        $annee = (int) date('Y');
+        for ($i = 1; $i <= 40; $i++) {
+            $this->creerJeu(sprintf('Zztyp Base %02d', $i), $annee - 5, 2.0, 7.0 + $i / 100, 1000 + $i);
+        }
+        for ($i = 1; $i <= 8; $i++) {
+            $this->creerJeu(sprintf('Zztyp Ext %02d', $i), $annee - 5, 2.0, 8.0, 1000 + $i, extension: true);
+        }
+
+        $base = $this->call($client, 'GET', '/api/games/recommendation?scope=discover', token: $token);
+        $ext  = $this->call($client, 'GET', '/api/games/recommendation?scope=discover&type=expansion', token: $token);
+
+        self::assertCount(30, $base['items']);
+        self::assertSame([false], array_values(array_unique(array_column(array_column($base['items'], 'game'), 'isExpansion'))));
+        self::assertCount(8, $ext['items']);
+        self::assertSame([true], array_values(array_unique(array_column(array_column($ext['items'], 'game'), 'isExpansion'))));
+        self::assertSame(['base' => $base['totals']['base'], 'expansion' => 8], ['base' => $ext['totals']['base'], 'expansion' => $ext['totals']['expansion']]);
+        self::assertGreaterThanOrEqual(40, $base['total']);
+    }
+
     public function testLePerimetreLudothequeNeGardeQueLesJeuxDeLAssociationEtDesMembres(): void
     {
         $client = static::createClient();
@@ -179,7 +311,7 @@ final class HomeRecommendationTest extends ApiTestCase
         sort($noms);
         self::assertSame(['Zzper Asso', 'Zzper Le Mien', 'Zzper Modeste', 'Zzper Voisin'], $noms);
 
-        $liste = $this->call($client, 'GET', '/api/games/recommendation?scope=library', token: $moi);
+        $liste = $this->call($client, 'GET', '/api/games/recommendation?scope=library', token: $moi)['items'];
         $noms = array_column(array_column($liste, 'game'), 'name');
         sort($noms);
         self::assertSame(['Zzper Asso', 'Zzper Le Mien', 'Zzper Modeste', 'Zzper Voisin'], $noms);
@@ -217,14 +349,13 @@ final class HomeRecommendationTest extends ApiTestCase
         self::assertArrayNotHasKey('players', $table['popular'][0]);
     }
 
-    public function testLaTableDuSoirExigeUneSessionSansRienReveler(): void
+    public function testLaTableDuSoirExigeUneSession(): void
     {
         $client = static::createClient();
 
-        $table = $this->call($client, 'GET', '/api/games/home-tonight');
+        $this->call($client, 'GET', '/api/games/home-tonight');
 
-        self::assertResponseIsSuccessful();
-        self::assertSame(['easy' => [], 'popular' => []], $table);
+        self::assertResponseStatusCodeSame(401);
     }
 
     public function testLesGoutsDeclaresPassentDevantLHistoriqueEtLeCompletent(): void
@@ -353,12 +484,12 @@ final class HomeRecommendationTest extends ApiTestCase
     }
 
     /** @param string[] $familles */
-    private function creerJeu(string $nom, int $annee, float $complexite, float $note, int $votes, array $familles = [], bool $extension = false, int $joueursMax = 4): void
+    private function creerJeu(string $nom, int $annee, float $complexite, float $note, int $votes, array $familles = [], bool $extension = false, int $joueursMax = 4, bool $decouvert = false): void
     {
         static::getContainer()->get(Connection::class)->executeStatement(
             "INSERT INTO game (bgg_id, name, min_players, max_players, playing_time, complexity, categories, mechanics,
-                               year_published, rating_bgg, users_rated, is_expansion, mechanic_families, created_at)
-             VALUES (?, ?, 2, ?, 45, ?, '[]', '[\"Dice Rolling\"]', ?, ?, ?, ?, ?, NOW())",
+                               year_published, rating_bgg, users_rated, is_expansion, mechanic_families, created_at, discovered_at)
+             VALUES (?, ?, 2, ?, 45, ?, '[]', '[\"Dice Rolling\"]', ?, ?, ?, ?, ?, NOW(), " . ($decouvert ? 'NOW()' : 'NULL') . ")",
             [
                 'zz' . md5($nom), $nom, $joueursMax, $complexite, $annee, $note, $votes,
                 $extension ? 't' : 'f', json_encode($familles),

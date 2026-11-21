@@ -85,7 +85,7 @@ function InfiniteScrollSentinel({ onVisible }) {
 
 /* ── Composant principal ──────────────────────────────────────────────── */
 const TABS = [
-  { key: 'played',   label: 'Déjà joués',        played: true,  emptyMsg: "Vous n'avez noté aucun jeu sur BGG.", emptyHint: 'Notez vos jeux sur BoardGameGeek et importez votre collection.' },
+  { key: 'played',   label: 'Déjà joués',        played: true,  emptyMsg: 'Aucun jeu joué pour l’instant.', emptyHint: 'Vos notes BGG et vos parties alimentent cette liste, et ajustent vos suggestions.' },
   { key: 'unplayed', label: 'Pas encore joués',   played: false, emptyMsg: 'Tous vos jeux ont été joués !',        emptyHint: null },
 ]
 
@@ -292,7 +292,11 @@ export default function LibraryPage() {
             </h2>
             {subTab === 'base' && tabDef.emptyHint && <p className="text-stone-600">{tabDef.emptyHint}</p>}
             {activeTab === 'played' && subTab === 'base' && (
-              <Link to="/importer" className="btn btn-primary">Importer ma collection</Link>
+              <ul className="m-0 mt-2 flex w-full list-none flex-col gap-2 p-0 sm:flex-row sm:justify-center">
+                <li><Link to="/importer?onglet=bgg" className="btn btn-primary w-full">Renseigner mon compte BGG</Link></li>
+                <li><Link to="/importer?onglet=parties" className="btn btn-secondary w-full">Importer mes parties MyLudo</Link></li>
+                <li><Link to="/parties" className="btn btn-secondary w-full">Enregistrer des parties</Link></li>
+              </ul>
             )}
           </section>
         )}

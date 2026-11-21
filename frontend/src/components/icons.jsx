@@ -26,6 +26,9 @@ export const ShelfIcon = (props) => (
 export const DiceIcon = (props) => (
   <svg {...base} {...props}><rect x="3" y="3" width="18" height="18" rx="3" /><circle cx="8.5" cy="8.5" r="1" /><circle cx="15.5" cy="15.5" r="1" /><circle cx="12" cy="12" r="1" /></svg>
 )
+export const AddPlayIcon = (props) => (
+  <svg {...base} {...props}><rect x="3" y="5" width="15" height="15" rx="3" /><circle cx="7.5" cy="9.5" r="1" /><circle cx="13.5" cy="15.5" r="1" /><path d="M19 2v6m-3-3h6" /></svg>
+)
 export const DownloadIcon = (props) => (
   <svg {...base} {...props}><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v3h16v-3" /></svg>
 )
@@ -46,4 +49,16 @@ export const EyeIcon = (props) => (
 )
 export const EyeOffIcon = (props) => (
   <svg {...base} {...props}><path d="M3 3l18 18M10.6 5.1A10 10 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-3.1 4M6.6 6.6C3.7 8.4 2 12 2 12s3.5 7 10 7a9.7 9.7 0 0 0 4.4-1M9.9 9.9a3 3 0 0 0 4.2 4.2" /></svg>
+)
+export const NotInterestedIcon = (props) => (
+  <svg {...base} {...props}><circle cx="12" cy="12" r="9" /><path d="M5.6 5.6l12.8 12.8" /></svg>
+)
+export const ThumbDownIcon = (props) => (
+  <svg {...base} {...props}><path d="M17 14V3M17 14l-3.5 7a2.5 2.5 0 0 1-2.5-2.5V15H5.8a2 2 0 0 1-2-2.3l1.2-7A2 2 0 0 1 7 4h10" /><path d="M20 3h-3v11h3z" /></svg>
+)
+export const ThumbUpIcon = (props) => (
+  <svg {...base} {...props} style={{ transform: 'rotate(180deg)', ...props.style }}><path d="M17 14V3M17 14l-3.5 7a2.5 2.5 0 0 1-2.5-2.5V15H5.8a2 2 0 0 1-2-2.3l1.2-7A2 2 0 0 1 7 4h10" /><path d="M20 3h-3v11h3z" /></svg>
+)
+export const BookmarkIcon = (props) => (
+  <svg {...base} {...props}><path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4.5L5 21V4a1 1 0 0 1 1-1z" /></svg>
 )

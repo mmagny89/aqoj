@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { getRegistrationConfig, register as apiRegister } from '../api'
 import { AuthCard, ErrorMessage, Field, PasswordField } from '../components/forms'
 import ResendVerification from '../components/ResendVerification'
@@ -7,8 +7,9 @@ import ResendVerification from '../components/ResendVerification'
 export default function RegisterPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [confirm, setConfirm] = useState('')
-  const [code, setCode] = useState('')
+  // Un lien d'invitation (`/inscription?code=XXXX`) renseigne le code d'avance.
+  const [params] = useSearchParams()
+  const [code, setCode] = useState(() => params.get('code') ?? '')
   const [sent, setSent] = useState(false)
   const [requiresCode, setRequiresCode] = useState(false)
   const [error, setError] = useState(null)
@@ -22,11 +23,6 @@ export default function RegisterPage() {
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError(null)
-
-    if (password !== confirm) {
-      setError('Les mots de passe ne correspondent pas.')
-      return
-    }
 
     setLoading(true)
     try {
@@ -73,7 +69,6 @@ export default function RegisterPage() {
           onChange={(e) => setCode(e.target.value)}
         />
         <PasswordField label="Mot de passe" hint="(8 caractères minimum)" autoComplete="new-password" required minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} />
-        <PasswordField label="Confirmer le mot de passe" autoComplete="new-password" required value={confirm} onChange={(e) => setConfirm(e.target.value)} />
         <ErrorMessage>{error}</ErrorMessage>
         <button type="submit" disabled={loading} className="btn btn-primary w-full">
           {loading ? 'Création…' : 'Créer mon compte'}

@@ -1,52 +1,62 @@
 import { useState, useEffect, useId, useRef } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { getRecommendations, getUserPreferences, getThemeMappings } from '../api'
 import GameCard from '../components/GameCard'
+import { FeedbackNotice } from '../components/GameFeedback'
+import { useGameFeedback } from '../hooks/useGameFeedback'
 import { useAuth } from '../context/AuthContext'
+import { storedDifficulty, storeDifficulty } from '../utils/difficulte'
+import { ClearFilters, Gauge, PlayedRow, ScenarioRow } from '../components/ContextFilters'
+import { useContextFilters } from '../hooks/useContextFilters'
+import { AGES, DURATION_STEPS, FITS, PLAYER_STEPS, PLAYERS, WEIGHTS, activeCount, durationLabel, filtersToApi } from '../utils/contexte'
 import { ENGINES, SUPPORT_FAMILIES, EXTRA_FAMILIES, familyLabel } from '../utils/engelstein'
 
 /* ── Chip sélectionnable ─────────────────────────────────────────────── */
-function Chip({ active, onClick, icon, label, small = false }) {
+function Chip({ active, onClick, icon, label, small = true }) {
   return (
     <button type="button" onClick={onClick} aria-pressed={active} className={small ? 'chip chip-sm' : 'chip !min-h-11 text-sm'}>
-      {small && <span aria-hidden="true" className="mr-1 inline-block w-3 text-center">{active ? '✓' : ''}</span>}
+      {small && active && <span aria-hidden="true" className="mr-1">✓</span>}
       {icon && <span aria-hidden="true" className="mr-1.5">{icon}</span>}
       {label}
     </button>
   )
 }
 
+const hasAny = (selected, keys) => selected.some(k => keys.includes(k))
+
 /* ── Section filtres (repliable) ─────────────────────────────────────── */
-function FilterSection({ title, children, defaultOpen = true }) {
-  const [open, setOpen] = useState(defaultOpen)
+// Ouverte tant qu'un de ses éléments est retenu (`active`), fermée sinon ; un clic sur le titre reprend la main.
+function FilterSection({ title, children, active = false }) {
+  const [chosen, setChosen] = useState(null)
+  const open = chosen ?? active
   const id = useId()
   return (
-    <div className="border-b-2 border-ink/15 pb-4">
+    <div className="border-b-2 border-ink/15 pb-1">
       <button
         type="button"
-        onClick={() => setOpen(v => !v)}
+        onClick={() => setChosen(!open)}
         aria-expanded={open}
         aria-controls={id}
-        className="mb-1 flex min-h-11 w-full items-center justify-between text-left font-bold"
+        className="flex min-h-11 w-full items-center justify-between text-left font-bold"
       >
         <span>{title}</span>
         <span aria-hidden="true" className="text-stone-600">{open ? '−' : '+'}</span>
       </button>
-      <div id={id} hidden={!open}>{children}</div>
+      <div id={id} hidden={!open} className="pb-2">{children}</div>
     </div>
   )
 }
 
 /* ── Grille de résultats avec sous-onglets base / extension ─────────── */
-function ResultsGrid({ results, loading, error }) {
-  const [sub, setSub] = useState('base')
-
-  const base = (results ?? []).filter(r => !r.game.isExpansion)
-  const exps  = (results ?? []).filter(r =>  r.game.isExpansion)
-  const items = sub === 'ext' ? exps : base
+// Chaque type de fiche a sa propre liste paginée côté API : une page de 30 donne toujours 30 résultats du type affiché.
+function ResultsGrid({ list, totals, type, onType, loading, error, onLoadMore, feedback, context }) {
+  const loaded = list.data ?? []
+  // Un jeu écarté disparaît sans attendre le rechargement ; le compte suit.
+  const items = feedback ? loaded.filter(({ game }) => !feedback.isHidden(game.id)) : loaded
+  const total = list.total - (loaded.length - items.length)
 
   // Au premier chargement seulement : ensuite les anciens résultats restent affichés pendant l'actualisation.
-  if (loading && results === null) return (
+  if ((loading || list.loadingMore) && list.data === null) return (
     <p role="status" className="flex h-32 items-center justify-center gap-3 text-stone-600">
       <span className="h-5 w-5 animate-spin rounded-full border-[3px] border-stone-300 border-t-brand-red" aria-hidden="true" />
       Chargement…
@@ -59,14 +69,14 @@ function ResultsGrid({ results, loading, error }) {
     <div aria-busy={loading} className={loading ? 'opacity-60 transition-opacity' : 'transition-opacity'}>
       <div role="group" aria-label="Type de fiches" className="mb-4 flex flex-wrap gap-1.5">
         {[
-          { key: 'base', label: 'Jeux de base', count: base.length },
-          { key: 'ext',  label: 'Extensions',   count: exps.length },
+          { key: 'base',      label: 'Jeux de base', count: totals?.base ?? 0 },
+          { key: 'expansion', label: 'Extensions',   count: totals?.expansion ?? 0 },
         ].map(t => (
           <button
             key={t.key}
             type="button"
-            aria-pressed={sub === t.key}
-            onClick={() => setSub(t.key)}
+            aria-pressed={type === t.key}
+            onClick={() => onType(t.key)}
             disabled={t.count === 0}
             className="chip chip-sm disabled:cursor-default disabled:opacity-40"
           >
@@ -78,18 +88,25 @@ function ResultsGrid({ results, loading, error }) {
 
       {items.length === 0 ? (
         <p className="panel mx-auto max-w-xl p-6 text-center text-stone-700">
-          {sub === 'ext'
+          {type === 'expansion'
             ? 'Aucune extension ne correspond à ces critères.'
             : 'Aucun jeu de base ne correspond exactement.'}
         </p>
       ) : (
         <>
-          <p className="mb-3 text-stone-600" aria-live="polite">{items.length} jeu{items.length > 1 ? 'x' : ''}</p>
+          <p className="mb-3 text-stone-600" aria-live="polite">{total} jeu{total > 1 ? 'x' : ''}</p>
           <ul className="m-0 grid list-none grid-cols-2 gap-4 p-0 sm:grid-cols-3 sm:gap-5 xl:grid-cols-4">
-            {items.map(({ game, reason }, i) => (
-              <li key={game.id}><GameCard game={game} reason={reason} rank={i + 1} /></li>
+            {items.map(({ game, why, feedback: saved }, i) => (
+              <li key={game.id}><GameCard game={game} rank={i + 1} why={why} verdict={feedback?.verdictOf(game.id, saved)} onFeedback={feedback?.send} context={context} /></li>
             ))}
           </ul>
+          {loaded.length < list.total && (
+            <div className="mt-6 flex justify-center">
+              <button type="button" onClick={onLoadMore} disabled={list.loadingMore} className="btn btn-primary">
+                {list.loadingMore ? 'Chargement…' : `Voir plus de jeux (${list.total - loaded.length} restants)`}
+              </button>
+            </div>
+          )}
         </>
       )}
     </div>
@@ -103,7 +120,7 @@ const SCOPE_TABS = [
   { key: 'discover',   label: 'Tout le catalogue' },
 ]
 
-function ResultsPanel({ results, activeTab, onTabChange }) {
+function ResultsPanel({ results, totals, activeTab, onTabChange, type, onType, onLoadMore, feedback, context }) {
   return (
     <div>
       <div role="tablist" aria-label="Où chercher" className="tab-list mb-5">
@@ -119,36 +136,48 @@ function ResultsPanel({ results, activeTab, onTabChange }) {
             className="tab"
           >
             {tab.label}
-            <span className="ml-2 text-sm opacity-80">{results[tab.key].data?.length ?? '…'}</span>
+            <span className="ml-2 text-sm opacity-80">{totals[tab.key] ? totals[tab.key].base + totals[tab.key].expansion : '…'}</span>
           </button>
         ))}
       </div>
 
       <div id="reco-panneau" role="tabpanel" aria-labelledby={`reco-${activeTab}`}>
-        <ResultsGrid results={results[activeTab].data} loading={results[activeTab].loading} error={results[activeTab].error} />
+        <ResultsGrid list={results[`${activeTab}:${type}`]} totals={totals[activeTab]} type={type} onType={onType}
+          loading={results[`${activeTab}:base`].loading} error={results[`${activeTab}:${type}`].error} onLoadMore={() => onLoadMore(activeTab, type)}
+          feedback={activeTab === 'collection' ? undefined : feedback} context={context} />
       </div>
     </div>
   )
 }
 
-const EMPTY_RESULTS = Object.fromEntries(SCOPE_TABS.map(t => [t.key, { data: null, loading: false, error: null }]))
+const EMPTY_LIST = { data: null, total: 0, page: 1, loading: false, loadingMore: false, error: null }
+// Une liste par périmètre et par type de fiche : « collection:base », « collection:expansion », etc.
+const EMPTY_RESULTS = Object.fromEntries(SCOPE_TABS.flatMap(t => [[`${t.key}:base`, EMPTY_LIST], [`${t.key}:expansion`, EMPTY_LIST]]))
 
 /* ── Page principale ─────────────────────────────────────────────────── */
 export default function RecommendationPage() {
   const { user } = useAuth()
-  // L'accueil envoie `?joueurs=3&duree=60` : la recherche part d'elle-même avec ces valeurs.
-  const [searchParams] = useSearchParams()
-  const fromHome = searchParams.has('joueurs')
-  const positive = (key, fallback) => {
-    const value = Number(searchParams.get(key))
-    return Number.isInteger(value) && value > 0 ? value : fallback
-  }
-
-  const [players,            setPlayers]            = useState(() => positive('joueurs', 4))
-  const [maxTime,            setMaxTime]            = useState(() => positive('duree', 60))
+  const feedback = useGameFeedback()
+  // Les filtres de contexte vivent dans l'adresse (partageable). L'accueil envoie `?joueurs=3&duree=60` : la recherche part
+  // d'elle-même avec ces valeurs ; sans filtre dans l'adresse, on part de la table enregistrée et de la difficulté retenue.
+  const [context, setContextRaw] = useContextFilters()
+  const contextKey = JSON.stringify(context)
+  const [fromUrl] = useState(() => activeCount(context) > 0)
+  // Le poids choisi reste mémorisé : l'accueil le reprend (`home-tonight`).
+  const setContext = (next) => setContextRaw(prev => {
+    const value = typeof next === 'function' ? next(prev) : next
+    storeDifficulty(value.weight)
+    return value
+  })
+  useEffect(() => {
+    if (fromUrl) return
+    setContextRaw(prev => ({ ...prev, players: 4, maxTime: 60, weight: storedDifficulty() }))
+  }, [fromUrl, setContextRaw])
   const [selectedFamilies,   setSelectedFamilies]   = useState([])
   const [selectedCategories, setSelectedCategories] = useState([])
   const [results,            setResults]            = useState(EMPTY_RESULTS)
+  const [totals,             setTotals]             = useState({})
+  const [type,               setType]               = useState('base')
   const [activeTab,          setActiveTab]          = useState('collection')
   const [ready,              setReady]              = useState(false)
   const [filtersOpen,        setFiltersOpen]        = useState(false)
@@ -161,9 +190,8 @@ export default function RecommendationPage() {
     if (user) {
       getUserPreferences().then(prefs => {
         // Point de départ : la table enregistrée (sauf si l'adresse en porte une) et les styles favoris, goûts déclarés d'abord.
-        if (prefs?.table && !fromHome) {
-          setPlayers(prefs.table.players)
-          setMaxTime(prefs.table.maxTime)
+        if (prefs?.table && !fromUrl) {
+          setContextRaw(prev => ({ ...prev, players: prefs.table.players, maxTime: prefs.table.maxTime }))
         }
         const favorites = [...new Set([...(prefs?.declaredFamilies ?? []), ...(prefs?.topEngines ?? [])])]
         setSelectedFamilies(favorites)
@@ -195,7 +223,7 @@ export default function RecommendationPage() {
       for (const [label, data] of Object.entries(labelMap)) catMap[label] = data.bggCategories
       setThemeLabelToCats(catMap)
     }).catch(() => {})
-  }, [user, fromHome])
+  }, [user, fromUrl, setContextRaw])
 
   const toggle    = (key)   => setSelectedFamilies(prev   => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key])
   const toggleCat = (label) => setSelectedCategories(prev => prev.includes(label) ? prev.filter(l => l !== label) : [...prev, label])
@@ -203,31 +231,69 @@ export default function RecommendationPage() {
 
   // Résultats en direct : tout changement de critère relance les trois recherches (légère attente pour le curseur de durée).
   const firstLoad = useRef(true)
+  // Critères de la recherche en cours : « Voir plus » demande la page suivante avec les mêmes ; `current` écarte une réponse périmée.
+  const searchRef = useRef({ params: null, token: 0 })
   useEffect(() => {
     if (!user || !ready) return
     let current = true
     const expandedCats = selectedCategories.flatMap(label => themeLabelToCats[label] ?? [])
-    const params = { players, maxTime, families: selectedFamilies, categories: expandedCats }
+    const params = { ...filtersToApi(JSON.parse(contextKey)), families: selectedFamilies, categories: expandedCats }
+    searchRef.current.token++
+    searchRef.current.params = params
 
     const timer = setTimeout(() => {
       const settled = {}
       SCOPE_TABS.forEach(({ key }) => {
-        setResults(prev => ({ ...prev, [key]: { ...prev[key], loading: true, error: null } }))
+        const baseKey = `${key}:base`
+        // Les extensions se rechargent à la demande : leur liste repart de zéro avec les nouveaux critères.
+        setResults(prev => ({ ...prev, [baseKey]: { ...prev[baseKey], loading: true, error: null }, [`${key}:expansion`]: EMPTY_LIST }))
         getRecommendations({ ...params, scope: key })
-          .then(data => { settled[key] = data; if (current) setResults(prev => ({ ...prev, [key]: { data, loading: false, error: null } })) })
-          .catch(err => { settled[key] = []; if (current) setResults(prev => ({ ...prev, [key]: { data: prev[key].data, loading: false, error: err.message || 'Erreur de chargement' } })) })
+          .then(({ items, total, totals: counts }) => {
+            settled[key] = counts.base + counts.expansion
+            if (!current) return
+            setTotals(prev => ({ ...prev, [key]: counts }))
+            setResults(prev => ({ ...prev, [baseKey]: { data: items, total, page: 1, loading: false, loadingMore: false, error: null } }))
+          })
+          .catch(err => {
+            settled[key] = 0
+            if (current) setResults(prev => ({ ...prev, [baseKey]: { ...prev[baseKey], loading: false, error: err.message || 'Erreur de chargement' } }))
+          })
           .finally(() => {
             // À la première arrivée, on ouvre le premier onglet qui a quelque chose à montrer.
             if (!current || !firstLoad.current || Object.keys(settled).length < SCOPE_TABS.length) return
             firstLoad.current = false
-            const first = SCOPE_TABS.find(t => settled[t.key]?.length > 0)
+            const first = SCOPE_TABS.find(t => settled[t.key] > 0)
             if (first) setActiveTab(first.key)
           })
       })
     }, 250)
 
     return () => { current = false; clearTimeout(timer) }
-  }, [user, ready, players, maxTime, selectedFamilies, selectedCategories, themeLabelToCats])
+  }, [user, ready, contextKey, selectedFamilies, selectedCategories, themeLabelToCats])
+
+  // Charge une page d'un type de fiche (la première pour les extensions, à la demande) avec les critères de la recherche en cours.
+  const loadList = (key, listType, page) => {
+    const { params, token } = searchRef.current
+    const listKey = `${key}:${listType}`
+    setResults(prev => ({ ...prev, [listKey]: { ...prev[listKey], loadingMore: true } }))
+    getRecommendations({ ...params, scope: key, type: listType, page })
+      .then(({ items, total }) => {
+        if (token !== searchRef.current.token) return
+        setResults(prev => ({ ...prev, [listKey]: { ...prev[listKey], data: [...(page > 1 ? prev[listKey].data : []), ...items], total, page, loadingMore: false } }))
+      })
+      .catch(err => {
+        if (token !== searchRef.current.token) return
+        setResults(prev => ({ ...prev, [listKey]: { ...prev[listKey], loadingMore: false, error: err.message || 'Erreur de chargement' } }))
+      })
+  }
+  const loadMore = (key, listType) => loadList(key, listType, results[`${key}:${listType}`].page + 1)
+
+  const extList    = results[`${activeTab}:expansion`]
+  const baseLoaded = results[`${activeTab}:base`].data !== null
+  useEffect(() => {
+    if (type !== 'expansion' || !baseLoaded || extList.data !== null || extList.loadingMore || extList.error) return
+    loadList(activeTab, 'expansion', 1)
+  }, [type, activeTab, baseLoaded, extList.data, extList.loadingMore, extList.error])
 
   if (!user) return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-10">
@@ -255,7 +321,7 @@ export default function RecommendationPage() {
 
           {/* ── Panneau filtres (sidebar) ─────────────────────────────── */}
           <aside className={`
-            w-full lg:w-72 flex-shrink-0 panel p-5 space-y-4
+            w-full lg:w-72 flex-shrink-0 panel p-4 space-y-1
             ${filtersOpen ? 'block' : 'hidden lg:block'}
           `}>
             <div className="flex items-center justify-between">
@@ -267,37 +333,63 @@ export default function RecommendationPage() {
               )}
             </div>
 
-            {/* Joueurs */}
-            <FilterSection title="Nombre de joueurs">
-              <div className="flex flex-wrap gap-2">
-                {[1, 2, 3, 4, 5, 6, 7, 8].map(n => (
-                  <button
-                    key={n} type="button" onClick={() => setPlayers(n)} aria-pressed={players === n}
-                    className="chip min-w-11 justify-center !px-0"
-                  >{n}</button>
+            {/* Table : réglages de contexte (scénario et « joué » sont en haut de la liste) */}
+            <FilterSection title="Nombre de joueurs" active={context.players != null}>
+              <Gauge
+                label="Nombre de joueurs"
+                steps={PLAYER_STEPS}
+                value={context.players}
+                format={n => (n == null ? 'Tous' : n === PLAYERS.at(-1) ? `${n} joueurs et +` : `${n} joueur${n > 1 ? 's' : ''}`)}
+                marks={['Tous', '2', '4', '6', '8+']}
+                onChange={n => setContext(prev => ({ ...prev, players: n, fit: n == null ? null : prev.fit }))}
+              />
+              {context.players != null && (
+                <div role="group" aria-label={`À ${context.players} joueurs`} className="mt-2 flex flex-wrap gap-1.5">
+                  {FITS.map(fit => (
+                    <Chip key={fit.label} active={context.fit === fit.value} label={fit.label} onClick={() => setContext(prev => ({ ...prev, fit: fit.value }))} />
+                  ))}
+                </div>
+              )}
+            </FilterSection>
+
+            <FilterSection title="Durée maximum" active={context.maxTime != null}>
+              <Gauge
+                label="Durée maximum, en minutes"
+                steps={DURATION_STEPS}
+                value={context.maxTime}
+                format={m => (m == null ? 'Toutes durées' : `≤ ${durationLabel(m)}`)}
+                marks={['Toutes', '30m', '1h', '2h', '3h']}
+                onChange={m => setContext(prev => ({ ...prev, maxTime: m }))}
+              />
+            </FilterSection>
+
+            <FilterSection title="Difficulté" active={context.weight != null}>
+              <div className="flex flex-wrap gap-1.5">
+                {WEIGHTS.map(w => (
+                  <Chip key={w.value} active={context.weight === w.value} label={w.label}
+                    onClick={() => setContext(prev => ({ ...prev, weight: prev.weight === w.value ? null : w.value }))} />
                 ))}
               </div>
             </FilterSection>
 
-            {/* Durée */}
-            <FilterSection title="Durée maximum">
-              <div className="mb-2 text-center">
-                <span className="font-display text-3xl">
-                  {maxTime < 60 ? `${maxTime} min` : `${Math.floor(maxTime / 60)}h${maxTime % 60 ? maxTime % 60 + 'm' : ''}`}
-                </span>
+            <FilterSection title="Mode de jeu" active={context.coop != null}>
+              <div className="flex flex-wrap gap-1.5">
+                <Chip active={context.coop === true} label="Coopératif" onClick={() => setContext(prev => ({ ...prev, coop: prev.coop === true ? null : true }))} />
+                <Chip active={context.coop === false} label="Compétitif" onClick={() => setContext(prev => ({ ...prev, coop: prev.coop === false ? null : false }))} />
               </div>
-              <input
-                type="range" min={15} max={240} step={15} value={maxTime} aria-label="Durée maximum, en minutes"
-                onChange={e => setMaxTime(Number(e.target.value))}
-                className="h-11 w-full accent-brand-red"
-              />
-              <div className="mt-1 flex justify-between text-sm text-stone-600">
-                <span>15m</span><span>1h</span><span>2h</span><span>3h</span><span>4h</span>
+            </FilterSection>
+
+            <FilterSection title="Joueur le plus jeune" active={context.age != null}>
+              <div className="flex flex-wrap gap-1.5">
+                {AGES.map(a => (
+                  <Chip key={a} active={context.age === a} label={`${a} ans`}
+                    onClick={() => setContext(prev => ({ ...prev, age: prev.age === a ? null : a }))} />
+                ))}
               </div>
             </FilterSection>
 
             {/* Moteurs Engelstein */}
-            <FilterSection title="Style / Moteur">
+            <FilterSection title="Style / Moteur" active={hasAny(selectedFamilies, Object.keys(ENGINES))}>
               <div className="flex flex-wrap gap-1.5">
                 {Object.keys(ENGINES).map(key => (
                   <Chip
@@ -311,7 +403,7 @@ export default function RecommendationPage() {
             </FilterSection>
 
             {/* Mécaniques de support */}
-            <FilterSection title="Mécaniques" defaultOpen={false}>
+            <FilterSection title="Mécaniques" active={hasAny(selectedFamilies, Object.keys(SUPPORT_FAMILIES))}>
               <div className="flex flex-wrap gap-1.5">
                 {Object.keys(SUPPORT_FAMILIES).map(key => (
                   <Chip
@@ -325,7 +417,7 @@ export default function RecommendationPage() {
             </FilterSection>
 
             {/* Caractéristiques */}
-            <FilterSection title="Caractéristiques" defaultOpen={false}>
+            <FilterSection title="Caractéristiques" active={hasAny(selectedFamilies, Object.keys(EXTRA_FAMILIES))}>
               <div className="flex flex-wrap gap-1.5">
                 {Object.keys(EXTRA_FAMILIES).map(key => (
                   <Chip
@@ -340,7 +432,7 @@ export default function RecommendationPage() {
 
             {/* Thèmes & univers (mappés en admin) */}
             {themeGroups.themes.length > 0 && (
-              <FilterSection title="Thèmes & univers" defaultOpen={false}>
+              <FilterSection title="Thèmes & univers" active={hasAny(selectedCategories, themeGroups.themes.map(t => t.label))}>
                 <div className="flex flex-wrap gap-1.5">
                   {themeGroups.themes.map(item => (
                     <Chip
@@ -357,7 +449,7 @@ export default function RecommendationPage() {
 
             {/* Types de jeu (mappés en admin) */}
             {themeGroups.types.length > 0 && (
-              <FilterSection title="Types de jeu" defaultOpen={false}>
+              <FilterSection title="Types de jeu" active={hasAny(selectedCategories, themeGroups.types.map(t => t.label))}>
                 <div className="flex flex-wrap gap-1.5">
                   {themeGroups.types.map(item => (
                     <Chip
@@ -388,11 +480,18 @@ export default function RecommendationPage() {
 
           {/* ── Zone résultats ────────────────────────────────────────── */}
           <div className="flex-1 min-w-0">
-            <ResultsPanel results={results} activeTab={activeTab} onTabChange={setActiveTab} />
+            {/* Scénario et « joué » restent en haut de la liste ; les autres réglages de table sont dans la barre latérale */}
+            <div className="panel mb-4 flex flex-col gap-1 bg-snow px-3 py-2">
+              <ScenarioRow filters={context} onChange={setContext} idPrefix="reco-ctx" />
+              <PlayedRow filters={context} onChange={setContext} idPrefix="reco-ctx" />
+              <ClearFilters filters={context} onChange={setContext} />
+            </div>
+            <ResultsPanel results={results} totals={totals} activeTab={activeTab} onTabChange={setActiveTab} type={type} onType={setType} onLoadMore={loadMore} feedback={feedback} context={context} />
           </div>
 
         </div>
       </div>
+      <FeedbackNotice feedback={feedback} />
     </div>
   )
 }

@@ -153,11 +153,11 @@ export default function AdminThemesPage() {
   ]
 
   return (
-    <div className="mx-auto flex max-w-5xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-10 lg:py-8">
+    <div className="panel flex flex-col gap-6 p-5 sm:p-6">
 
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-4xl leading-tight sm:text-5xl">Taxonomie thématique</h1>
+          <h1 className="text-3xl leading-tight sm:text-4xl">Taxonomie thématique</h1>
           <p className="mt-1 text-lg text-stone-600">{mappings.length} mappings · inspiré de la taxonomie LudoExplorer</p>
         </div>
         <button type="button" onClick={() => setModal('new')} className="btn btn-primary">Ajouter un mapping</button>

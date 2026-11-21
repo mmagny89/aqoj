@@ -8,7 +8,7 @@ import {
   getUnmappedMechanics,
 } from '../api'
 import { useAuth } from '../context/AuthContext'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { ErrorMessage, Field, SelectField } from '../components/forms'
 
 const ENGINE_FAMILIES = [
@@ -34,13 +34,14 @@ const EMPTY_FORM = { bggMechanic: '', engelsteinFamily: '', description: '' }
 export default function AdminMechanicsPage() {
   const { user } = useAuth()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
 
   const [mappings, setMappings]         = useState([])
   const [families, setFamilies]         = useState({})
   const [unmapped, setUnmapped]         = useState([])
   const [loading, setLoading]           = useState(true)
   const [error, setError]               = useState(null)
-  const [activeTab, setActiveTab]       = useState('engines') // 'engines' | 'support' | 'unmapped'
+  const [activeTab, setActiveTab]       = useState(() => ['engines', 'support', 'extra', 'unmapped'].includes(searchParams.get('tab')) ? searchParams.get('tab') : 'engines')
 
   const [editingId, setEditingId]       = useState(null)
   const [form, setForm]                 = useState(EMPTY_FORM)
@@ -174,11 +175,11 @@ export default function AdminMechanicsPage() {
   const supportKeys = Object.keys(families).filter(k => !ENGINE_FAMILIES.includes(k) && !EXTRA_FAMILIES_LIST.includes(k))
 
   return (
-    <div className="mx-auto flex max-w-5xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-10 lg:py-8">
+    <div className="panel flex flex-col gap-6 p-5 sm:p-6">
 
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-4xl leading-tight sm:text-5xl">Mappings mécaniques</h1>
+          <h1 className="text-3xl leading-tight sm:text-4xl">Mappings mécaniques</h1>
           <p className="mt-1 text-lg text-stone-600">
             Association entre les mécaniques BGG et les familles du modèle d'Engelstein.
           </p>
