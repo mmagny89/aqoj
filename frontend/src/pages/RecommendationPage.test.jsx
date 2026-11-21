@@ -63,6 +63,7 @@ describe('RecommendationPage', () => {
     render(<MemoryRouter><RecommendationPage /></MemoryRouter>)
     await waitFor(() => expect(getRecommendations).toHaveBeenCalledTimes(3))
 
+    await userEvent.click(screen.getByRole('button', { name: /^Difficulté/ }))
     await userEvent.click(screen.getByRole('button', { name: 'Costaud' }))
 
     await waitFor(() => expect(getRecommendations).toHaveBeenCalledTimes(6))
@@ -105,5 +106,19 @@ describe('RecommendationPage', () => {
     expect(await screen.findByText('Extension Un')).toBeInTheDocument()
     expect(screen.queryByText('Jeu Base Un')).not.toBeInTheDocument()
     expect(getRecommendations).toHaveBeenLastCalledWith(expect.objectContaining({ scope: 'collection', type: 'expansion' }))
+  })
+
+  it('ouvre les facettes qui ont un élément retenu et ferme les autres', async () => {
+    render(<MemoryRouter><RecommendationPage /></MemoryRouter>)
+    await waitFor(() => expect(getRecommendations).toHaveBeenCalledTimes(3))
+
+    const facette = (nom) => screen.getByRole('button', { name: new RegExp(`^${nom}`) })
+    expect(facette('Nombre de joueurs')).toHaveAttribute('aria-expanded', 'true')
+    expect(facette('Mécaniques')).toHaveAttribute('aria-expanded', 'true') // « Coopération » est présélectionnée
+    expect(facette('Style / Moteur')).toHaveAttribute('aria-expanded', 'false')
+    expect(facette('Difficulté')).toHaveAttribute('aria-expanded', 'false')
+
+    await userEvent.click(facette('Difficulté'))
+    expect(facette('Difficulté')).toHaveAttribute('aria-expanded', 'true')
   })
 })
