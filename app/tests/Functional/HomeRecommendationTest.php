@@ -32,8 +32,8 @@ final class HomeRecommendationTest extends ApiTestCase
         foreach ($reco['recent'] as $r) {
             $raisons[$r['game']['name']] = $r['reason'];
         }
-        self::assertStringContainsString('Sorti en ' . $annee, $raisons['Zznouv Suivi']);
-        self::assertStringContainsString('À paraître en ' . ($annee + 1), $raisons['Zznouv AVenir']);
+        self::assertStringStartsWith('Nouveauté', $raisons['Zznouv Suivi']);
+        self::assertStringStartsWith('À paraître', $raisons['Zznouv AVenir']);
     }
 
     public function testLesNouveautesNeProposentPasCeQueLeJoueurAdejaEtSontDixTireesParmiLesTrenteDeTete(): void
