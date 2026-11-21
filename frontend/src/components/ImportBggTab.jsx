@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { importBgg, getMe } from '../api'
+import { importBgg, getMe, unlinkBgg } from '../api'
 import { ErrorMessage, Field } from './forms'
 import { useAuth } from '../context/AuthContext'
 
@@ -42,6 +42,29 @@ export default function ImportBggTab({ target = 'me', onImported }) {
     }
   }
 
+  const [confirming, setConfirming] = useState(false)
+  const [unlinked, setUnlinked] = useState(null)
+
+  const handleUnlink = async (clearLibrary) => {
+    setLoading(true)
+    setError(null)
+    setStatus(null)
+    try {
+      const data = await unlinkBgg(clearLibrary)
+      setUnlinked(data)
+      setConfirming(false)
+      setUsername('')
+      onImported?.()
+      const updatedUser = await getMe()
+      const token = localStorage.getItem('aqoj_token')
+      if (token) login(token, updatedUser)
+    } catch (err) {
+      setError(err.message || 'Erreur lors de la désynchronisation')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const isExistingUsername = !forAssociation && user?.bggUsername && user.bggUsername === username.trim()
 
   return (
@@ -56,6 +79,36 @@ export default function ImportBggTab({ target = 'me', onImported }) {
         <p className="panel flex items-center gap-3 bg-amber-100 p-4">
           <span className="badge bg-brand-yellow">Compte BGG lié</span>
           <strong>{user.bggUsername}</strong>
+          <button type="button" onClick={() => setConfirming(true)} className="btn btn-secondary ml-auto">
+            Désynchroniser
+          </button>
+        </p>
+      )}
+
+      {confirming && (
+        <section className="panel flex flex-col gap-4 bg-cream p-5 sm:p-6" aria-labelledby="titre-desync">
+          <h2 id="titre-desync" className="text-2xl">Désynchroniser votre compte BGG ?</h2>
+          <p>
+            Votre pseudo BGG est retiré de votre profil. Voulez-vous aussi vider votre ludothèque ?
+            Tous les jeux de votre ludothèque et vos notes personnelles seront supprimés (vos parties jouées sont conservées).
+          </p>
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <button type="button" disabled={loading} onClick={() => handleUnlink(false)} className="btn btn-secondary">
+              Garder ma ludothèque
+            </button>
+            <button type="button" disabled={loading} onClick={() => handleUnlink(true)} className="btn btn-primary">
+              Vider ma ludothèque
+            </button>
+            <button type="button" disabled={loading} onClick={() => setConfirming(false)} className="btn">
+              Annuler
+            </button>
+          </div>
+        </section>
+      )}
+
+      {unlinked && (
+        <p role="status" className="panel bg-cream p-4">
+          Compte BGG désynchronisé{unlinked.cleared ? `, ludothèque vidée (${unlinked.removed} jeux retirés).` : ', ludothèque conservée.'}
         </p>
       )}
 
