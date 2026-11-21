@@ -23,6 +23,16 @@ class RecommendationService
     /** Complexité BGG (1-5) au plus : un jeu qu'on explique en cinq minutes autour d'une table. */
     private const EASY_MAX_COMPLEXITY = 2.5;
 
+    /**
+     * Niveaux de difficulté choisis sur l'accueil, en poids BGG (1 à 5) : [exclu, inclus].
+     * null = pas de borne.
+     */
+    public const DIFFICULTY_BANDS = [
+        'light'  => [null, 2.0],
+        'medium' => [2.0, 3.0],
+        'heavy'  => [3.0, null],
+    ];
+
     /** Un jeu n'est « joué par les autres membres » qu'à partir de ce nombre de joueurs distincts : jamais le choix d'une seule personne. */
     private const POPULAR_MIN_PLAYERS = 2;
 
@@ -311,8 +321,9 @@ class RecommendationService
      *
      * @return array{easy: array, popular: array}
      */
-    public function recommendTonight(User $user, ?int $players, ?int $maxTime, bool $library = false): array
+    public function recommendTonight(User $user, ?int $players, ?int $maxTime, bool $library = false, ?string $difficulty = null): array
     {
+        [$minComplexity, $maxComplexity] = self::DIFFICULTY_BANDS[$difficulty] ?? [null, self::EASY_MAX_COMPLEXITY];
         $currentYear = (int) date('Y');
         $excludeIds  = $this->getDislikedGameIds($user);
 
@@ -327,9 +338,10 @@ class RecommendationService
                 minYear:       $lot['minYear'],
                 excludeIds:    $excludeIds,
                 baseGamesOnly: true,
-                maxComplexity: self::EASY_MAX_COMPLEXITY,
+                maxComplexity: $maxComplexity,
                 minVotes:      $lot['minVotes'],
                 library:       $library,
+                minComplexity: $minComplexity,
             );
             foreach ($games as $game) {
                 $pool[$game->getId()] = $game;
@@ -337,7 +349,7 @@ class RecommendationService
         }
 
         $easy = array_map(function (Game $game) use ($currentYear): array {
-            $reason = 'Facile à aborder · ' . number_format((float) $game->getRatingBgg(), 1) . '/10 sur BGG';
+            $reason = ($difficulty === null ? 'Facile à aborder' : 'Poids ' . number_format($game->getComplexity(), 1) . '/5') . ' · ' . number_format((float) $game->getRatingBgg(), 1) . '/10 sur BGG';
             if ($this->isRecent($game, $currentYear)) {
                 $reason = 'Nouveauté ' . $game->getYearPublished() . ' · ' . $reason;
             }
@@ -352,7 +364,7 @@ class RecommendationService
 
         return [
             'easy'    => $this->pickRandom($easy, 30, 10),
-            'popular' => $this->popularAmongMembers($user, $players, $maxTime, $excludeIds, $library),
+            'popular' => $this->popularAmongMembers($user, $players, $maxTime, $excludeIds, $library, $difficulty),
         ];
     }
 
@@ -360,7 +372,7 @@ class RecommendationService
      * Jeux de base les plus joués par les autres membres sur douze mois. Seuls des totaux sortent :
      * jamais qui a joué, et rien tant que deux joueurs distincts ne l'ont pas joué.
      */
-    private function popularAmongMembers(User $user, ?int $players, ?int $maxTime, array $excludeIds, bool $library): array
+    private function popularAmongMembers(User $user, ?int $players, ?int $maxTime, array $excludeIds, bool $library, ?string $difficulty = null): array
     {
         $conditions = [
             'gs.user_id IS NOT NULL',
@@ -380,6 +392,15 @@ class RecommendationService
         if ($maxTime !== null) {
             $conditions[] = '(g.playing_time <= ? OR g.playing_time = 0)';
             $params[] = $maxTime;
+        }
+        if (isset(self::DIFFICULTY_BANDS[$difficulty])) {
+            [$min, $max] = self::DIFFICULTY_BANDS[$difficulty];
+            $conditions[] = 'g.complexity > ?';
+            $params[]     = $min ?? 0;
+            if ($max !== null) {
+                $conditions[] = 'g.complexity <= ?';
+                $params[]     = $max;
+            }
         }
         if ($excludeIds !== []) {
             $conditions[] = 'g.id NOT IN (' . implode(',', array_fill(0, count($excludeIds), '?')) . ')';

@@ -146,6 +146,25 @@ final class HomeRecommendationTest extends ApiTestCase
         self::assertStringContainsString('Facile à aborder', $table['easy'][0]['reason']);
     }
 
+    public function testLaDifficulteChoisieBorneLePoidsDesJeuxProposes(): void
+    {
+        $client = static::createClient();
+        $token = $this->register($client, 'difficulte@example.test');
+        $annee = (int) date('Y');
+        $this->creerJeu('Zzdif Leger', $annee - 2, 1.5, 7.6, 5000);
+        $this->creerJeu('Zzdif Moyen', $annee - 2, 2.6, 7.6, 5000);
+        $this->creerJeu('Zzdif Costaud', $annee - 2, 3.8, 8.0, 5000);
+
+        $noms = fn(string $niveau): array => array_column(array_column(
+            $this->call($client, 'GET', '/api/games/home-tonight?difficulty=' . $niveau, token: $token)['easy'],
+            'game',
+        ), 'name');
+
+        self::assertSame(['Zzdif Leger'], $noms('light'));
+        self::assertSame(['Zzdif Moyen'], $noms('medium'));
+        self::assertSame(['Zzdif Costaud'], $noms('heavy'));
+    }
+
     public function testLePerimetreLudothequeNeGardeQueLesJeuxDeLAssociationEtDesMembres(): void
     {
         $client = static::createClient();

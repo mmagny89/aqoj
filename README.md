@@ -44,7 +44,7 @@ Plateforme de découverte et de recommandation de jeux de société pour les mem
   - Recalcul automatique si les préférences sont absentes
 
 ### Accueil
-- **La table** : le bandeau « Qu'est-ce qu'on joue ce soir ? » se règle librement (1 à 8 joueurs, de 15 min à « peu importe ») et **s'enregistre sur le compte** à chaque changement. On la retrouve à la visite suivante et sur la page de recommandation.
+- **La table** : le bandeau « À quoi on joue ce soir ? » (« ce matin », « cet après-midi »… selon l'heure) se règle librement (1 à 8 joueurs, de 15 min à « peu importe », difficulté léger / intermédiaire / costaud) et **s'enregistre sur le compte** à chaque changement. On la retrouve à la visite suivante et sur la page de recommandation.
 - **Pour votre table** — deux rangées qui suivent la table :
   - **Ce que jouent les autres membres** : jeux de base joués dans l'année par au moins deux joueurs distincts. Seuls des totaux sortent, jamais qui a joué.
   - **Faciles à expliquer** : jeux du catalogue de complexité ≤ 2,5, nouveautés favorisées.

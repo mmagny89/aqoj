@@ -139,6 +139,7 @@ class GameRepository extends ServiceEntityRepository
         ?float $maxComplexity = null,
         ?int $minVotes = null,
         bool $library = false,
+        ?float $minComplexity = null,
     ): array {
         $conn = $this->getEntityManager()->getConnection();
 
@@ -214,6 +215,11 @@ class GameRepository extends ServiceEntityRepository
             // 0 = complexité inconnue : on ne la présente pas comme « accessible »
             $conditions[] = 'g.complexity > 0 AND g.complexity <= ?';
             $params[] = $maxComplexity;
+        }
+
+        if ($minComplexity !== null) {
+            $conditions[] = 'g.complexity > ?';
+            $params[] = $minComplexity;
         }
 
         if ($minVotes !== null) {

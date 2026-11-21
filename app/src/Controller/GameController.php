@@ -142,7 +142,12 @@ class GameController extends AbstractController
 
         $players = $request->query->getInt('players') ?: null;
         $maxTime = $request->query->getInt('maxTime') ?: null;
-        $result  = $service->recommendTonight($user, $players, $maxTime, $request->query->getString('scope') === 'library');
+        $level   = $request->query->getString('difficulty');
+        $result  = $service->recommendTonight(
+            $user, $players, $maxTime,
+            $request->query->getString('scope') === 'library',
+            isset(RecommendationService::DIFFICULTY_BANDS[$level]) ? $level : null,
+        );
 
         $serialize = fn(array $list) => array_map(fn($r) => ['game' => $r['game'], 'reason' => $r['reason']], $list);
 

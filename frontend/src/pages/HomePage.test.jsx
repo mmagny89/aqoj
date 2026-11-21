@@ -26,7 +26,7 @@ describe('HomePage', () => {
   it('propose les entrées principales quand on n’est pas connecté', () => {
     render(<MemoryRouter><HomePage /></MemoryRouter>)
 
-    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent("Qu'est-ce qu'on joue ce soir")
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(/À quoi on joue (ce matin|ce midi|cet après-midi|ce soir|cette nuit)/)
     expect(screen.getByRole('link', { name: /Ma ludothèque/ })).toHaveAttribute('href', '/ludotheque')
   })
 
@@ -102,14 +102,14 @@ describe('HomePage', () => {
     })
 
     it('retrouve la table enregistrée et la propose pour les idées du soir', async () => {
-      getHomeRecommendations.mockResolvedValue({ ...reco, table: { players: 6, maxTime: 90, scope: 'library' } })
+      getHomeRecommendations.mockResolvedValue({ ...reco, table: { players: 6, maxTime: 90, scope: 'library', difficulty: null } })
       render(<MemoryRouter><HomePage /></MemoryRouter>)
 
       await waitFor(() => expect(getTonightRecommendations).toHaveBeenCalled())
       expect(screen.getByRole('button', { name: '6' })).toHaveAttribute('aria-pressed', 'true')
       expect(screen.getByRole('button', { name: '≤ 1 h 30' })).toHaveAttribute('aria-pressed', 'true')
       expect(getTonightRecommendations).toHaveBeenCalledTimes(1)
-      expect(getTonightRecommendations).toHaveBeenCalledWith({ players: 6, maxTime: 90, scope: 'library' })
+      expect(getTonightRecommendations).toHaveBeenCalledWith({ players: 6, maxTime: 90, scope: 'library', difficulty: null })
     })
 
     it('enregistre chaque changement de table et le dit', async () => {
@@ -146,7 +146,7 @@ describe('HomePage', () => {
       expect(screen.getByRole('heading', { name: 'Ce que jouent les autres membres' })).toBeInTheDocument()
       expect(screen.getByRole('heading', { name: 'Faciles à expliquer' })).toBeInTheDocument()
       expect(screen.getByText('Joué par 3 membres cette année')).toBeInTheDocument()
-      expect(getTonightRecommendations).toHaveBeenCalledWith({ players: 4, maxTime: 60, scope: 'library' })
+      expect(getTonightRecommendations).toHaveBeenCalledWith({ players: 4, maxTime: 60, scope: 'library', difficulty: null })
     })
 
     it('redemande les idées quand on change la table, et ne filtre plus la durée avec « Peu importe »', async () => {
@@ -157,8 +157,19 @@ describe('HomePage', () => {
       await userEvent.click(screen.getByRole('button', { name: '2' }))
       await userEvent.click(screen.getByRole('button', { name: 'Peu importe' }))
 
-      expect(getTonightRecommendations).toHaveBeenLastCalledWith({ players: 2, maxTime: null, scope: 'library' })
+      expect(getTonightRecommendations).toHaveBeenLastCalledWith({ players: 2, maxTime: null, scope: 'library', difficulty: null })
       expect(await screen.findByText('2 joueurs')).toBeInTheDocument()
+    })
+
+    it('filtre les idées selon la difficulté choisie', async () => {
+      getTonightRecommendations.mockResolvedValue({ popular: [], easy: [{ game: jeu(2, 'Jeu Costaud'), reason: 'Poids 3.8/5' }] })
+      render(<MemoryRouter><HomePage /></MemoryRouter>)
+      await screen.findByRole('heading', { name: 'Pour votre table' })
+
+      await userEvent.click(screen.getByRole('button', { name: 'Costaud' }))
+
+      expect(getTonightRecommendations).toHaveBeenLastCalledWith({ players: 4, maxTime: 60, scope: 'library', difficulty: 'heavy' })
+      expect(await screen.findByRole('heading', { name: 'Pour les costauds' })).toBeInTheDocument()
     })
 
     it('n’affiche un jeu qu’une fois, même s’il est à la fois récent et facile', async () => {

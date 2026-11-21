@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { getForgottenGems, getHomeRecommendations, getTonightRecommendations, saveTable } from '../api'
 import GameCard from '../components/GameCard'
 import FilterRow from '../components/FilterRow'
+import { momentDeLaJournee } from '../utils/moment'
 import { DiceIcon, DownloadIcon, SearchIcon, ShelfIcon } from '../components/icons'
 
 const PLAYERS = [1, 2, 3, 4, 5, 6, 7, 8]
@@ -16,16 +17,23 @@ const DURATIONS = [
   { label: '≤ 3 h', value: 180 },
   { label: 'Peu importe', value: 240 },
 ]
+const DIFFICULTIES = [
+  { label: 'Toutes', value: null },
+  { label: 'Léger', value: 'light' },
+  { label: 'Intermédiaire', value: 'medium' },
+  { label: 'Costaud', value: 'heavy' },
+]
+const DIFFICULTY_KEY = 'aqoj_difficulte'
 const DEFAULT_TABLE = { players: 4, maxTime: 60 }
 
-/* ── Bandeau « Qu'est-ce qu'on joue ce soir ? » ──────────────────────── */
-function Hero({ table, onTableChange, saved, scopeSwitch }) {
+/* ── Bandeau « À quoi on joue ce soir ? » ──────────────────────── */
+function Hero({ table, onTableChange, difficulty, onDifficultyChange, saved, scopeSwitch }) {
   const { players, maxTime } = table
 
   return (
     <section aria-labelledby="titre-hero" className="panel px-4 py-4 sm:px-6 sm:py-5">
       <div className="flex min-w-0 flex-col gap-2.5">
-        <h1 id="titre-hero" className="text-2xl leading-tight sm:text-3xl">Qu'est-ce qu'on joue ce soir&nbsp;?</h1>
+        <h1 id="titre-hero" className="text-2xl leading-tight sm:text-3xl">À quoi on joue {momentDeLaJournee()}&nbsp;?</h1>
 
         <FilterRow id="filtre-joueurs" label="Joueurs">
           {PLAYERS.map(n => (
@@ -38,6 +46,14 @@ function Hero({ table, onTableChange, saved, scopeSwitch }) {
         <FilterRow id="filtre-duree" label="Durée">
           {DURATIONS.map(({ label, value }) => (
             <button key={value} type="button" className="chip chip-sm" aria-pressed={maxTime === value} onClick={() => onTableChange({ ...table, maxTime: value })}>
+              {label}
+            </button>
+          ))}
+        </FilterRow>
+
+        <FilterRow id="filtre-difficulte" label="Difficulté">
+          {DIFFICULTIES.map(({ label, value }) => (
+            <button key={label} type="button" className="chip chip-sm" aria-pressed={difficulty === value} onClick={() => onDifficultyChange(value)}>
               {label}
             </button>
           ))}
@@ -77,7 +93,8 @@ function Carousel({ items, label }) {
 }
 
 /* ── Pour la table du soir ───────────────────────────────────────────── */
-function TonightSection({ tonight, players, maxTime }) {
+function TonightSection({ tonight, players, maxTime, difficulty }) {
+  const easyTitle = { light: 'Légers à sortir', medium: 'Entre deux : ni légers ni lourds', heavy: 'Pour les costauds' }[difficulty] ?? 'Faciles à expliquer'
   const durationLabel = maxTime < 240 ? DURATIONS.find(d => d.value === maxTime)?.label : 'Durée libre'
 
   return (
@@ -87,6 +104,7 @@ function TonightSection({ tonight, players, maxTime }) {
         <ul aria-label="Table choisie" className="m-0 flex list-none flex-wrap gap-2 p-0">
           <li className="badge bg-brand-yellow">{players} joueur{players > 1 ? 's' : ''}</li>
           <li className="badge bg-brand-yellow">{durationLabel}</li>
+          {difficulty && <li className="badge bg-brand-yellow">{DIFFICULTIES.find(d => d.value === difficulty)?.label}</li>}
         </ul>
       </div>
       {tonight.popular.length > 0 && (
@@ -97,8 +115,8 @@ function TonightSection({ tonight, players, maxTime }) {
       )}
       {tonight.easy.length > 0 && (
         <div>
-          <h3 className="mb-3 text-xl sm:text-2xl">Faciles à expliquer</h3>
-          <Carousel items={tonight.easy} label="Faciles à expliquer" />
+          <h3 className="mb-3 text-xl sm:text-2xl">{easyTitle}</h3>
+          <Carousel items={tonight.easy} label={easyTitle} />
         </div>
       )}
     </section>
@@ -155,6 +173,15 @@ function storedScope() {
   }
 }
 
+function storedDifficulty() {
+  try {
+    const v = localStorage.getItem(DIFFICULTY_KEY)
+    return DIFFICULTIES.some(d => d.value === v) ? v : null
+  } catch {
+    return null
+  }
+}
+
 function ScopeSwitch({ scope, onChange }) {
   return (
     <FilterRow id="filtre-perimetre" label="Parmi">
@@ -177,7 +204,7 @@ function DecadeTabs({ byDecade }) {
 
   return (
     <div>
-      <div role="tablist" aria-label="Décennies" className="mb-4 flex gap-1.5 overflow-x-auto pb-1">
+      <div role="tablist" aria-label="Décennies" className="-mt-2 mb-2 flex gap-1.5 overflow-x-auto overflow-y-hidden py-2">
         {labels.map(label => (
           <button key={label} type="button" role="tab" id={`epoque-${label}`} aria-selected={active === label} aria-controls="epoque-panneau"
             onClick={() => setActive(label)} className="chip chip-sm shrink-0">
@@ -240,12 +267,21 @@ export default function HomePage() {
   const [table, setTable]           = useState(DEFAULT_TABLE)
   const [tableReady, setTableReady] = useState(false)
   const [tableSaved, setTableSaved] = useState(null)
+  const [difficulty, setDifficulty] = useState(storedDifficulty)
   const [tonight, setTonight]       = useState({ easy: [], popular: [] })
   const { players, maxTime } = table
 
   const changeScope = (next) => {
     setScope(next)
     try { localStorage.setItem(SCOPE_KEY, next) } catch { /* stockage indisponible : le choix ne sera pas retenu */ }
+  }
+
+  const changeDifficulty = (next) => {
+    setDifficulty(next)
+    try {
+      if (next) localStorage.setItem(DIFFICULTY_KEY, next)
+      else localStorage.removeItem(DIFFICULTY_KEY)
+    } catch { /* stockage indisponible : le choix ne sera pas retenu */ }
   }
 
   const changeTable = (next) => {
@@ -282,11 +318,11 @@ export default function HomePage() {
   useEffect(() => {
     if (authLoading || !user || !tableReady) return
     let current = true
-    getTonightRecommendations({ players, maxTime: maxTime >= 240 ? null : maxTime, scope })
+    getTonightRecommendations({ players, maxTime: maxTime >= 240 ? null : maxTime, scope, difficulty })
       .then(data => { if (current) setTonight(data) })
       .catch(() => { if (current) setTonight({ easy: [], popular: [] }) })
     return () => { current = false }
-  }, [user, authLoading, tableReady, players, maxTime, scope])
+  }, [user, authLoading, tableReady, players, maxTime, scope, difficulty])
 
   // Un même jeu ne s'affiche qu'une fois : ce que jouent les membres d'abord, les nouveautés avant les « faciles ».
   const shown      = new Set(tonight.popular.map(({ game }) => game.id))
@@ -328,10 +364,10 @@ export default function HomePage() {
 
   return (
     <div className="mx-auto flex max-w-7xl flex-col gap-10 px-4 py-6 sm:px-6 lg:px-10 lg:py-8">
-      <Hero table={table} onTableChange={changeTable} saved={tableSaved}
+      <Hero table={table} onTableChange={changeTable} difficulty={difficulty} onDifficultyChange={changeDifficulty} saved={tableSaved}
         scopeSwitch={!authLoading && user ? <ScopeSwitch scope={scope} onChange={changeScope} /> : null} />
 
-      {!authLoading && user && hasTonight && <TonightSection tonight={tonightShown} players={players} maxTime={maxTime} />}
+      {!authLoading && user && hasTonight && <TonightSection tonight={tonightShown} players={players} maxTime={maxTime} difficulty={difficulty} />}
 
       {/* ── Non connecté ───────────────────────────────────────────── */}
       {!authLoading && !user && (

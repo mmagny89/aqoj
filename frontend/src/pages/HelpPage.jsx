@@ -66,7 +66,7 @@ export default function HelpPage() {
           puis vous propose des recommandations adaptées à votre situation du soir.
         </p>
         <p>
-          Pas de réseau social, pas de partage public : juste l'essentiel, <em>qu'est-ce qu'on joue ce soir ?</em>
+          Pas de réseau social, pas de partage public : juste l'essentiel, <em>à quoi on joue ?</em>
         </p>
       </Section>
 

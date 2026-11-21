@@ -191,6 +191,7 @@
     display: flex;
     gap: 0.25rem;
     overflow-x: auto;
+    overflow-y: hidden; /* le -3px des onglets déborde : sans cela, un ascenseur vertical apparaît */
     border-bottom: 3px solid var(--color-ink);
   }
 
