@@ -86,21 +86,36 @@ const SHOPS = [
   },
 ]
 
+function CartIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 4h2.5l2.2 10.2a1.5 1.5 0 0 0 1.5 1.2h7.6a1.5 1.5 0 0 0 1.5-1.1L20 8H6.2" />
+      <circle cx="9.5" cy="19.5" r="1.3" />
+      <circle cx="17" cy="19.5" r="1.3" />
+    </svg>
+  )
+}
+
 function ShopButtons({ gameName }) {
   return (
-    <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
-      <span className="text-xs font-bold text-stone-600">Acheter</span>
-      {SHOPS.map(shop => (
-        <a
-          key={shop.key}
-          href={shop.url(gameName)}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="chip chip-sm"
-        >
-          {shop.label}
-        </a>
-      ))}
+    <div>
+      <h2 className="mb-2 font-display text-xl leading-none">Où l'acheter</h2>
+      <ul className="flex flex-wrap gap-2">
+        {SHOPS.map(shop => (
+          <li key={shop.key}>
+            <a
+              href={shop.url(gameName)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn bg-paper text-sm font-bold"
+              aria-label={`Chercher ${gameName} chez ${shop.label} (nouvel onglet)`}
+            >
+              <CartIcon />
+              {shop.label}
+            </a>
+          </li>
+        ))}
+      </ul>
     </div>
   )
 }
@@ -443,18 +458,20 @@ export default function GameDetailPage() {
         )
       })()}
 
-      {/* ── Achat et fiche BGG, sur une ligne ─────────────────────────────── */}
-      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 px-1">
+      {/* ── Achat et fiche BGG ────────────────────────────────────────────── */}
+      <section className="panel flex flex-wrap items-end justify-between gap-x-6 gap-y-4 p-4">
         <ShopButtons gameName={game.name} />
         <a
           href={`https://boardgamegeek.com/${game.bggType === 'boardgameexpansion' ? 'boardgameexpansion' : 'boardgame'}/${game.bggId}`}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex min-h-8 items-center gap-1.5 text-xs font-bold text-brand-blue underline underline-offset-4"
+          className="btn btn-secondary font-bold"
         >
-          Fiche BoardGameGeek{game.bggRank ? ` · rang #${game.bggRank.toLocaleString('fr')}` : ''}
+          Voir la fiche sur BoardGameGeek{game.bggRank ? ` · rang #${game.bggRank.toLocaleString('fr')}` : ''}
+          <span aria-hidden="true">↗</span>
+          <span className="sr-only">(nouvel onglet)</span>
         </a>
-      </div>
+      </section>
 
       {/* ── Jeu de base (quand on consulte une extension) ─────────────────── */}
       {game.isExpansion && game.baseGames?.length > 0 && (
