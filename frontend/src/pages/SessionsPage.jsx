@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { getSessions, getSessionsSummary, getSessionsStats, createSession, deleteSession } from '../api'
+import { AddPlayIcon } from '../components/icons'
 import GamePicker from '../components/GamePicker'
 import { coverColor, initials } from '../components/GameCard'
 import { gameImage } from '../utils/game'
@@ -174,6 +175,7 @@ export default function SessionsPage() {
         </div>
         {!showForm && (
           <button type="button" onClick={() => setShowForm(true)} className="btn btn-primary">
+            <AddPlayIcon aria-hidden="true" className="h-6 w-6" />
             Ajouter une partie
           </button>
         )}
