@@ -17,9 +17,9 @@ export const publisher = {
 }
 
 export const host = {
-  // Entité contractante d'Hostinger pour l'UE, d'après ses conditions de service (à confirmer sur votre contrat).
-  name: env.VITE_HOST_NAME || 'Hostinger International Ltd',
-  address: env.VITE_HOST_ADDRESS || '61 Lordou Vironos str., 6023 Larnaca, Chypre',
+  // Entité contractante d'Hostinger pour l'UE, d'après ses conditions de service (identique à celle des mentions légales de enviedejouer89.fr).
+  name: env.VITE_HOST_NAME || 'Hostinger International Ltd.',
+  address: env.VITE_HOST_ADDRESS || '61 Lordou Vironos Street, 6023 Larnaca, Chypre',
 }
 
 // Sous-traitant d'envoi des e-mails transactionnels.
