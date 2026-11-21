@@ -91,21 +91,17 @@ describe('GameDetailPage : extensions et fiche technique', () => {
     expect(screen.getByText('Ext Rien')).toBeInTheDocument()
   })
 
-  it('replie les extensions confidentielles derrière un bouton au lieu de les masquer sans le dire', async () => {
+  it('liste toutes les extensions, même confidentielles, sans les replier', async () => {
     renderPage({ expansions: [
       ext(21, 'Ext Connue', {}),
       ext(22, 'Ext Confidentielle', { usersRated: 12 }),
       ext(23, 'Ext Confidentielle 2', { usersRated: 8 }),
     ] })
 
-    expect(await screen.findByRole('heading', { name: /Extensions/ })).toHaveTextContent('(1)')
-    expect(screen.queryByText('Ext Confidentielle')).not.toBeInTheDocument()
-
-    await userEvent.click(screen.getByRole('button', { name: 'Voir les 2 autres (peu de votes)' }))
-
+    expect(await screen.findByRole('heading', { name: /Extensions/ })).toHaveTextContent('(3)')
     expect(screen.getByText('Ext Confidentielle')).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: /Extensions/ })).toHaveTextContent('(3)')
-    expect(screen.getByRole('button', { name: 'Masquer les extensions peu notées' })).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByText('Ext Confidentielle 2')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /peu de votes/ })).not.toBeInTheDocument()
   })
 
   it('range le technique dans une fiche compacte, avec le détail BGG replié', async () => {
