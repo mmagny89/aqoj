@@ -112,7 +112,7 @@ class RecommendationService
 
         usort($scored, fn($a, $b) => $b['score'] <=> $a['score']);
 
-        return array_slice($scored, 0, 30);
+        return $scored;
     }
 
     /**
@@ -135,7 +135,7 @@ class RecommendationService
         // un second lot de jeux récents, sinon aucune nouveauté n'atteindrait jamais le classement.
         $general = $this->gameRepository->findDiscoverForRecommendation(
             $user, $players, $maxTime, $families,
-            limit: 100,
+            limit: 300,
             categoryKeys: $categories,
             library: $library,
             maxComplexity: $maxComplexity,
@@ -143,7 +143,7 @@ class RecommendationService
         );
         $recentPool = $this->gameRepository->findDiscoverForRecommendation(
             $user, $players, $maxTime, $families,
-            limit: 60,
+            limit: 100,
             minYear: $this->recentFromYear($currentYear),
             categoryKeys: $categories,
             minVotes: self::RECENT_MIN_VOTES,
@@ -183,7 +183,7 @@ class RecommendationService
 
         usort($scored, fn($a, $b) => $b['score'] <=> $a['score']);
 
-        return array_slice($scored, 0, 30);
+        return $scored;
     }
 
     /**

@@ -16,11 +16,14 @@ describe('RecommendationPage', () => {
     vi.clearAllMocks()
     getThemeMappings.mockResolvedValue([])
     getUserPreferences.mockResolvedValue({ table: { players: 5, maxTime: 90 }, declaredFamilies: ['cooperation'], topEngines: [] })
-    getRecommendations.mockImplementation(async ({ scope }) => ({
-      collection: [jeu(1, 'Jeu Perso')],
-      library: [jeu(2, 'Jeu Asso'), jeu(3, 'Jeu Voisin')],
-      discover: [jeu(4, 'Jeu Catalogue')],
-    })[scope])
+    getRecommendations.mockImplementation(async ({ scope }) => {
+      const items = ({
+        collection: [jeu(1, 'Jeu Perso')],
+        library: [jeu(2, 'Jeu Asso'), jeu(3, 'Jeu Voisin')],
+        discover: [jeu(4, 'Jeu Catalogue')],
+      })[scope]
+      return { items, total: items.length, page: 1 }
+    })
   })
 
   it('part tout seul de la table et des styles favoris, sans bouton de recherche', async () => {
@@ -64,5 +67,23 @@ describe('RecommendationPage', () => {
 
     await waitFor(() => expect(getRecommendations).toHaveBeenCalledTimes(6))
     expect(getRecommendations).toHaveBeenLastCalledWith(expect.objectContaining({ difficulty: 'heavy' }))
+  })
+
+  it('charge la page suivante avec « Voir plus » sans perdre les premiers résultats', async () => {
+    getRecommendations.mockImplementation(async ({ scope, page = 1 }) => {
+      if (scope !== 'collection') return { items: [], total: 0, page: 1 }
+      return page === 1
+        ? { items: [jeu(1, 'Jeu Page Un')], total: 2, page: 1 }
+        : { items: [jeu(2, 'Jeu Page Deux')], total: 2, page: 2 }
+    })
+    render(<MemoryRouter><RecommendationPage /></MemoryRouter>)
+    await screen.findByText('Jeu Page Un')
+
+    await userEvent.click(screen.getByRole('button', { name: /Voir plus de jeux \(1 restants\)/ }))
+
+    expect(await screen.findByText('Jeu Page Deux')).toBeInTheDocument()
+    expect(screen.getByText('Jeu Page Un')).toBeInTheDocument()
+    expect(getRecommendations).toHaveBeenLastCalledWith(expect.objectContaining({ scope: 'collection', page: 2 }))
+    expect(screen.queryByRole('button', { name: /Voir plus/ })).not.toBeInTheDocument()
   })
 })
