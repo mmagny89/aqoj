@@ -186,7 +186,7 @@ describe('HomePage', () => {
     })
 
     it('filtre les idées selon la difficulté choisie', async () => {
-      getTonightRecommendations.mockResolvedValue({ popular: [], easy: [{ game: jeu(2, 'Jeu Costaud'), reason: 'Poids 3.8/5' }] })
+      getTonightRecommendations.mockResolvedValue({ popular: [], easy: [{ game: jeu(2, 'Jeu Costaud'), reason: '' }] })
       render(<MemoryRouter><HomePage /></MemoryRouter>)
       await screen.findByRole('heading', { name: 'Pour votre table' })
 
