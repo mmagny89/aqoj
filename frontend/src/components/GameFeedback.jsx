@@ -2,7 +2,7 @@ import { useEffect, useId, useState } from 'react'
 import { familyColor, familyLabel } from '../utils/engelstein'
 import { BookmarkIcon, NotInterestedIcon, SparkIcon, ThumbDownIcon, ThumbUpIcon } from './icons'
 
-/* « Parce que vous avez aimé X, et que vous aimez les mécaniques Y » : un encadré à part, pour que la raison de la proposition se voie. */
+/* « Parce que vous avez aimé X, et que vous aimez les mécaniques Y » : un lien discret « Pourquoi ce jeu ? » qui déplie la raison de la proposition. */
 const WHY_CHIPS = 3
 
 export function WhyLine({ why }) {
@@ -13,26 +13,28 @@ export function WhyLine({ why }) {
   const plural = families.length > 1 ? 'les mécaniques' : 'la mécanique'
 
   return (
-    <div data-testid="why" className="flex flex-col gap-1 rounded-xl border-2 border-ink bg-brand-yellow/25 p-2 text-sm leading-snug">
-      <p className="m-0 flex items-center gap-1 whitespace-nowrap text-xs font-bold">
+    <details data-testid="why" className="relative z-10 text-sm">
+      <summary className="flex min-h-11 cursor-pointer list-none items-center gap-1 text-xs font-bold text-stone-600 hover:text-ink [&::-webkit-details-marker]:hidden">
         <SparkIcon aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
-        Pourquoi ce jeu ?
-      </p>
-      <p className="m-0 break-words">
-        {liked && <>Parce que vous avez aimé <strong className="font-bold">{liked.name}</strong></>}
-        {liked && families.length > 0 && <>, et que vous aimez {plural}&nbsp;:</>}
-        {liked && families.length === 0 && '.'}
-        {!liked && <>Vous aimez {plural}&nbsp;:</>}
-      </p>
-      {families.length > 0 && (
-        <ul className="m-0 flex list-none flex-wrap gap-1 p-0">
-          {shown.map(f => (
-            <li key={f} className={`rounded-full border px-2 py-0.5 text-xs font-medium ${familyColor(f)}`}>{familyLabel(f)}</li>
-          ))}
-          {extra > 0 && <li className="rounded-full border border-stone-300 bg-paper px-2 py-0.5 text-xs font-medium">+{extra}</li>}
-        </ul>
-      )}
-    </div>
+        <span className="whitespace-nowrap underline underline-offset-4">Pourquoi ce jeu ?</span>
+      </summary>
+      <div className="mb-1 flex flex-col gap-1 border-l-[3px] border-brand-yellow pl-2 leading-snug text-stone-700">
+        <p className="m-0 break-words">
+          {liked && <>Parce que vous avez aimé <strong className="font-bold text-ink">{liked.name}</strong></>}
+          {liked && families.length > 0 && <>, et que vous aimez {plural}&nbsp;:</>}
+          {liked && families.length === 0 && '.'}
+          {!liked && <>Vous aimez {plural}&nbsp;:</>}
+        </p>
+        {families.length > 0 && (
+          <ul className="m-0 flex list-none flex-wrap gap-1 p-0">
+            {shown.map(f => (
+              <li key={f} className={`rounded-full border px-2 py-0.5 text-xs font-medium ${familyColor(f)}`}>{familyLabel(f)}</li>
+            ))}
+            {extra > 0 && <li className="rounded-full border border-stone-300 bg-paper px-2 py-0.5 text-xs font-medium">+{extra}</li>}
+          </ul>
+        )}
+      </div>
+    </details>
   )
 }
 

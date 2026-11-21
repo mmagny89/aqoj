@@ -21,6 +21,10 @@ describe('GameCard', () => {
     const onFeedback = vi.fn()
     renderCard({ why: { liked: null, families: ['auction', 'cooperation'] }, onFeedback })
 
+    // Discret : replié tant qu'on ne le demande pas.
+    expect(screen.getByTestId('why')).not.toHaveAttribute('open')
+    await userEvent.click(screen.getByText('Pourquoi ce jeu ?'))
+    expect(screen.getByTestId('why')).toHaveAttribute('open')
     expect(screen.getByTestId('why')).toHaveTextContent(/Pourquoi ce jeu \?Vous aimez les mécaniques\s*:/)
     expect(screen.getByRole('list', { name: '' })).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: /Déjà joué, bof/ }))
