@@ -17,6 +17,16 @@ describe('GameCard', () => {
     expect(screen.getByText('★ 7.1')).toBeInTheDocument()
   })
 
+  it('affiche le tag de sortie fourni par l’API', () => {
+    renderCard()
+    expect(screen.queryByText('Nouveauté')).not.toBeInTheDocument()
+  })
+
+  it.each([['new', 'Nouveauté'], ['upcoming', 'À paraître']])('affiche « %s » comme étiquette', (release, texte) => {
+    render(<MemoryRouter><GameCard game={{ ...game, release }} /></MemoryRouter>)
+    expect(screen.getByText(texte)).toBeInTheDocument()
+  })
+
   it('garde le bouton d’action indépendant du lien', async () => {
     const onAddSession = vi.fn()
     renderCard({ onAddSession })

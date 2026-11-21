@@ -85,6 +85,8 @@ export default function GameCard({ game, reason, rank, onAddSession, userRating,
           </h3>
           <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
             {game.yearPublished && <span className="text-sm text-stone-500">{game.yearPublished}</span>}
+            {game.release === 'new' && <span className="badge bg-brand-yellow">Nouveauté</span>}
+            {game.release === 'upcoming' && <span className="badge bg-brand-yellow">À paraître</span>}
             {game.isExpansion && <span className="badge bg-cream">Extension</span>}
           </div>
         </div>

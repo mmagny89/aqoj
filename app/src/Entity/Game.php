@@ -207,6 +207,31 @@ class Game implements \JsonSerializable
         $this->createdAt = new \DateTimeImmutable();
     }
 
+    /**
+     * Étiquette de sortie : « upcoming » (annoncé pour une année à venir), « new » (paru cette année, ou l'année
+     * précédente jusqu'en juin pour ne pas vider la liste en janvier), null au-delà : le tag « Nouveauté » tombe
+     * dès le 1er juillet de l'année suivant la sortie.
+     */
+    public function getRelease(): ?string
+    {
+        return $this->releaseAt(new \DateTimeImmutable());
+    }
+
+    public function releaseAt(\DateTimeImmutable $now): ?string
+    {
+        if ($this->yearPublished === null || $this->isExpansion) {
+            return null;
+        }
+        $year       = (int) $now->format('Y');
+        $fromYear   = (int) $now->format('n') <= 6 ? $year - 1 : $year;
+
+        return match (true) {
+            $this->yearPublished > $year       => 'upcoming',
+            $this->yearPublished >= $fromYear  => 'new',
+            default                            => null,
+        };
+    }
+
     public function jsonSerialize(): array
     {
         return [
@@ -226,6 +251,7 @@ class Game implements \JsonSerializable
             'editionFrYear' => $this->editionFrYear,
             'editionFrImageUrl' => $this->editionFrImageUrl,
             'yearPublished' => $this->yearPublished,
+            'release' => $this->getRelease(),
             'ratingBgg' => $this->ratingBgg,
             'source' => $this->source,
             'lastSyncedAt' => $this->lastSyncedAt?->format('c'),

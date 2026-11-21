@@ -181,10 +181,6 @@ class RecommendationService
             $reason = $rawRating >= 7.5
                 ? 'Très bien noté sur BGG (' . number_format($rawRating, 1) . '/10)'
                 : 'Noté ' . number_format($rawRating, 1) . '/10 sur BGG';
-            if ($this->isRecent($game, $currentYear)) {
-                $reason = 'Nouveauté ' . $game->getYearPublished() . ' · ' . $reason;
-            }
-
             return ['game' => $game, 'score' => $score, 'reason' => $reason];
         }, $games);
 
@@ -310,16 +306,11 @@ class RecommendationService
         // Les 30 plus suivies, dont 10 au hasard : d'autres nouveautés à chaque chargement.
         $games = $this->pickRandom($this->gameRepository->findNewReleases($user, $fromYear, $currentYear + 1, 30), 30, 10);
 
-        return array_map(function (Game $game) use ($currentYear): array {
-            // L'année et la note figurent déjà sur la carte : la raison ne dit que le statut et l'intérêt suscité.
-            $year   = $game->getYearPublished();
-            $reason = $year !== null && $year > $currentYear ? 'À paraître' : 'Nouveauté';
-            if (($game->getUsersRated() ?? 0) > 0) {
-                $reason .= ' · ' . number_format($game->getUsersRated(), 0, ',', "\u{202F}") . ' votes';
-            }
-
-            return ['game' => $game, 'score' => (float) ($game->getUsersRated() ?? 0), 'reason' => $reason];
-        }, $games);
+        // Aucune raison : le tag « Nouveauté » / « À paraître » de la carte (Game::getRelease) dit déjà tout.
+        return array_map(
+            fn(Game $game): array => ['game' => $game, 'score' => (float) ($game->getUsersRated() ?? 0), 'reason' => ''],
+            $games,
+        );
     }
 
     /** Goûts que le joueur a déclarés lui-même (questionnaire de l'accueil). */
@@ -341,7 +332,7 @@ class RecommendationService
      */
     public function recommendTonight(User $user, ?int $players, ?int $maxTime, bool $library = false, ?string $difficulty = null): array
     {
-        [$minComplexity, $maxComplexity] = self::DIFFICULTY_BANDS[$difficulty] ?? [null, self::EASY_MAX_COMPLEXITY];
+        [$minComplexity, $maxComplexity] = self::DIFFICULTY_BANDS[$difficulty ?? ''] ?? [null, self::EASY_MAX_COMPLEXITY];
         $currentYear = (int) date('Y');
         $excludeIds  = $this->getDislikedGameIds($user);
 
@@ -368,10 +359,6 @@ class RecommendationService
 
         $easy = array_map(function (Game $game) use ($currentYear, $difficulty): array {
             $reason = ($difficulty === null ? 'Facile à aborder' : 'Poids ' . number_format($game->getComplexity(), 1) . '/5') . ' · ' . number_format((float) $game->getRatingBgg(), 1) . '/10 sur BGG';
-            if ($this->isRecent($game, $currentYear)) {
-                $reason = 'Nouveauté ' . $game->getYearPublished() . ' · ' . $reason;
-            }
-
             return [
                 'game'   => $game,
                 'score'  => $this->qualityRating($game, $currentYear) * 5 + $this->recencyBonus($game, $currentYear),
@@ -411,7 +398,7 @@ class RecommendationService
             $conditions[] = '(g.playing_time <= ? OR g.playing_time = 0)';
             $params[] = $maxTime;
         }
-        if (isset(self::DIFFICULTY_BANDS[$difficulty])) {
+        if (isset(self::DIFFICULTY_BANDS[$difficulty ?? ''])) {
             [$min, $max] = self::DIFFICULTY_BANDS[$difficulty];
             $conditions[] = 'g.complexity > ?';
             $params[]     = $min ?? 0;
@@ -576,10 +563,6 @@ class RecommendationService
             if ($rating >= 7.5) {
                 $reason .= ' · ' . number_format($rating, 1) . '/10 sur BGG';
             }
-            if ($recentBoost && $this->isRecent($game, $currentYear)) {
-                $reason = 'Nouveauté ' . $year . ' · ' . $reason;
-            }
-
             return ['game' => $game, 'score' => $score, 'reason' => $reason];
         }, $games);
 
