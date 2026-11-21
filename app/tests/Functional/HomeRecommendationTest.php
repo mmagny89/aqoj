@@ -231,6 +231,30 @@ final class HomeRecommendationTest extends ApiTestCase
         self::assertTrue($apres['hasHistory']);
     }
 
+    public function testUnJeuAvecUnePartieCompteCommeDejaJoueDansLaLudotheque(): void
+    {
+        $client = static::createClient();
+        $token = $this->register($client, 'joue@example.test');
+        $this->creerJeu('Zzjoue Jeu', (int) date('Y') - 4, 2.0, 7.5, 3000);
+        static::getContainer()->get(Connection::class)->executeStatement(
+            'INSERT INTO user_game (user_id, game_id) VALUES ((SELECT id FROM app_user WHERE email = ?), (SELECT id FROM game WHERE name = ?))',
+            ['joue@example.test', 'Zzjoue Jeu'],
+        );
+
+        $avant = $this->call($client, 'GET', '/api/library?played=1', token: $token);
+        $nonJoue = $this->call($client, 'GET', '/api/library?played=0', token: $token);
+        self::assertSame(0, $avant['total']);
+        self::assertSame(1, $nonJoue['total']);
+
+        $this->partie('Zzjoue Jeu', 'joue@example.test');
+
+        $apres = $this->call($client, 'GET', '/api/library?played=1', token: $token);
+        $nonJoueApres = $this->call($client, 'GET', '/api/library?played=0', token: $token);
+        self::assertSame(1, $apres['total']);
+        self::assertSame(['Zzjoue Jeu'], array_column($apres['games'], 'name'));
+        self::assertSame(0, $nonJoueApres['total']);
+    }
+
     public function testLePerimetreLudothequeNeGardeQueLesJeuxDeLAssociationEtDesMembres(): void
     {
         $client = static::createClient();

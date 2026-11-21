@@ -399,16 +399,18 @@ class GameRepository extends ServiceEntityRepository
             ->getResult();
     }
 
+    /** « Déjà joué » : noté sur BGG, ou au moins une partie enregistrée (saisie ici ou importée de MyLudo). Alias `ug` requis. */
+    private const USER_GAME_PLAYED = '(ug.bgg_user_rating IS NOT NULL
+        OR EXISTS (SELECT 1 FROM game_session gs WHERE gs.user_id = ug.user_id AND gs.game_id = ug.game_id))';
+
     /**
-     * @param bool|null $played  true = déjà notés (bgg_user_rating IS NOT NULL),
-     *                            false = pas encore notés,
-     *                            null = tous
+     * @param bool|null $played  true = déjà joués (notés sur BGG ou avec une partie), false = pas encore joués, null = tous
      */
     public function findByUserCollection(User $user, int $page = 1, int $limit = 50, ?bool $played = null, ?bool $isExpansion = null): array
     {
         $playedClause = match ($played) {
-            true  => 'AND ug.bgg_user_rating IS NOT NULL',
-            false => 'AND ug.bgg_user_rating IS NULL',
+            true  => 'AND ' . self::USER_GAME_PLAYED,
+            false => 'AND NOT ' . self::USER_GAME_PLAYED,
             null  => '',
         };
 
@@ -464,8 +466,8 @@ class GameRepository extends ServiceEntityRepository
     public function countUserCollection(User $user, ?bool $played = null, ?bool $isExpansion = null): int
     {
         $playedClause = match ($played) {
-            true  => 'AND ug.bgg_user_rating IS NOT NULL',
-            false => 'AND ug.bgg_user_rating IS NULL',
+            true  => 'AND ' . self::USER_GAME_PLAYED,
+            false => 'AND NOT ' . self::USER_GAME_PLAYED,
             null  => '',
         };
 
@@ -484,7 +486,7 @@ class GameRepository extends ServiceEntityRepository
         }
 
         return (int) $this->getEntityManager()->getConnection()->fetchOne(
-            "SELECT COUNT(*) FROM user_game WHERE user_id = ? {$playedClause}",
+            "SELECT COUNT(*) FROM user_game ug WHERE ug.user_id = ? {$playedClause}",
             [$user->getId()]
         );
     }
