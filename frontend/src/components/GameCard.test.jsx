@@ -17,6 +17,21 @@ describe('GameCard', () => {
     expect(screen.getByText('★ 7.1')).toBeInTheDocument()
   })
 
+  it('dit « idéal à N » et ce qu’on ignore du jeu quand des filtres de contexte sont actifs', () => {
+    const filters = { players: 4, fit: null, maxTime: 60, weight: 'light', coop: null, age: null, played: null }
+    renderCard({ context: filters, game: { ...game, bestPlayers: [4], recommendedPlayers: [3, 4], playingTime: 0, complexity: 0 } })
+
+    expect(screen.getByText('Idéal à 4')).toBeInTheDocument()
+    expect(screen.getByText('Durée inconnue')).toBeInTheDocument()
+    expect(screen.getByText('Poids inconnu')).toBeInTheDocument()
+  })
+
+  it('n’ajoute aucune étiquette de contexte sans filtre', () => {
+    renderCard({ game: { ...game, bestPlayers: [4], playingTime: 0 } })
+
+    expect(screen.queryByText(/Idéal à|inconnu/)).not.toBeInTheDocument()
+  })
+
   it('dit pourquoi le jeu est proposé et offre les deux retours', async () => {
     const onFeedback = vi.fn()
     renderCard({ why: { liked: null, families: ['auction', 'cooperation'] }, onFeedback })

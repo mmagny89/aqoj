@@ -97,6 +97,7 @@ class RecommendationService
             $categories,
             $minComplexity,
             $maxComplexity,
+            $criteria['context'] ?? null,
         );
 
         if (empty($games)) {
@@ -155,6 +156,7 @@ class RecommendationService
             library: $library,
             maxComplexity: $maxComplexity,
             minComplexity: $minComplexity,
+            context: $criteria['context'] ?? null,
         );
         $recentPool = $this->gameRepository->findDiscoverForRecommendation(
             $user, $players, $maxTime, $families,
@@ -166,6 +168,7 @@ class RecommendationService
             library: $library,
             maxComplexity: $maxComplexity,
             minComplexity: $minComplexity,
+            context: $criteria['context'] ?? null,
         );
 
         $games = [];

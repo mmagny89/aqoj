@@ -8,6 +8,7 @@ use App\Repository\GameRepository;
 use App\Repository\UserPreferenceRepository;
 use App\Repository\UserGameRepository;
 use App\Service\BggApiService;
+use App\Service\ContextFilters;
 use App\Service\MechanicFamilyResolver;
 use App\Service\GameEnrichmentService;
 use App\Service\RecommendationService;
@@ -47,8 +48,11 @@ class GameController extends AbstractController
             ? ($request->query->getBoolean('isExpansion') ? true : false)
             : null;
 
-        $games       = $repository->findByUserCollection($user, $page, 50, $playedParam, $isExpansionParam);
-        $total       = $repository->countUserCollection($user, $playedParam, $isExpansionParam);
+        // Filtres de contexte (joueurs, durée, poids…) ; « joué » est déjà l'onglet de la ludothèque.
+        $context = ContextFilters::fromRequest($request, withPlayed: false);
+
+        $games       = $repository->findByUserCollection($user, $page, 50, $playedParam, $isExpansionParam, $context);
+        $total       = $repository->countUserCollection($user, $playedParam, $isExpansionParam, $context);
         $userRatings = $userGameRepository->getBggUserRatings($user);
 
         return $this->json([
@@ -84,6 +88,7 @@ class GameController extends AbstractController
             'families'   => $request->query->all('families'),
             'categories' => $request->query->all('categories'),
             'difficulty' => $request->query->getString('difficulty'),
+            'context'    => ContextFilters::fromRequest($request),
         ];
 
         $scope   = $request->query->getString('scope', 'collection');
@@ -218,6 +223,7 @@ class GameController extends AbstractController
         $category = $request->query->getString('category') ?: null;
         $engines = $request->query->all('engines');
         $page = max(1, $request->query->getInt('page', 1));
+        $context = ContextFilters::fromRequest($request);
         // `local=1` : choisir un jeu dans la base (saisie semi-automatique) ne doit jamais appeler BGG.
         $localOnly = $request->query->getBoolean('local');
 
@@ -236,6 +242,7 @@ class GameController extends AbstractController
 
         // Recherche textuelle
         if ($query !== '') {
+            // Le repli BGG se décide sur la recherche sans filtres : un filtre qui vide la liste n'est pas un titre inconnu.
             $localResults = $repository->searchByName($query);
 
             // Fallback BGG si résultats insuffisants. Une même recherche n'interroge BGG qu'une
@@ -271,12 +278,16 @@ class GameController extends AbstractController
                 }
             }
 
+            if ($context->hasAny()) {
+                $localResults = $repository->searchByName($query, context: $context, user: $user);
+            }
+
             return $this->json($withOwned($localResults));
         }
 
         // Recherche par filtres (sans texte) — moteurs Engelstein prioritaires
-        if (!empty($engines)) {
-            $games = $repository->findByEngines($engines, $players, $maxTime, $page);
+        if (!empty($engines) || $context->isActive()) {
+            $games = $repository->findByEngines($engines, $players, $maxTime, $page, context: $context, user: $user);
         } else {
             $games = $repository->findByCriteria(
                 $players,

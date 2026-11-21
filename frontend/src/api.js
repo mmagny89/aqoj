@@ -65,12 +65,22 @@ export const getGames = (params = {}) => {
   return request('/games' + (qs.toString() ? '?' + qs : ''))
 }
 
+// Filtres de contexte (voir utils/contexte.js) : joueurs, ajustement, durée, poids, mode, âge, déjà joué.
+const setContext = (qs, { players, fit, maxTime, weight, coop, age, played } = {}) => {
+  if (players) qs.set('players', players)
+  if (fit) qs.set('fit', fit)
+  if (maxTime) qs.set('maxTime', maxTime)
+  if (weight) qs.set('weight', weight)
+  if (coop != null) qs.set('coop', coop ? '1' : '0')
+  if (age) qs.set('age', age)
+  if (played != null) qs.set('played', played ? '1' : '0')
+}
+
 export const searchGames = (params = {}) => {
   const qs = new URLSearchParams()
   if (params.q) qs.set('q', params.q)
   if (params.local) qs.set('local', '1')
-  if (params.players) qs.set('players', params.players)
-  if (params.maxTime) qs.set('maxTime', params.maxTime)
+  setContext(qs, params)
   if (params.category) qs.set('category', params.category)
   if (params.page && params.page > 1) qs.set('page', params.page)
   ;(params.engines ?? []).forEach(e => qs.append('engines[]', e))
@@ -80,10 +90,9 @@ export const searchGames = (params = {}) => {
 export const getGame = (id) => request(`/games/${id}`)
 
 export const getRecommendations = (params = {}) => {
-  const { players, maxTime, families = [], categories = [], scope = 'collection', difficulty, page = 1, type } = params
+  const { families = [], categories = [], scope = 'collection', difficulty, page = 1, type } = params
   const qs = new URLSearchParams()
-  if (players) qs.set('players', players)
-  if (maxTime) qs.set('maxTime', maxTime)
+  setContext(qs, params)
   if (scope !== 'collection') qs.set('scope', scope)
   if (difficulty) qs.set('difficulty', difficulty)
   if (page > 1) qs.set('page', page)
@@ -125,8 +134,10 @@ export const recomputeUserPreferences = () => request('/user/preferences/recompu
 
 // Library (collection personnelle)
 // played : true = joués (notés BGG), false = pas encore joués, undefined = tous
-export const getLibrary = (page = 1, played = undefined, isExpansion = undefined) => {
+export const getLibrary = (page = 1, played = undefined, isExpansion = undefined, context = {}) => {
   const qs = new URLSearchParams()
+  // « joué » est l'onglet de la ludothèque : le filtre de contexte du même nom n'y est jamais envoyé.
+  setContext(qs, { ...context, played: undefined })
   if (page > 1) qs.set('page', page)
   if (played !== undefined) qs.set('played', played ? '1' : '0')
   if (isExpansion !== undefined) qs.set('isExpansion', isExpansion ? '1' : '0')

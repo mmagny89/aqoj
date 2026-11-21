@@ -3,11 +3,14 @@ import { Link } from 'react-router-dom'
 import { getLibrary, getUserPreferences, recomputeUserPreferences } from '../api'
 import { useAuth } from '../context/AuthContext'
 import GameCard from '../components/GameCard'
+import ContextFilters from '../components/ContextFilters'
+import { useContextFilters } from '../hooks/useContextFilters'
+import { activeCount, filtersToApi } from '../utils/contexte'
 import { familyLabel, familyColor, SUPPORT_COLOR } from '../utils/engelstein'
 
 /* ── Hook pour un onglet paginé ────────────────────────────────────────── */
 // isExpansion: true = extensions seulement, false = base seulement, null = tous
-function useLibraryTab(played, active, isExpansion = null) {
+function useLibraryTab(played, active, isExpansion = null, contextKey = '{}') {
   const [games, setGames]           = useState([])
   const [userRatings, setUserRatings] = useState({})
   const [bggUsername, setBggUsername] = useState(null)
@@ -22,7 +25,7 @@ function useLibraryTab(played, active, isExpansion = null) {
   const fetchPage = useCallback(async (pageNum, replace) => {
     setLoading(true)
     try {
-      const data = await getLibrary(pageNum, played, isExpansion)
+      const data = await getLibrary(pageNum, played, isExpansion, filtersToApi(JSON.parse(contextKey), { withPlayed: false }))
       setBggUsername(data.bggUsername)
       setTotal(data.total)
       setGames(prev => replace ? data.games : [...prev, ...data.games])
@@ -35,16 +38,16 @@ function useLibraryTab(played, active, isExpansion = null) {
       setLoading(false)
       if (replace) setInitialLoading(false)
     }
-  }, [played, isExpansion])
+  }, [played, isExpansion, contextKey])
 
-  // Reset quand isExpansion change
+  // Reset quand isExpansion ou les filtres de contexte changent
   useEffect(() => {
     loaded.current = false
     setGames([])
     setPage(1)
     setTotal(null)
     setHasMore(true)
-  }, [isExpansion])
+  }, [isExpansion, contextKey])
 
   // Chargement initial : déclenché la première fois que l'onglet devient actif
   useEffect(() => {
@@ -184,10 +187,14 @@ export default function LibraryPage() {
 
   const isExpansionFilter = subTab === 'ext' ? true : false
 
-  const playedTab   = useLibraryTab(true,  activeTab === 'played',   isExpansionFilter)
-  const unplayedTab = useLibraryTab(false, activeTab === 'unplayed', isExpansionFilter)
+  const [context, setContext] = useContextFilters()
+  const contextKey = JSON.stringify(context)
+
+  const playedTab   = useLibraryTab(true,  activeTab === 'played',   isExpansionFilter, contextKey)
+  const unplayedTab = useLibraryTab(false, activeTab === 'unplayed', isExpansionFilter, contextKey)
 
   const tab    = activeTab === 'played' ? playedTab : unplayedTab
+  const filtered = activeCount(context, { withPlayed: false }) > 0
   const tabDef = TABS.find(t => t.key === activeTab)
   // Pluriel irrégulier : « jeux », pas « jeus ».
   const countLabel = (n) => `${n} ${subTab === 'ext' ? 'extension' : 'jeu'}${n > 1 ? (subTab === 'ext' ? 's' : 'x') : ''}`
@@ -202,15 +209,6 @@ export default function LibraryPage() {
           <Link to="/connexion" className="btn btn-primary">Se connecter</Link>
         </section>
       </div>
-    )
-  }
-
-  if (tab.initialLoading) {
-    return (
-      <p role="status" className="flex min-h-[60vh] items-center justify-center gap-3 text-stone-600">
-        <span className="h-6 w-6 animate-spin rounded-full border-[3px] border-stone-300 border-t-brand-red" aria-hidden="true" />
-        Chargement de votre ludothèque…
-      </p>
     )
   }
 
@@ -263,6 +261,8 @@ export default function LibraryPage() {
       </div>
 
       <div id="ludo-panneau" role="tabpanel" aria-labelledby={`ludo-${activeTab}`} className="flex flex-col gap-5">
+        <ContextFilters filters={context} onChange={setContext} withPlayed={false} idPrefix="ludo-ctx" />
+
         {/* Jeux de base / extensions */}
         <div role="group" aria-label="Type de fiches" className="flex gap-2">
           {[
@@ -285,7 +285,22 @@ export default function LibraryPage() {
           <p role="alert" className="panel border-brand-red bg-amber-100 p-4 font-bold">{tab.error}</p>
         )}
 
-        {!tab.error && tab.games.length === 0 && !tab.loading && (
+        {/* Le bandeau de filtres reste en place pendant un rechargement : seule la liste attend. */}
+        {tab.initialLoading && (
+          <p role="status" className="flex min-h-[40vh] items-center justify-center gap-3 text-stone-600">
+            <span className="h-6 w-6 animate-spin rounded-full border-[3px] border-stone-300 border-t-brand-red" aria-hidden="true" />
+            Chargement de votre ludothèque…
+          </p>
+        )}
+
+        {!tab.error && !tab.initialLoading && tab.games.length === 0 && !tab.loading && filtered && (
+          <section className="panel mx-auto flex max-w-xl flex-col items-center gap-3 p-8 text-center">
+            <h2 className="text-2xl">Aucun jeu ne correspond à ces filtres.</h2>
+            <p className="text-stone-600">Élargissez la table ou effacez les filtres : les jeux sans donnée restent affichés.</p>
+          </section>
+        )}
+
+        {!tab.error && !tab.initialLoading && tab.games.length === 0 && !tab.loading && !filtered && (
           <section className="panel mx-auto flex max-w-xl flex-col items-center gap-3 p-8 text-center">
             <h2 className="text-2xl">
               {subTab === 'ext' ? 'Aucune extension dans cette catégorie.' : tabDef.emptyMsg}
@@ -301,11 +316,11 @@ export default function LibraryPage() {
           </section>
         )}
 
-        {tab.games.length > 0 && (
+        {!tab.initialLoading && tab.games.length > 0 && (
           <ul className="m-0 grid list-none grid-cols-2 gap-4 p-0 sm:grid-cols-3 sm:gap-5 lg:grid-cols-4 2xl:grid-cols-5">
             {tab.games.map(game => (
               <li key={game.id}>
-                <GameCard game={game} userRating={tab.userRatings[game.id] ?? null} />
+                <GameCard game={game} userRating={tab.userRatings[game.id] ?? null} context={context} />
               </li>
             ))}
           </ul>

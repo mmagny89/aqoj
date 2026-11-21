@@ -184,6 +184,24 @@ class Game implements \JsonSerializable
     private ?int $minAge = null;
 
     /**
+     * Nombres de joueurs « idéaux » d'après le sondage BGG (suggested_numplayers) : le ou les nombres qui récoltent le plus
+     * de votes « Best ». null = sondage absent ou trop peu voté. Propre à ce site, hors du groupe publié à BG-TCG.
+     *
+     * @var int[]|null
+     */
+    #[ORM\Column(type: 'json', nullable: true)]
+    private ?array $bestPlayers = null;
+
+    /**
+     * Nombres de joueurs « conseillés » (Best + Recommended l'emportent sur Not Recommended) ; contient bestPlayers.
+     * Un jeu « jouable » à N sans être conseillé à N se lit à l'écart entre minPlayers/maxPlayers et ce tableau.
+     *
+     * @var int[]|null
+     */
+    #[ORM\Column(type: 'json', nullable: true)]
+    private ?array $recommendedPlayers = null;
+
+    /**
      * Nom d'origine BGG (toujours en anglais).
      * `name` contient le nom d'affichage (FR si disponible, sinon identique à nameOriginal).
      */
@@ -270,6 +288,8 @@ class Game implements \JsonSerializable
             'primaryEngine' => $this->primaryEngine,
             'displayEngines'    => $this->getDisplayEngines(),
             'minAge'            => $this->minAge,
+            'bestPlayers'        => $this->bestPlayers,
+            'recommendedPlayers' => $this->recommendedPlayers,
             'nameOriginal'      => $this->nameOriginal,
             'bggType'           => $this->bggType,
             'expansionBggIds'   => $this->expansionBggIds,
@@ -353,6 +373,14 @@ class Game implements \JsonSerializable
     public function setExpansionBggIds(array $ids): static { $this->expansionBggIds = $ids; return $this; }
     public function getImplementsBggIds(): array { return $this->implementsBggIds; }
     public function setImplementsBggIds(array $ids): static { $this->implementsBggIds = $ids; return $this; }
+    /** @return int[]|null */
+    public function getBestPlayers(): ?array { return $this->bestPlayers; }
+    /** @param int[]|null $bestPlayers */
+    public function setBestPlayers(?array $bestPlayers): static { $this->bestPlayers = $bestPlayers; return $this; }
+    /** @return int[]|null */
+    public function getRecommendedPlayers(): ?array { return $this->recommendedPlayers; }
+    /** @param int[]|null $recommendedPlayers */
+    public function setRecommendedPlayers(?array $recommendedPlayers): static { $this->recommendedPlayers = $recommendedPlayers; return $this; }
     public function getMinAge(): ?int { return $this->minAge; }
     public function setMinAge(?int $minAge): static { $this->minAge = $minAge; return $this; }
     public function getNameOriginal(): ?string { return $this->nameOriginal; }

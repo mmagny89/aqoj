@@ -50,3 +50,9 @@ Symfony 8.1, PHP 8.5 (FrankenPHP en mode worker), Doctrine, PostgreSQL 18. Pas d
 - Après modification de la configuration : `php bin/console cache:warmup` en `dev`, car PHPStan lit le conteneur compilé.
 - Alertes : une erreur sur les canaux `jobs` et `messenger` part par e-mail (`ALERT_EMAIL`, dédupliquée une heure) en staging et en production ; `tests/Functional/JobAlertTest.php` le vérifie. Les tâches planifiées sont des `RunCommandMessage` avec `throwOnFailure` : une commande en échec arrive jusque-là.
 - Un paquet ajouté pour le planificateur manque vite : `dragonmantank/cron-expression` est requis par les expressions cron de `MainSchedule`.
+
+## Filtres de contexte
+- `App\Service\ContextFilters` (lu par `fromRequest`) porte joueurs, durée, `fit` (`best` idéal / `recommended` conseillé, sinon simplement jouable), `weight` (`light|medium|heavy`, bornes de `RecommendationService::DIFFICULTY_BANDS`), `coop` (1/0), `age` (âge minimum du jeu au plus) et `played` ; ses conditions SQL (alias `g`) sont posées par `GameRepository` sur la ludothèque (`played` y est l'onglet : ignoré), les recommandations (`/api/games/recommendation`), la recherche par filtres et la recherche par nom (post-filtre des identifiants trouvés).
+- Un jeu sans donnée (poids 0, durée 0, âge, mécaniques `[]`, sondage absent) n'est **jamais écarté** : il reste dans la liste et le front l'étiquette « inconnu ». Ne pas durcir ces conditions.
+- `game.best_players` / `recommended_players` (JSON, null = inconnu) viennent du sondage BGG `suggested_numplayers` (`BggApiService::playerPoll` : idéal = le plus de votes « Best », conseillé = Best + Recommended > Not Recommended, au moins 5 votes au total). Remplis par l'enrichissement planifié ; la migration a rendu les fiches `bgg_api` au resynchroniseur, aucun appel BGG à la requête.
+- Le repli BGG de la recherche par nom se décide sur la recherche **sans** filtres : un filtre qui vide la liste n'est pas un titre inconnu.

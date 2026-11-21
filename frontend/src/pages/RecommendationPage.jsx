@@ -1,11 +1,14 @@
 import { useState, useEffect, useId, useRef } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { getRecommendations, getUserPreferences, getThemeMappings } from '../api'
 import GameCard from '../components/GameCard'
 import { FeedbackNotice } from '../components/GameFeedback'
 import { useGameFeedback } from '../hooks/useGameFeedback'
 import { useAuth } from '../context/AuthContext'
-import { DIFFICULTIES, storedDifficulty, storeDifficulty } from '../utils/difficulte'
+import { storedDifficulty, storeDifficulty } from '../utils/difficulte'
+import ContextFilters from '../components/ContextFilters'
+import { useContextFilters } from '../hooks/useContextFilters'
+import { activeCount, filtersToApi } from '../utils/contexte'
 import { ENGINES, SUPPORT_FAMILIES, EXTRA_FAMILIES, familyLabel } from '../utils/engelstein'
 
 /* ── Chip sélectionnable ─────────────────────────────────────────────── */
@@ -46,7 +49,7 @@ function FilterSection({ title, children, active = false }) {
 
 /* ── Grille de résultats avec sous-onglets base / extension ─────────── */
 // Chaque type de fiche a sa propre liste paginée côté API : une page de 30 donne toujours 30 résultats du type affiché.
-function ResultsGrid({ list, totals, type, onType, loading, error, onLoadMore, feedback }) {
+function ResultsGrid({ list, totals, type, onType, loading, error, onLoadMore, feedback, context }) {
   const loaded = list.data ?? []
   // Un jeu écarté disparaît sans attendre le rechargement ; le compte suit.
   const items = feedback ? loaded.filter(({ game }) => !feedback.isHidden(game.id)) : loaded
@@ -94,7 +97,7 @@ function ResultsGrid({ list, totals, type, onType, loading, error, onLoadMore, f
           <p className="mb-3 text-stone-600" aria-live="polite">{total} jeu{total > 1 ? 'x' : ''}</p>
           <ul className="m-0 grid list-none grid-cols-2 gap-4 p-0 sm:grid-cols-3 sm:gap-5 xl:grid-cols-4">
             {items.map(({ game, why, feedback: saved }, i) => (
-              <li key={game.id}><GameCard game={game} rank={i + 1} why={why} verdict={feedback?.verdictOf(game.id, saved)} onFeedback={feedback?.send} /></li>
+              <li key={game.id}><GameCard game={game} rank={i + 1} why={why} verdict={feedback?.verdictOf(game.id, saved)} onFeedback={feedback?.send} context={context} /></li>
             ))}
           </ul>
           {loaded.length < list.total && (
@@ -117,7 +120,7 @@ const SCOPE_TABS = [
   { key: 'discover',   label: 'Tout le catalogue' },
 ]
 
-function ResultsPanel({ results, totals, activeTab, onTabChange, type, onType, onLoadMore, feedback }) {
+function ResultsPanel({ results, totals, activeTab, onTabChange, type, onType, onLoadMore, feedback, context }) {
   return (
     <div>
       <div role="tablist" aria-label="Où chercher" className="tab-list mb-5">
@@ -141,7 +144,7 @@ function ResultsPanel({ results, totals, activeTab, onTabChange, type, onType, o
       <div id="reco-panneau" role="tabpanel" aria-labelledby={`reco-${activeTab}`}>
         <ResultsGrid list={results[`${activeTab}:${type}`]} totals={totals[activeTab]} type={type} onType={onType}
           loading={results[`${activeTab}:base`].loading} error={results[`${activeTab}:${type}`].error} onLoadMore={() => onLoadMore(activeTab, type)}
-          feedback={activeTab === 'collection' ? undefined : feedback} />
+          feedback={activeTab === 'collection' ? undefined : feedback} context={context} />
       </div>
     </div>
   )
@@ -155,17 +158,21 @@ const EMPTY_RESULTS = Object.fromEntries(SCOPE_TABS.flatMap(t => [[`${t.key}:bas
 export default function RecommendationPage() {
   const { user } = useAuth()
   const feedback = useGameFeedback()
-  // L'accueil envoie `?joueurs=3&duree=60` : la recherche part d'elle-même avec ces valeurs.
-  const [searchParams] = useSearchParams()
-  const fromHome = searchParams.has('joueurs')
-  const positive = (key, fallback) => {
-    const value = Number(searchParams.get(key))
-    return Number.isInteger(value) && value > 0 ? value : fallback
-  }
-
-  const [players,            setPlayers]            = useState(() => positive('joueurs', 4))
-  const [maxTime,            setMaxTime]            = useState(() => positive('duree', 60))
-  const [difficulty,         setDifficulty]         = useState(storedDifficulty)
+  // Les filtres de contexte vivent dans l'adresse (partageable). L'accueil envoie `?joueurs=3&duree=60` : la recherche part
+  // d'elle-même avec ces valeurs ; sans filtre dans l'adresse, on part de la table enregistrée et de la difficulté retenue.
+  const [context, setContextRaw] = useContextFilters()
+  const contextKey = JSON.stringify(context)
+  const [fromUrl] = useState(() => activeCount(context) > 0)
+  // Le poids choisi reste mémorisé : l'accueil le reprend (`home-tonight`).
+  const setContext = (next) => setContextRaw(prev => {
+    const value = typeof next === 'function' ? next(prev) : next
+    storeDifficulty(value.weight)
+    return value
+  })
+  useEffect(() => {
+    if (fromUrl) return
+    setContextRaw(prev => ({ ...prev, players: 4, maxTime: 60, weight: storedDifficulty() }))
+  }, [fromUrl, setContextRaw])
   const [selectedFamilies,   setSelectedFamilies]   = useState([])
   const [selectedCategories, setSelectedCategories] = useState([])
   const [results,            setResults]            = useState(EMPTY_RESULTS)
@@ -183,9 +190,8 @@ export default function RecommendationPage() {
     if (user) {
       getUserPreferences().then(prefs => {
         // Point de départ : la table enregistrée (sauf si l'adresse en porte une) et les styles favoris, goûts déclarés d'abord.
-        if (prefs?.table && !fromHome) {
-          setPlayers(prefs.table.players)
-          setMaxTime(prefs.table.maxTime)
+        if (prefs?.table && !fromUrl) {
+          setContextRaw(prev => ({ ...prev, players: prefs.table.players, maxTime: prefs.table.maxTime }))
         }
         const favorites = [...new Set([...(prefs?.declaredFamilies ?? []), ...(prefs?.topEngines ?? [])])]
         setSelectedFamilies(favorites)
@@ -217,7 +223,7 @@ export default function RecommendationPage() {
       for (const [label, data] of Object.entries(labelMap)) catMap[label] = data.bggCategories
       setThemeLabelToCats(catMap)
     }).catch(() => {})
-  }, [user, fromHome])
+  }, [user, fromUrl, setContextRaw])
 
   const toggle    = (key)   => setSelectedFamilies(prev   => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key])
   const toggleCat = (label) => setSelectedCategories(prev => prev.includes(label) ? prev.filter(l => l !== label) : [...prev, label])
@@ -231,7 +237,7 @@ export default function RecommendationPage() {
     if (!user || !ready) return
     let current = true
     const expandedCats = selectedCategories.flatMap(label => themeLabelToCats[label] ?? [])
-    const params = { players, maxTime, families: selectedFamilies, categories: expandedCats, difficulty }
+    const params = { ...filtersToApi(JSON.parse(contextKey)), families: selectedFamilies, categories: expandedCats }
     searchRef.current.token++
     searchRef.current.params = params
 
@@ -263,7 +269,7 @@ export default function RecommendationPage() {
     }, 250)
 
     return () => { current = false; clearTimeout(timer) }
-  }, [user, ready, players, maxTime, difficulty, selectedFamilies, selectedCategories, themeLabelToCats])
+  }, [user, ready, contextKey, selectedFamilies, selectedCategories, themeLabelToCats])
 
   // Charge une page d'un type de fiche (la première pour les extensions, à la demande) avec les critères de la recherche en cours.
   const loadList = (key, listType, page) => {
@@ -310,6 +316,11 @@ export default function RecommendationPage() {
         <p className="mt-1 text-lg text-stone-600">Selon vos styles favoris et votre table : les résultats se mettent à jour à chaque changement.</p>
       </div>
 
+      {/* Table : joueurs, durée, poids, mode, âge, déjà joué, avec des scénarios en un clic */}
+      <section aria-label="Votre table" className="panel mb-6 p-4 sm:p-5">
+        <ContextFilters filters={context} onChange={setContext} idPrefix="reco-ctx" />
+      </section>
+
       <div>
         <div className="flex flex-col lg:flex-row gap-6 lg:items-start">
 
@@ -326,45 +337,6 @@ export default function RecommendationPage() {
                 </button>
               )}
             </div>
-
-            {/* Joueurs */}
-            <FilterSection title="Nombre de joueurs" active>
-              <div className="flex flex-wrap gap-2">
-                {[1, 2, 3, 4, 5, 6, 7, 8].map(n => (
-                  <button
-                    key={n} type="button" onClick={() => setPlayers(n)} aria-pressed={players === n}
-                    className="chip min-w-11 justify-center !px-0"
-                  >{n}</button>
-                ))}
-              </div>
-            </FilterSection>
-
-            {/* Durée */}
-            <FilterSection title="Durée maximum" active>
-              <div className="mb-2 text-center">
-                <span className="font-display text-3xl">
-                  {maxTime < 60 ? `${maxTime} min` : `${Math.floor(maxTime / 60)}h${maxTime % 60 ? maxTime % 60 + 'm' : ''}`}
-                </span>
-              </div>
-              <input
-                type="range" min={15} max={240} step={15} value={maxTime} aria-label="Durée maximum, en minutes"
-                onChange={e => setMaxTime(Number(e.target.value))}
-                className="h-11 w-full accent-brand-red"
-              />
-              <div className="mt-1 flex justify-between text-sm text-stone-600">
-                <span>15m</span><span>1h</span><span>2h</span><span>3h</span><span>4h</span>
-              </div>
-            </FilterSection>
-
-            {/* Difficulté */}
-            <FilterSection title="Difficulté" active={difficulty !== null}>
-              <div className="flex flex-wrap gap-2">
-                {DIFFICULTIES.map(({ label, value }) => (
-                  <Chip key={label} active={difficulty === value} label={label}
-                    onClick={() => { setDifficulty(value); storeDifficulty(value) }} />
-                ))}
-              </div>
-            </FilterSection>
 
             {/* Moteurs Engelstein */}
             <FilterSection title="Style / Moteur" active={hasAny(selectedFamilies, Object.keys(ENGINES))}>
@@ -458,7 +430,7 @@ export default function RecommendationPage() {
 
           {/* ── Zone résultats ────────────────────────────────────────── */}
           <div className="flex-1 min-w-0">
-            <ResultsPanel results={results} totals={totals} activeTab={activeTab} onTabChange={setActiveTab} type={type} onType={setType} onLoadMore={loadMore} feedback={feedback} />
+            <ResultsPanel results={results} totals={totals} activeTab={activeTab} onTabChange={setActiveTab} type={type} onType={setType} onLoadMore={loadMore} feedback={feedback} context={context} />
           </div>
 
         </div>

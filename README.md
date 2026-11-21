@@ -70,9 +70,11 @@ Plateforme de découverte et de recommandation de jeux de société pour les mem
 - **Tout le catalogue** — suggère des jeux hors collection (qualité BGG ≥ 6.5), avec un lot de nouveautés ajouté à la sélection et une qualité notée de façon continue, pour que les jeux récents ne soient pas noyés par les classiques
 - Les résultats arrivent à l'ouverture, selon les styles favoris (goûts déclarés d'abord) et la table enregistrée, puis **se mettent à jour à chaque changement** de critère (pas de bouton)
 - Jusqu'à **30 résultats** par onglet, séparés en sous-onglets Jeux de base / Extensions
+- **Filtres de contexte** (« qu'est-ce qu'on joue maintenant, avec ces gens et ce temps ? »), une même barre sur **Ma ludothèque**, **À quoi on joue** et **Explorer**, avec des scénarios en un clic (« 4 joueurs · 1 h · léger ») ; le choix est dans l'adresse, donc partageable :
+  - Nombre de joueurs, en distinguant **jouable**, **conseillé** et **idéal** (vote de la communauté BGG, `suggested_numplayers`, rempli par l'enrichissement planifié)
+  - Durée maximale, poids en trois paliers (léger ≤ 2, moyen 2 à 3, costaud > 3), coopératif ou compétitif, âge du plus jeune joueur, déjà joué ou jamais joué
+  - Un jeu sans donnée (poids, durée, âge, sondage) reste affiché, étiqueté « inconnu » ; aucun appel à BGG à la requête
 - Filtres disponibles dans la barre latérale :
-  - Nombre de joueurs
-  - Durée maximale (15 min → 4h)
   - Style / Moteur de jeu (modèle Engelstein — 6 moteurs centraux)
   - Mécaniques de support (8 familles)
   - Caractéristiques (Solo, Temps réel, Dextérité, Legacy)
