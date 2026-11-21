@@ -93,8 +93,9 @@ export const getRecommendations = (params = {}) => {
 export const getForgottenGems = ({ scope } = {}) => request('/games/forgotten' + (scope === 'library' ? '?scope=library' : ''))
 
 export const getHomeRecommendations = ({ scope } = {}) => request('/games/home-reco' + (scope === 'library' ? '?scope=library' : ''))
-export const getTonightRecommendations = ({ players, maxTime, scope } = {}) => {
+export const getTonightRecommendations = ({ players, maxTime, scope, difficulty } = {}) => {
   const qs = new URLSearchParams()
+  if (difficulty) qs.set('difficulty', difficulty)
   if (scope === 'library') qs.set('scope', scope)
   if (players) qs.set('players', players)
   if (maxTime) qs.set('maxTime', maxTime)
