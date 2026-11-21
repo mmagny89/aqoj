@@ -64,13 +64,20 @@ describe('Connexion et inscription', () => {
     await userEvent.type(champ, 'ABCDE-FGHJK')
     await userEvent.type(screen.getByLabelText('E-mail'), 'a@example.test')
     await userEvent.type(screen.getByLabelText(/^Mot de passe/), 'mot-de-passe-solide')
-    await userEvent.type(screen.getByLabelText('Confirmer le mot de passe'), 'mot-de-passe-solide')
     await userEvent.click(screen.getByRole('button', { name: 'Créer mon compte' }))
 
     expect(apiRegister).toHaveBeenCalledWith('a@example.test', 'mot-de-passe-solide', 'ABCDE-FGHJK')
     // Pas de session ouverte : l'adresse reste à confirmer.
     expect(await screen.findByRole('heading', { name: 'Vérifiez vos e-mails' })).toBeInTheDocument()
     expect(login).not.toHaveBeenCalled()
+  })
+
+  it('pré-remplit le code d’invitation depuis l’adresse', async () => {
+    getRegistrationConfig.mockResolvedValue({ requiresCode: true })
+    renderRoutes('/inscription?code=ABCDE-FGHJK')
+
+    expect(await screen.findByLabelText(/Code d'invitation/)).toHaveValue('ABCDE-FGHJK')
+    expect(screen.getByLabelText(/Code d'invitation/)).toBeRequired()
   })
 
   it('permet de renvoyer l’e-mail de confirmation après l’inscription', async () => {
@@ -80,7 +87,6 @@ describe('Connexion et inscription', () => {
 
     await userEvent.type(screen.getByLabelText('E-mail'), 'a@example.test')
     await userEvent.type(screen.getByLabelText(/^Mot de passe/), 'mot-de-passe-solide')
-    await userEvent.type(screen.getByLabelText('Confirmer le mot de passe'), 'mot-de-passe-solide')
     await userEvent.click(screen.getByRole('button', { name: 'Créer mon compte' }))
     await userEvent.click(await screen.findByRole('button', { name: "Renvoyer l'e-mail de confirmation" }))
 
@@ -115,15 +121,4 @@ describe('Connexion et inscription', () => {
     expect(screen.queryByRole('button', { name: "Renvoyer l'e-mail de confirmation" })).not.toBeInTheDocument()
   })
 
-  it('refuse une confirmation différente avant tout appel', async () => {
-    renderRoutes('/inscription')
-
-    await userEvent.type(screen.getByLabelText('E-mail'), 'a@example.test')
-    await userEvent.type(screen.getByLabelText(/^Mot de passe/), 'mot-de-passe-solide')
-    await userEvent.type(screen.getByLabelText('Confirmer le mot de passe'), 'autre-chose-1234')
-    await userEvent.click(screen.getByRole('button', { name: 'Créer mon compte' }))
-
-    expect(await screen.findByRole('alert')).toHaveTextContent('Les mots de passe ne correspondent pas.')
-    expect(apiRegister).not.toHaveBeenCalled()
-  })
 })
