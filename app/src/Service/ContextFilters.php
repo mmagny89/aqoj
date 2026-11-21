@@ -91,10 +91,12 @@ final readonly class ContextFilters
         }
 
         if ($this->played !== null && $userId !== null) {
-            $played = '(EXISTS (SELECT 1 FROM user_game ugp WHERE ugp.user_id = ? AND ugp.game_id = g.id AND ugp.bgg_user_rating IS NOT NULL)
-                OR EXISTS (SELECT 1 FROM game_session gsp WHERE gsp.user_id = ? AND gsp.game_id = g.id))';
+            // Joué = noté sur BGG, une partie enregistrée, ou un vote « j'ai joué » (« et j'aime » ou « bof »).
+            $played = "(EXISTS (SELECT 1 FROM user_game ugp WHERE ugp.user_id = ? AND ugp.game_id = g.id AND ugp.bgg_user_rating IS NOT NULL)
+                OR EXISTS (SELECT 1 FROM game_session gsp WHERE gsp.user_id = ? AND gsp.game_id = g.id)
+                OR EXISTS (SELECT 1 FROM game_feedback gfp WHERE gfp.user_id = ? AND gfp.game_id = g.id AND gfp.verdict IN ('played_liked', 'played_meh')))";
             $conditions[] = $this->played ? $played : "NOT {$played}";
-            array_push($params, $userId, $userId);
+            array_push($params, $userId, $userId, $userId);
         }
 
         return [$conditions, $params];
