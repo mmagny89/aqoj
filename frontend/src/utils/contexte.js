@@ -98,7 +98,7 @@ export function unknownFields(game, filters) {
   if (filters.age && game.minAge == null) unknown.push('Âge inconnu')
   if (filters.coop != null && (game.mechanics ?? []).length === 0) unknown.push('Mode inconnu')
   if (filters.players && filters.fit === 'best' && game.bestPlayers == null) unknown.push('Idéal inconnu')
-  if (filters.players && filters.fit === 'recommended' && game.recommendedPlayers == null) unknown.push('Avis inconnu')
+  if (filters.players && filters.fit === 'recommended' && game.recommendedPlayers == null) unknown.push('Conseillé inconnu')
   return unknown
 }
 
