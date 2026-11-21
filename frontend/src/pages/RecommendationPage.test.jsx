@@ -22,7 +22,7 @@ describe('RecommendationPage', () => {
         library: [jeu(2, 'Jeu Asso'), jeu(3, 'Jeu Voisin')],
         discover: [jeu(4, 'Jeu Catalogue')],
       })[scope]
-      return { items, total: items.length, page: 1 }
+      return { items, total: items.length, totals: { base: items.length, expansion: 0 }, page: 1 }
     })
   })
 
@@ -70,11 +70,13 @@ describe('RecommendationPage', () => {
   })
 
   it('charge la page suivante avec « Voir plus » sans perdre les premiers résultats', async () => {
-    getRecommendations.mockImplementation(async ({ scope, page = 1 }) => {
-      if (scope !== 'collection') return { items: [], total: 0, page: 1 }
+    getRecommendations.mockImplementation(async ({ scope, page = 1, type }) => {
+      const totals = { base: 2, expansion: 1 }
+      if (scope !== 'collection') return { items: [], total: 0, totals: { base: 0, expansion: 0 }, page: 1 }
+      if (type === 'expansion') return { items: [{ game: { ...jeu(9, 'Extension Un').game, isExpansion: true }, reason: '' }], total: 1, totals, page: 1 }
       return page === 1
-        ? { items: [jeu(1, 'Jeu Page Un')], total: 2, page: 1 }
-        : { items: [jeu(2, 'Jeu Page Deux')], total: 2, page: 2 }
+        ? { items: [jeu(1, 'Jeu Page Un')], total: 2, totals, page: 1 }
+        : { items: [jeu(2, 'Jeu Page Deux')], total: 2, totals, page: 2 }
     })
     render(<MemoryRouter><RecommendationPage /></MemoryRouter>)
     await screen.findByText('Jeu Page Un')
@@ -85,5 +87,23 @@ describe('RecommendationPage', () => {
     expect(screen.getByText('Jeu Page Un')).toBeInTheDocument()
     expect(getRecommendations).toHaveBeenLastCalledWith(expect.objectContaining({ scope: 'collection', page: 2 }))
     expect(screen.queryByRole('button', { name: /Voir plus/ })).not.toBeInTheDocument()
+  })
+
+  it('charge les extensions à part, avec leur propre pagination', async () => {
+    const totals = { base: 1, expansion: 1 }
+    getRecommendations.mockImplementation(async ({ scope, type }) => {
+      if (scope !== 'collection') return { items: [], total: 0, totals: { base: 0, expansion: 0 }, page: 1 }
+      return type === 'expansion'
+        ? { items: [{ game: { ...jeu(9, 'Extension Un').game, isExpansion: true }, reason: '' }], total: 1, totals, page: 1 }
+        : { items: [jeu(1, 'Jeu Base Un')], total: 1, totals, page: 1 }
+    })
+    render(<MemoryRouter><RecommendationPage /></MemoryRouter>)
+    await screen.findByText('Jeu Base Un')
+
+    await userEvent.click(screen.getByRole('button', { name: /^Extensions/ }))
+
+    expect(await screen.findByText('Extension Un')).toBeInTheDocument()
+    expect(screen.queryByText('Jeu Base Un')).not.toBeInTheDocument()
+    expect(getRecommendations).toHaveBeenLastCalledWith(expect.objectContaining({ scope: 'collection', type: 'expansion' }))
   })
 })

@@ -255,6 +255,29 @@ final class HomeRecommendationTest extends ApiTestCase
         self::assertSame(0, $nonJoueApres['total']);
     }
 
+    public function testChaquePageNeContientQueDesFichesDuMemeType(): void
+    {
+        $client = static::createClient();
+        $token = $this->register($client, 'types@example.test');
+        $annee = (int) date('Y');
+        for ($i = 1; $i <= 40; $i++) {
+            $this->creerJeu(sprintf('Zztyp Base %02d', $i), $annee - 5, 2.0, 7.0 + $i / 100, 1000 + $i);
+        }
+        for ($i = 1; $i <= 8; $i++) {
+            $this->creerJeu(sprintf('Zztyp Ext %02d', $i), $annee - 5, 2.0, 8.0, 1000 + $i, extension: true);
+        }
+
+        $base = $this->call($client, 'GET', '/api/games/recommendation?scope=discover', token: $token);
+        $ext  = $this->call($client, 'GET', '/api/games/recommendation?scope=discover&type=expansion', token: $token);
+
+        self::assertCount(30, $base['items']);
+        self::assertSame([false], array_values(array_unique(array_column(array_column($base['items'], 'game'), 'isExpansion'))));
+        self::assertCount(8, $ext['items']);
+        self::assertSame([true], array_values(array_unique(array_column(array_column($ext['items'], 'game'), 'isExpansion'))));
+        self::assertSame(['base' => $base['totals']['base'], 'expansion' => 8], ['base' => $ext['totals']['base'], 'expansion' => $ext['totals']['expansion']]);
+        self::assertGreaterThanOrEqual(40, $base['total']);
+    }
+
     public function testLePerimetreLudothequeNeGardeQueLesJeuxDeLAssociationEtDesMembres(): void
     {
         $client = static::createClient();
