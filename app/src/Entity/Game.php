@@ -139,6 +139,10 @@ class Game implements \JsonSerializable
     #[ORM\Column]
     private \DateTimeImmutable $createdAt;
 
+    /** Arrivée au fil de l'eau (synchro des nouveautés, recherche, import d'une collection) ; null pour l'import initial du catalogue. */
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $discoveredAt = null;
+
     #[ORM\Column(length: 20, options: ['default' => 'bgg'])]
     private string $source = 'bgg';
 
@@ -208,10 +212,12 @@ class Game implements \JsonSerializable
     }
 
     /**
-     * Étiquette de sortie : « upcoming » (annoncé pour une année à venir), « new » (paru cette année, ou l'année
-     * précédente jusqu'en juin pour ne pas vider la liste en janvier), null au-delà : le tag « Nouveauté » tombe
-     * dès le 1er juillet de l'année suivant la sortie.
+     * Étiquette de sortie. BGG ne donne que l'année de parution, jamais la date : « new » = jeu de l'année en cours
+     * (ou de la précédente, pour passer le 1er janvier) arrivé au catalogue il y a moins de RELEASE_NEW_DAYS jours ;
+     * « upcoming » = annoncé pour une année à venir. Un jeu de l'import initial (discoveredAt null) n'est jamais « new ».
      */
+    public const RELEASE_NEW_DAYS = 30;
+
     public function getRelease(): ?string
     {
         return $this->releaseAt(new \DateTimeImmutable());
@@ -222,14 +228,15 @@ class Game implements \JsonSerializable
         if ($this->yearPublished === null || $this->isExpansion) {
             return null;
         }
-        $year       = (int) $now->format('Y');
-        $fromYear   = (int) $now->format('n') <= 6 ? $year - 1 : $year;
+        $year = (int) $now->format('Y');
 
-        return match (true) {
-            $this->yearPublished > $year       => 'upcoming',
-            $this->yearPublished >= $fromYear  => 'new',
-            default                            => null,
-        };
+        if ($this->yearPublished > $year) {
+            return 'upcoming';
+        }
+        $recentlyDiscovered = $this->discoveredAt !== null
+            && $this->discoveredAt >= $now->modify('-' . self::RELEASE_NEW_DAYS . ' days');
+
+        return $recentlyDiscovered && $this->yearPublished >= $year - 1 ? 'new' : null;
     }
 
     public function jsonSerialize(): array
@@ -319,6 +326,8 @@ class Game implements \JsonSerializable
     public function getRatingBgg(): ?float { return $this->ratingBgg; }
     public function setRatingBgg(?float $ratingBgg): static { $this->ratingBgg = $ratingBgg; return $this; }
     public function getCreatedAt(): \DateTimeImmutable { return $this->createdAt; }
+    public function getDiscoveredAt(): ?\DateTimeImmutable { return $this->discoveredAt; }
+    public function markDiscovered(): static { $this->discoveredAt = new \DateTimeImmutable(); return $this; }
     public function getSource(): string { return $this->source; }
     public function setSource(string $source): static { $this->source = $source; return $this; }
     public function getLastSyncedAt(): ?\DateTimeImmutable { return $this->lastSyncedAt; }

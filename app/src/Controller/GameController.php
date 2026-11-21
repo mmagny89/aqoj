@@ -224,7 +224,7 @@ class GameController extends AbstractController
                             }
 
                             foreach ($bggService->fetchGamesDetails(array_slice($newIds, 0, 5)) as $gameData) {
-                                $em->persist($enrichment->hydrate(new Game(), $gameData));
+                                $em->persist($enrichment->hydrate(new Game(), $gameData)->markDiscovered());
                             }
                             $em->flush();
 

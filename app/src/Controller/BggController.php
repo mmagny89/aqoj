@@ -103,7 +103,7 @@ class BggController extends AbstractController
             }
 
             foreach ($gamesData as $gameData) {
-                $game = $enrichment->hydrate(new Game(), $gameData);
+                $game = $enrichment->hydrate(new Game(), $gameData)->markDiscovered();
                 $em->persist($game);
                 $existingByBggId[$gameData['bggId']] = $game;
                 $imported++;

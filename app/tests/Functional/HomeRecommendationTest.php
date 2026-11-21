@@ -11,7 +11,7 @@ final class HomeRecommendationTest extends ApiTestCase
         $client = static::createClient();
         $token = $this->register($client, 'froid@example.test');
         $annee = (int) date('Y');
-        $this->creerJeu('Zznouv Suivi', $annee, 2.3, 8.0, 5000);
+        $this->creerJeu('Zznouv Suivi', $annee, 2.3, 8.0, 5000, decouvert: true);
         $this->creerJeu('Zznouv AVenir', $annee + 1, 3.0, 7.0, 800);
         $this->creerJeu('Zznouv Discret', $annee, 2.3, 7.5, 60);
         $this->creerJeu('Zznouv Ancien', $annee - 3, 2.3, 8.5, 9000);
@@ -34,6 +34,8 @@ final class HomeRecommendationTest extends ApiTestCase
         }
         self::assertSame('new', $tags['Zznouv Suivi']);
         self::assertSame('upcoming', $tags['Zznouv AVenir']);
+        // Arrivé avec l'import initial : jamais « Nouveauté », même de l'année en cours.
+        self::assertNull($tags['Zznouv Discret']);
     }
 
     public function testLesNouveautesNeProposentPasCeQueLeJoueurAdejaEtSontDixTireesParmiLesTrenteDeTete(): void
@@ -395,12 +397,12 @@ final class HomeRecommendationTest extends ApiTestCase
     }
 
     /** @param string[] $familles */
-    private function creerJeu(string $nom, int $annee, float $complexite, float $note, int $votes, array $familles = [], bool $extension = false, int $joueursMax = 4): void
+    private function creerJeu(string $nom, int $annee, float $complexite, float $note, int $votes, array $familles = [], bool $extension = false, int $joueursMax = 4, bool $decouvert = false): void
     {
         static::getContainer()->get(Connection::class)->executeStatement(
             "INSERT INTO game (bgg_id, name, min_players, max_players, playing_time, complexity, categories, mechanics,
-                               year_published, rating_bgg, users_rated, is_expansion, mechanic_families, created_at)
-             VALUES (?, ?, 2, ?, 45, ?, '[]', '[\"Dice Rolling\"]', ?, ?, ?, ?, ?, NOW())",
+                               year_published, rating_bgg, users_rated, is_expansion, mechanic_families, created_at, discovered_at)
+             VALUES (?, ?, 2, ?, 45, ?, '[]', '[\"Dice Rolling\"]', ?, ?, ?, ?, ?, NOW(), " . ($decouvert ? 'NOW()' : 'NULL') . ")",
             [
                 'zz' . md5($nom), $nom, $joueursMax, $complexite, $annee, $note, $votes,
                 $extension ? 't' : 'f', json_encode($familles),
