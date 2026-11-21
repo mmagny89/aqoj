@@ -62,7 +62,7 @@ describe('HomePage', () => {
       clearGameFeedback.mockResolvedValue(null)
       render(<MemoryRouter><HomePage /></MemoryRouter>)
 
-      expect(await screen.findByText(/Parce que vous avez aimé/)).toHaveTextContent('Parce que vous avez aimé Catan, et que vous aimez la mécanique')
+      expect(await screen.findByTestId('why')).toHaveTextContent(/Parce que vous avez aimé Catan, et que vous aimez la mécanique\s*:/)
 
       await userEvent.click(screen.getByRole('button', { name: /Pas intéressé/ }))
       expect(setGameFeedback).toHaveBeenCalledWith(1, 'not_interested')

@@ -21,7 +21,8 @@ describe('GameCard', () => {
     const onFeedback = vi.fn()
     renderCard({ why: { liked: null, families: ['auction', 'cooperation'] }, onFeedback })
 
-    expect(screen.getByTestId('why')).toHaveTextContent(/^Vous aimez les mécaniques .+, .+\.$/)
+    expect(screen.getByTestId('why')).toHaveTextContent(/Pourquoi ce jeu \?Vous aimez les mécaniques\s*:/)
+    expect(screen.getByRole('list', { name: '' })).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: /Déjà joué, bof/ }))
     expect(onFeedback).toHaveBeenCalledWith(game, 'played_meh', null)
   })
