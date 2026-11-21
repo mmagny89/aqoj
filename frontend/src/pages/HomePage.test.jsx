@@ -32,7 +32,7 @@ describe('HomePage', () => {
 
   describe('connecté, sans profil', () => {
     const jeu = { id: 1, name: 'Nouveauté Test', yearPublished: 2025, ratingBgg: 7.9, minPlayers: 2, maxPlayers: 4, playingTime: 30, complexity: 2 }
-    const froid = { families: [], recent: [{ game: jeu, reason: 'Facile à aborder' }], byDecade: {}, coldStart: true, declared: [] }
+    const froid = { families: [], recent: [{ game: jeu, reason: 'Facile à aborder' }], byDecade: {}, coldStart: true, declared: [], hasHistory: false }
 
     beforeEach(() => {
       auth.user = { id: 1, email: 'a@example.test' }
@@ -41,7 +41,7 @@ describe('HomePage', () => {
     })
 
     it('propose les nouveautés BGG et renvoie au questionnaire du compte', async () => {
-      getHomeRecommendations.mockResolvedValue(froid)
+      getHomeRecommendations.mockResolvedValue({ ...froid, hasHistory: true })
       render(<MemoryRouter><HomePage /></MemoryRouter>)
 
       expect(await screen.findByRole('tab', { name: 'Nouveautés pour vous' })).toBeInTheDocument()
@@ -49,6 +49,30 @@ describe('HomePage', () => {
       expect(screen.getByRole('link', { name: 'Choisir mes goûts' })).toHaveAttribute('href', '/compte#gouts')
       expect(screen.queryByRole('heading', { name: 'Ce que vous aimez' })).not.toBeInTheDocument()
       expect(screen.queryByText(/Importez votre collection/)).not.toBeInTheDocument()
+    })
+
+    it('invite à renseigner BGG, MyLudo ou des parties tant qu’il n’y a aucun historique, et se masque une semaine', async () => {
+      getHomeRecommendations.mockResolvedValue(froid)
+      render(<MemoryRouter><HomePage /></MemoryRouter>)
+
+      expect(await screen.findByRole('link', { name: /^Renseigner mon compte BGG/ })).toHaveAttribute('href', '/importer?onglet=bgg')
+      expect(screen.getByRole('link', { name: /^Importer ma ludothèque MyLudo/ })).toHaveAttribute('href', '/importer?onglet=myludo')
+      expect(screen.getByRole('link', { name: /^Enregistrer des parties/ })).toHaveAttribute('href', '/parties')
+      expect(screen.getByRole('link', { name: 'Ou choisir mes goûts' })).toHaveAttribute('href', '/compte#gouts')
+      expect(screen.queryByRole('link', { name: 'Choisir mes goûts' })).not.toBeInTheDocument()
+
+      await userEvent.click(screen.getByRole('button', { name: 'Plus tard' }))
+
+      expect(screen.queryByRole('link', { name: /^Renseigner mon compte BGG/ })).not.toBeInTheDocument()
+    })
+
+    it('n’invite pas à fournir un historique quand il y en a un', async () => {
+      getHomeRecommendations.mockResolvedValue({ ...froid, hasHistory: true })
+      render(<MemoryRouter><HomePage /></MemoryRouter>)
+
+      await screen.findByRole('tab', { name: 'Nouveautés pour vous' })
+      expect(screen.queryByRole('link', { name: /^Renseigner mon compte BGG/ })).not.toBeInTheDocument()
+      expect(screen.getByRole('link', { name: 'Choisir mes goûts' })).toBeInTheDocument()
     })
 
     it('cherche dans la ludothèque par défaut, retient le choix « Tout le catalogue » et redemande les idées', async () => {
