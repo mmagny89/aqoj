@@ -34,6 +34,12 @@ final class ContextFiltersTest extends ApiTestCase
             [self::EMAIL],
         );
 
+        // Coop est joué sans note ni partie : un vote « j'ai joué, et j'aime » suffit.
+        $conn->executeStatement(
+            "INSERT INTO game_feedback (user_id, game_id, verdict) VALUES ((SELECT id FROM app_user WHERE email = ?), (SELECT id FROM game WHERE name = 'Zzctx Coop'), 'played_liked')",
+            [self::EMAIL],
+        );
+
         return [$client, $token, $conn];
     }
 
@@ -89,8 +95,9 @@ final class ContextFiltersTest extends ApiTestCase
     {
         [$client, $token] = $this->monde();
 
-        self::assertSame(['Zzctx Costaud'], $this->reco($client, $token, 'played=1'));
-        self::assertSame(['Zzctx Coop', 'Zzctx Inconnu', 'Zzctx Leger'], $this->reco($client, $token, 'played=0'));
+        // Costaud a une partie, Coop un vote « j'ai joué, et j'aime » : tous deux comptent comme joués.
+        self::assertSame(['Zzctx Coop', 'Zzctx Costaud'], $this->reco($client, $token, 'played=1'));
+        self::assertSame(['Zzctx Inconnu', 'Zzctx Leger'], $this->reco($client, $token, 'played=0'));
         self::assertSame(['Zzctx Inconnu', 'Zzctx Leger'], $this->reco($client, $token, 'weight=light&coop=0&played=0'));
     }
 
