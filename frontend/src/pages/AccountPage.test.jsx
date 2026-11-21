@@ -7,10 +7,11 @@ import AccountPage from './AccountPage'
 const logout = vi.fn()
 const login = vi.fn()
 vi.mock('../context/AuthContext', () => ({ useAuth: () => ({ user: { email: 'a@example.test', memberNumber: null }, login, logout }) }))
-vi.mock('../api', () => ({ exportAccount: vi.fn(), deleteAccount: vi.fn(), changePassword: vi.fn(), updateMemberNumber: vi.fn(), getUserPreferences: vi.fn(), saveTaste: vi.fn() }))
-import { changePassword, deleteAccount, getUserPreferences, saveTaste, updateMemberNumber } from '../api'
+vi.mock('../api', () => ({ exportAccount: vi.fn(), deleteAccount: vi.fn(), changePassword: vi.fn(), updateMemberNumber: vi.fn(), getUserPreferences: vi.fn(), saveTaste: vi.fn(), getFeedbackHistory: vi.fn(), setGameFeedback: vi.fn(), clearGameFeedback: vi.fn() }))
+import { changePassword, clearGameFeedback, deleteAccount, getFeedbackHistory, getUserPreferences, saveTaste, setGameFeedback, updateMemberNumber } from '../api'
 
-const renderPage = () => render(<MemoryRouter><AccountPage /></MemoryRouter>)
+const renderPage = (hash = '') => render(<MemoryRouter initialEntries={[`/compte${hash}`]}><AccountPage /></MemoryRouter>)
+const ouvrir = (nom) => userEvent.click(screen.getByRole('button', { name: nom }))
 const section = (name) => within(screen.getByRole('region', { name }))
 
 describe('AccountPage', () => {
@@ -18,11 +19,13 @@ describe('AccountPage', () => {
     vi.clearAllMocks()
     localStorage.setItem('aqoj_token', 'jeton-actuel')
     getUserPreferences.mockResolvedValue(null)
+    getFeedbackHistory.mockResolvedValue([])
   })
 
   it('demande le mot de passe avant de supprimer, puis déconnecte', async () => {
     deleteAccount.mockResolvedValue({ deleted: true })
     renderPage()
+    await ouvrir('Mes données')
 
     await userEvent.click(screen.getByRole('button', { name: 'Supprimer mon compte' }))
     await userEvent.type(section('Supprimer mon compte').getByLabelText('Votre mot de passe, pour confirmer'), 'secret-solide')
@@ -35,6 +38,7 @@ describe('AccountPage', () => {
   it("affiche l'erreur et garde la session si le mot de passe est refusé", async () => {
     deleteAccount.mockRejectedValue(new Error('Mot de passe incorrect.'))
     renderPage()
+    await ouvrir('Mes données')
 
     await userEvent.click(screen.getByRole('button', { name: 'Supprimer mon compte' }))
     await userEvent.type(section('Supprimer mon compte').getByLabelText('Votre mot de passe, pour confirmer'), 'faux')
@@ -47,6 +51,7 @@ describe('AccountPage', () => {
   it('change le mot de passe et garde la session avec le nouveau jeton', async () => {
     changePassword.mockResolvedValue({ token: 'nouveau-jeton', user: { email: 'a@example.test' } })
     renderPage()
+    await ouvrir('Profil et sécurité')
     const form = section('Changer mon mot de passe')
 
     await userEvent.type(form.getByLabelText('Mot de passe actuel'), 'ancien-mot-de-passe')
@@ -61,6 +66,7 @@ describe('AccountPage', () => {
 
   it('refuse une confirmation différente sans appeler le serveur', async () => {
     renderPage()
+    await ouvrir('Profil et sécurité')
     const form = section('Changer mon mot de passe')
 
     await userEvent.type(form.getByLabelText('Mot de passe actuel'), 'ancien-mot-de-passe')
@@ -75,6 +81,7 @@ describe('AccountPage', () => {
   it('enregistre le numéro d’adhérent', async () => {
     updateMemberNumber.mockResolvedValue({ email: 'a@example.test', memberNumber: 'EDJ-0123' })
     renderPage()
+    await ouvrir('Profil et sécurité')
 
     await userEvent.type(screen.getByLabelText("Numéro d'adhérent"), 'edj 123')
     await userEvent.click(section("Mon numéro d'adhérent").getByRole('button', { name: 'Enregistrer' }))
@@ -86,6 +93,7 @@ describe('AccountPage', () => {
 
   it('montre le mot de passe saisi avec l’œil, puis le recache', async () => {
     renderPage()
+    await ouvrir('Profil et sécurité')
     const champ = section('Changer mon mot de passe').getByLabelText('Mot de passe actuel')
     expect(champ).toHaveAttribute('type', 'password')
 
@@ -101,6 +109,7 @@ describe('AccountPage', () => {
       getUserPreferences.mockResolvedValue({ declaredFamilies: ['cooperation'] })
       saveTaste.mockResolvedValue({ declaredFamilies: ['cooperation', 'auction'] })
       renderPage()
+    await ouvrir('Mes goûts')
       const gouts = section('Mes goûts')
 
       expect(await gouts.findByRole('button', { name: 'Coopération' })).toHaveAttribute('aria-pressed', 'true')
@@ -115,6 +124,7 @@ describe('AccountPage', () => {
       getUserPreferences.mockResolvedValue({ declaredFamilies: ['cooperation'] })
       saveTaste.mockResolvedValue({ declaredFamilies: [] })
       renderPage()
+    await ouvrir('Mes goûts')
       const gouts = section('Mes goûts')
 
       await userEvent.click(await gouts.findByRole('button', { name: 'Coopération' }))
@@ -125,10 +135,61 @@ describe('AccountPage', () => {
 
     it('propose le questionnaire vide quand rien n’a été renseigné', async () => {
       renderPage()
+    await ouvrir('Mes goûts')
 
       const gouts = section('Mes goûts')
       expect(await gouts.findByRole('button', { name: 'Enregistrer mes goûts' })).toBeEnabled()
       expect(gouts.queryAllByRole('button', { pressed: true })).toHaveLength(0)
+    })
+  })
+
+  describe('mes votes', () => {
+    const vote = (id, name, verdict, source = 'user') => ({ game: { id, name }, verdict, source, votedAt: '2026-11-01T10:00:00' })
+
+    it('liste les votes, filtrables par type', async () => {
+      getFeedbackHistory.mockResolvedValue([vote(1, 'Azul', 'played_liked'), vote(2, 'Risk', 'not_interested')])
+      renderPage()
+
+      expect(await screen.findByRole('link', { name: 'Azul' })).toBeInTheDocument()
+      expect(screen.getByRole('link', { name: 'Risk' })).toBeInTheDocument()
+      await userEvent.click(screen.getByRole('button', { name: 'Pas intéressé (1)' }))
+      expect(screen.queryByRole('link', { name: 'Azul' })).not.toBeInTheDocument()
+      expect(screen.getByRole('link', { name: 'Risk' })).toBeInTheDocument()
+    })
+
+    it('change un vote', async () => {
+      getFeedbackHistory.mockResolvedValue([vote(1, 'Azul', 'played_liked')])
+      setGameFeedback.mockResolvedValue({})
+      renderPage()
+
+      await userEvent.click(await screen.findByRole('button', { name: 'J’aimerais jouer : Azul' }))
+
+      expect(setGameFeedback).toHaveBeenCalledWith(1, 'want_to_play')
+      expect(screen.getByRole('button', { name: 'J’aimerais jouer : Azul' })).toHaveAttribute('aria-pressed', 'true')
+    })
+
+    it('annule un vote : la ligne disparaît', async () => {
+      getFeedbackHistory.mockResolvedValue([vote(1, 'Azul', 'played_liked')])
+      clearGameFeedback.mockResolvedValue(null)
+      renderPage()
+
+      await userEvent.click(await screen.findByRole('button', { name: 'J’ai joué, et j’aime : Azul' }))
+
+      expect(clearGameFeedback).toHaveBeenCalledWith(1)
+      await waitFor(() => expect(screen.queryByRole('link', { name: 'Azul' })).not.toBeInTheDocument())
+    })
+
+    it('signale un vote déduit des parties', async () => {
+      getFeedbackHistory.mockResolvedValue([vote(1, 'Azul', 'played_liked', 'auto')])
+      renderPage()
+
+      expect(await screen.findByText(/déduit de vos parties/)).toBeInTheDocument()
+    })
+
+    it('ouvre l’onglet des goûts depuis /compte#gouts', async () => {
+      renderPage('#gouts')
+
+      expect(await section('Mes goûts').findByRole('button', { name: 'Enregistrer mes goûts' })).toBeInTheDocument()
     })
   })
 })

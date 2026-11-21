@@ -3,8 +3,8 @@ import { clearGameFeedback, setGameFeedback } from '../api'
 
 const NOTICE_MS = 8000
 
-/* Ces retours retirent le jeu de la liste ; « J'aimerais jouer » le laisse, bouton enfoncé. */
-const HIDING = new Set(['not_interested', 'played_meh', 'played_liked'])
+/* Ces retours retirent le jeu de la liste ; « J'aimerais jouer » et « J'ai joué, et j'aime » le laissent, bouton enfoncé. */
+const HIDING = new Set(['not_interested', 'played_meh'])
 
 /**
  * Retours sur les propositions : le jeu écarté disparaît aussitôt de la liste, le serveur ne le reproposera plus,

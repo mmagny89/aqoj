@@ -16,7 +16,7 @@ use Symfony\Component\Routing\Attribute\Route;
 /**
  * Retour du joueur sur une proposition :
  *   - `not_interested`, `played_meh` : le jeu n'est plus proposé ; « bof » pèse aussi contre ses mécaniques ;
- *   - `played_liked` : déjà joué, donc plus proposé, et ses mécaniques comptent parmi les goûts ;
+ *   - `played_liked` : le jeu reste proposé, et ses mécaniques comptent parmi les goûts ;
  *   - `want_to_play` : le jeu reste proposé, et ses mécaniques comptent parmi les goûts.
  * Un retour `source = 'auto'` est déduit en base des parties et des notes (`game_feedback_sync_auto`) : il coche le bouton
  * mais n'écarte rien ; le choix du joueur (`source = 'user'`) l'emporte toujours.
@@ -81,6 +81,42 @@ class GameFeedbackController extends AbstractController
         foreach ($ids as $id) {
             if (isset($byId[$id])) {
                 $out[] = ['game' => $byId[$id], 'reason' => '', 'why' => $why($byId[$id]), 'feedback' => 'want_to_play'];
+            }
+        }
+
+        return $this->json($out);
+    }
+
+    /**
+     * Tous les votes du joueur (dernier d'abord), pour les revoir, les changer ou les annuler depuis « Mon compte ».
+     * `source` dit si le vote vient d'un clic (`user`) ou des parties et des notes (`auto`).
+     */
+    #[Route('/api/user/feedback', name: 'api_user_feedback', methods: ['GET'])]
+    public function history(Connection $connection, GameRepository $games): JsonResponse
+    {
+        $user = $this->appUser();
+        if (!$user) {
+            return $this->json(['error' => 'Authentification requise.'], 401);
+        }
+
+        $rows = $connection->fetchAllAssociative(
+            'SELECT game_id, verdict, source, created_at FROM game_feedback WHERE user_id = ? ORDER BY created_at DESC, game_id LIMIT 500',
+            [$user->getId()],
+        );
+        if ($rows === []) {
+            return $this->json([]);
+        }
+
+        $byId = [];
+        foreach ($games->findBy(['id' => array_map(static fn(array $r): int => (int) $r['game_id'], $rows)]) as $game) {
+            $byId[$game->getId()] = $game;
+        }
+
+        $out = [];
+        foreach ($rows as $row) {
+            $game = $byId[(int) $row['game_id']] ?? null;
+            if ($game) {
+                $out[] = ['game' => $game, 'verdict' => $row['verdict'], 'source' => $row['source'], 'votedAt' => $row['created_at']];
             }
         }
 
