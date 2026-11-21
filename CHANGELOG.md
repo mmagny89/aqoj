@@ -12,6 +12,32 @@ version devient le texte de sa release GitHub.
 
 ### Ajouté
 
+- **Filtres de contexte dans « À quoi on joue »** : « qu'est-ce qu'on joue maintenant, avec ces gens et ce temps ? ». Des scénarios en
+  un clic (« 4 joueurs · 1 h · léger », « En famille », « Coopératif à 4 »…) et « déjà joué / jamais joué » en haut de la liste ; dans la barre
+  latérale, le nombre de joueurs et la durée en jauges, la difficulté (léger, moyen, costaud), le mode (coopératif ou compétitif)
+  et l'âge du plus jeune joueur. Le nombre de joueurs distingue **jouable**, **conseillé** et **idéal**, d'après le vote de la communauté
+  BoardGameGeek. Les filtres sont dans l'adresse, donc partageables. Un jeu sans donnée (durée, difficulté, âge, vote) reste affiché,
+  étiqueté « inconnu » ; la carte dit « Idéal à 4 » ou « Conseillé à 4 ». Le vote de la communauté est récupéré au fil des
+  rafraîchissements nocturnes : les premiers jours, beaucoup de jeux n'ont pas encore de nombre idéal.
+- **Retours sur les propositions** : quatre boutons en icônes sur les cartes (« Pas intéressé », « Déjà joué, bof », « J'aimerais jouer »,
+  « J'ai joué, et j'aime »), annulables pendant 8 secondes. Les jeux écartés disparaissent des propositions ; un jeu déjà joué
+  et bien noté coche tout seul « J'ai joué, et j'aime », sans jamais écraser un choix du joueur.
+- **« Pourquoi ce jeu ? »** : un lien discret sur chaque proposition explique le choix (les jeux aimés et les mécaniques proches).
+- **Mes envies de jeu** : un onglet de l'accueil rassemble les jeux marqués « J'aimerais jouer » ; enregistrer une partie sur un jeu le retire.
+- **Mon compte en quatre entrées** (votes, goûts, profil, données) : « Mes votes » liste tous les retours donnés, à modifier ou annuler.
+- **Accès réservé aux membres** : une page de présentation publique, et toutes les autres pages derrière la connexion. L'inscription se
+  fait par code d'invitation, pré-rempli par un lien `/inscription?code=…`, et la session démarre après confirmation de l'adresse e-mail.
+- **Accueil** : titre qui suit l'heure, filtre de difficulté, périmètre « ludothèque de l'asso et des membres » ou « tout le catalogue », onglets
+  Nouveautés, Oubliés et Par époque, invitation à renseigner BGG, MyLudo ou des parties tant qu'il n'y a pas d'historique.
+- **À quoi on joue** : résultats en direct (sans bouton), trois onglets (ma ludothèque, l'association, tout le catalogue), 30 résultats par page
+  avec « Voir plus de jeux », jeux de base et extensions séparés, filtre de difficulté, étiquettes « Nouveauté » et « À paraître ».
+- **Mes parties** : regroupées par mois, avec bilan, filtres, statistiques, origine MyLudo et suppression d'une partie (jamais une
+  partie importée). Import des **parties MyLudo**, rejouable sans doublon.
+- **Fiche d'un jeu** : fiche technique compacte, boutons d'achat explicites et lien BoardGameGeek mis en avant, bloc d'enregistrement
+  d'une partie, extensions toutes listées avec leur disponibilité.
+- **Explorer** : bandeau avec filtres derrière « Filtres avancés ».
+- **Administration** : sous-menu latéral, une page par section, vue d'ensemble « à traiter », commandes de tâches à copier.
+- **Compte BGG** : on peut le désynchroniser et vider sa ludothèque.
 - **Arrêt des tâches depuis l'administration** : une tâche en cours se laisse arrêter proprement (elle finit son lot) ou de force si elle ne
   répond plus ; une exécution restée « en cours » après la disparition de son processus se clôture de la même façon.
 - **Description en français** : BoardGameGeek n'en fournit qu'une, en anglais. Elle est traduite automatiquement, sur nos
@@ -41,6 +67,8 @@ version devient le texte de sa release GitHub.
 
 ### Modifié
 
+- « Déjà joué » compte une partie enregistrée, une note BGG ou un vote « j'ai joué » ; la ludothèque range les jeux joués selon la même règle.
+- La page « À quoi on joue » ne propose plus le bloc « Vos styles favoris » : les styles favoris sont présélectionnés dans « Style / Moteur ».
 - Les nouveautés couvrent les **cinq dernières années** (trois auparavant) avec un bonus de récence continu, et la page
   « À découvrir » ajoute des jeux récents à sa sélection au lieu d'être dominée par les classiques.
 - La recherche classe le titre exact en premier, puis les titres qui commencent par la saisie.

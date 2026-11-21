@@ -33,8 +33,8 @@ Plateforme de découverte et de recommandation de jeux de société pour les mem
 - Import de la collection depuis **BoardGameGeek** (pseudo BGG) ou depuis l'**export CSV de MyLudo** (voir « Import »)
 - Notes personnelles (1–10) reprises de BGG ou de MyLudo
 - Vue en deux onglets principaux :
-  - **⭐ Déjà joués** — jeux avec une note, triés par note décroissante
-  - **🎁 Pas encore joués** — jeux sans note, triés alphabétiquement
+  - **⭐ Déjà joués** — jeux notés sur BGG ou avec au moins une partie enregistrée, triés par note décroissante
+  - **🎁 Pas encore joués** — les autres, triés alphabétiquement
 - Chaque onglet dispose de deux sous-onglets **🎲 Jeux de base** et **➕ Extensions**
 - Infinite scroll sur chaque onglet
 - **Préférences mécaniques** calculées automatiquement depuis la collection :
@@ -51,12 +51,17 @@ Plateforme de découverte et de recommandation de jeux de société pour les mem
 - **Nouveautés pour vous** : jeux des **5 dernières années** proches de votre profil. Bonus de récence continu et seuil de confiance réduit pour les jeux peu votés.
 - **Oubliés de votre ludothèque**, puis **Par époque** (décennies précédant les nouveautés).
 - **Sans historique ni compte BGG** (démarrage à froid) : « Nouveautés à découvrir », jeux de base récents, abordables (complexité ≤ 3) et assez votés, sans filtre de mécanique, puis le questionnaire de goûts.
+- **Mes envies de jeu** (premier onglet, absent s'il est vide) : les jeux marqués « J'aimerais jouer » ; enregistrer une partie sur un jeu le retire de la liste.
 - Un même jeu ne s'affiche qu'une fois sur la page.
 
 ### Mes goûts (questionnaire)
 - Jusqu'à six styles de jeu, à remplir sur l'accueil (démarrage à froid) ou dans **Mon compte → Mes goûts**, où on peut aussi tout effacer.
 - Ils passent **avant** les goûts déduits de l'historique (notes, parties aimées), qui les complètent jusqu'à quatre familles ; le recalcul des préférences ne les efface jamais.
 - Tant que rien n'est déclaré, l'accueil le rappelle (« Plus tard » masque le rappel une semaine).
+
+### Mon compte
+- Menu latéral à quatre entrées : **Mes votes** (tous les retours donnés, à modifier ou annuler, filtrables par verdict), **Mes goûts**, **Mon profil** (numéro d'adhérent, mot de passe) et **Mes données** (export JSON, suppression définitive).
+- L'inscription se fait par **code d'invitation** ; un lien `/inscription?code=…` pré-remplit le code. Le mot de passe se saisit une seule fois.
 
 ### Import (menu « Import »)
 - Trois onglets : **Compte BGG**, **Ma collection MyLudo**, **Mes parties MyLudo**.
@@ -80,6 +85,8 @@ Plateforme de découverte et de recommandation de jeux de société pour les mem
   - Caractéristiques (Solo, Temps réel, Dextérité, Legacy)
   - **Thèmes & univers** — catégories mappées dans l'interface admin
   - **Types de jeu** — catégories mappées dans l'interface admin
+- **Retours sur les propositions** (accueil, « À l'association » et « Tout le catalogue ») : quatre boutons en icônes sur chaque carte, **Pas intéressé**, **Déjà joué, bof**, **J'aimerais jouer** et **J'ai joué, et j'aime**. Les trois premiers écartent le jeu des propositions (sauf « J'aimerais jouer », qui le garde) ; le retour s'annule pendant 8 s ou en rappuyant sur le bouton. Un jeu déjà joué et bien noté coche tout seul « J'ai joué, et j'aime » (« bof » s'il est mal noté), sans jamais écraser un choix du joueur.
+- **Pourquoi ce jeu ?** : un lien discret sur chaque carte déplie « Parce que vous avez aimé X, et que vous aimez les mécaniques : … ».
 - Les filtres thématiques sont chargés dynamiquement depuis les mappings admin (plus de liste figée dans le code)
 - « Vos styles favoris » reprend les goûts déclarés puis les moteurs déduits de l'historique
 
@@ -312,6 +319,7 @@ aqoj/
 │   │   │   ├── BggController.php           # import BGG (ma ludothèque ou celle de l'association)
 │   │   │   ├── MyLudoController.php        # import MyLudo : analyse puis confirmation
 │   │   │   ├── UserPreferenceController.php # préférences, goûts (PUT /user/taste), table (PUT /user/table)
+│   │   │   ├── GameFeedbackController.php  # retours sur les propositions, envies de jeu, historique des votes
 │   │   │   ├── SessionController.php       # parties jouées
 │   │   │   └── Admin*Controller.php        # statistiques, membres, invitations, catalogue, mappings, ludothèque de l'asso
 │   │   ├── Entity/                 # Game, User, UserPreference, GameSession, InvitationCode, mappings
@@ -322,6 +330,7 @@ aqoj/
 │   │   ├── Security/               # Authentification JWT du pare-feu
 │   │   └── Service/                # Logique métier
 │   │       ├── BggApiService.php         # Appels API BGG
+│   │       ├── ContextFilters.php        # filtres de contexte de « À quoi on joue » (joueurs idéal/conseillé, poids, mode, âge, joué)
 │   │       ├── GameEnrichmentService.php # Hydratation des entités
 │   │       ├── MechanicFamilyResolver.php
 │   │       ├── RecommendationService.php # accueil, découverte, table du soir, démarrage à froid
@@ -332,7 +341,7 @@ aqoj/
     └── src/
         ├── pages/
         │   ├── HomePage.jsx           # Accueil : table, pour votre table, nouveautés, goûts
-        │   ├── RecommendationPage.jsx # Recommandations (filtres dynamiques)
+        │   ├── RecommendationPage.jsx # Recommandations (filtres de contexte, styles, thèmes)
         │   ├── LibraryPage.jsx        # Ludothèque (sous-onglets base/ext)
         │   ├── ImportPage.jsx         # Import : onglets BGG, MyLudo, parties
         │   ├── AccountPage.jsx        # Compte : numéro d'adhérent, goûts, mot de passe, données
@@ -343,11 +352,15 @@ aqoj/
         ├── components/
         │   ├── GameCard.jsx           # Carte jeu (badge extension, % similarité)
         │   ├── TasteForm.jsx          # Questionnaire de goûts (accueil et compte)
+        │   ├── ContextFilters.jsx     # Scénarios, « joué » et jauge des filtres de « À quoi on joue »
+        │   ├── GameFeedback.jsx, VoteHistory.jsx  # Boutons de retour, explication, historique des votes
         │   ├── ImportBggTab.jsx, ImportMyLudoTab.jsx  # Onglets de la page Import (rapprochement MyLudo)
         │   ├── AssociationLibraryPanel.jsx            # Contenu de la ludothèque de l'asso (admin)
         │   ├── GamePicker.jsx         # Choisir un jeu dans la base (recherche locale)
         │   └── AppShell.jsx           # Coque : rail latéral, barre d'onglets, recherche
+        ├── hooks/                     # useGameFeedback, useContextFilters (filtres portés par l'adresse)
         ├── utils/
+        │   ├── contexte.js            # Filtres de contexte : adresse, API, étiquettes « inconnu »
         │   ├── engelstein.js          # Familles de mécaniques + couleurs
         │   └── categories.js          # Catégories BGG (recherche)
         └── api.js                     # Appels API centralisés
