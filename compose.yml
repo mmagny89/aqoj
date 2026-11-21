@@ -2,8 +2,17 @@
 # par .claude/scripts/setup-symfony.sh.
 name: aqoj-${ENV:?ENV est requis — suffixe des noms de conteneurs, reseau et volumes. Le declarer dans le fichier de secrets (ENV=prod) ou le .env racine (ENV=dev)}
 
+# Rotation des journaux Docker (accès Caddy compris, avec adresses IP) : sans plafond, le pilote json-file
+# les garde jusqu'à la recréation du conteneur. 3 fichiers de 10 Mo au plus par service.
+x-journaux: &journaux
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   php:
+    logging: *journaux
     container_name: aqoj-${ENV:?ENV est requis — suffixe des noms de conteneurs, reseau et volumes. Le declarer dans le fichier de secrets (ENV=prod) ou le .env racine (ENV=dev)}-php
     build:
       context: .
@@ -55,6 +64,7 @@ services:
   # Planificateur : les tâches BGG de la nuit (app/src/Scheduler/MainSchedule.php).
   # Même image et même build que « php » : aucun Dockerfile ni stage supplémentaire.
   worker:
+    logging: *journaux
     container_name: aqoj-${ENV:?ENV est requis — suffixe des noms de conteneurs, reseau et volumes. Le declarer dans le fichier de secrets (ENV=prod) ou le .env racine (ENV=dev)}-worker
     build:
       context: .
@@ -103,6 +113,7 @@ services:
         condition: service_healthy
 
   database:
+    logging: *journaux
     container_name: aqoj-${ENV:?ENV est requis — suffixe des noms de conteneurs, reseau et volumes. Le declarer dans le fichier de secrets (ENV=prod) ou le .env racine (ENV=dev)}-database
     image: postgres:${POSTGRES_VERSION}-alpine
     restart: unless-stopped
@@ -130,6 +141,7 @@ services:
   # (quelques centaines de Mo) se téléchargent au premier démarrage dans le volume, d'où le start_period long.
   # Ni « php » ni « worker » n'en dépendent : une panne laisse les descriptions en anglais, rien d'autre.
   libretranslate:
+    logging: *journaux
     container_name: aqoj-${ENV:?ENV est requis — suffixe des conteneurs, reseau et volumes. Le declarer dans le fichier de secrets (ENV=prod) ou le .env racine (ENV=dev)}-libretranslate
     image: libretranslate/libretranslate:v${LIBRETRANSLATE_VERSION}
     restart: unless-stopped

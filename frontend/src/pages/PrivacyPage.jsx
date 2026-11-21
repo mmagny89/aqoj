@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import LegalPage, { LegalSection } from '../components/LegalPage'
-import { publisher, host, mailer, TO_FILL } from '../legal'
+import { publisher, host, mailer } from '../legal'
 
 export default function PrivacyPage() {
   return (
@@ -69,8 +69,8 @@ export default function PrivacyPage() {
           Vos données restent tant que votre compte existe. Si vous le supprimez, elles sont effacées immédiatement et
           définitivement. Pour limiter les tentatives abusives, votre adresse IP est retenue 15 minutes à la connexion et
           une heure à l'inscription. Les jetons de confirmation et de réinitialisation sont supprimés au bout de 7 jours,
-          les journaux des tâches automatiques au bout de 90 jours. Les journaux techniques de l'hébergeur sont conservés
-          {TO_FILL}.
+          les journaux des tâches automatiques au bout de 90 jours. Les journaux techniques du serveur (accès au site, adresse IP comprise) sont plafonnés en taille : les plus anciennes lignes
+          sont écrasées au fil du trafic, et l'ensemble est supprimé à chaque mise à jour du site.
         </p>
       </LegalSection>
 
