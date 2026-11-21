@@ -17,6 +17,10 @@ export const AGES = [6, 8, 10, 12, 14]
 
 export const NO_FILTERS = { players: null, fit: null, maxTime: null, weight: null, coop: null, age: null, played: null }
 
+// Crans des jauges : le premier (null) est « pas de filtre ».
+export const PLAYER_STEPS = [null, ...PLAYERS]
+export const DURATION_STEPS = [null, ...DURATIONS]
+
 // Un scénario remplace tous les filtres de contexte, sauf « joué ».
 export const SCENARIOS = [
   { label: '4 joueurs · 1 h · léger', filters: { players: 4, maxTime: 60, weight: 'light' } },
@@ -90,7 +94,7 @@ export const sameFilters = (a, b) => Object.keys(NO_FILTERS).every(key => (a[key
 export function unknownFields(game, filters) {
   const unknown = []
   if (filters.maxTime && !(game.playingTime > 0)) unknown.push('Durée inconnue')
-  if (filters.weight && !(game.complexity > 0)) unknown.push('Poids inconnu')
+  if (filters.weight && !(game.complexity > 0)) unknown.push('Difficulté inconnue')
   if (filters.age && game.minAge == null) unknown.push('Âge inconnu')
   if (filters.coop != null && (game.mechanics ?? []).length === 0) unknown.push('Mode inconnu')
   if (filters.players && filters.fit === 'best' && game.bestPlayers == null) unknown.push('Idéal inconnu')

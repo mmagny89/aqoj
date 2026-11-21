@@ -29,7 +29,7 @@ describe('filtres de contexte', () => {
   it('signalent ce qu’on ignore d’un jeu au lieu de le masquer', () => {
     const filters = { ...NO_FILTERS, players: 4, fit: 'best', maxTime: 60, weight: 'light', coop: true, age: 8 }
     const inconnu = { playingTime: 0, complexity: 0, minAge: null, mechanics: [], bestPlayers: null }
-    expect(unknownFields(inconnu, filters)).toEqual(['Durée inconnue', 'Poids inconnu', 'Âge inconnu', 'Mode inconnu', 'Idéal inconnu'])
+    expect(unknownFields(inconnu, filters)).toEqual(['Durée inconnue', 'Difficulté inconnue', 'Âge inconnu', 'Mode inconnu', 'Idéal inconnu'])
     expect(unknownFields({ ...inconnu, playingTime: 30, complexity: 1.5, minAge: 8, mechanics: ['Dice Rolling'], bestPlayers: [4] }, filters)).toEqual([])
     expect(unknownFields(inconnu, NO_FILTERS)).toEqual([])
   })

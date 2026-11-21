@@ -135,10 +135,8 @@ export const recomputeUserPreferences = () => request('/user/preferences/recompu
 
 // Library (collection personnelle)
 // played : true = joués (notés BGG), false = pas encore joués, undefined = tous
-export const getLibrary = (page = 1, played = undefined, isExpansion = undefined, context = {}) => {
+export const getLibrary = (page = 1, played = undefined, isExpansion = undefined) => {
   const qs = new URLSearchParams()
-  // « joué » est l'onglet de la ludothèque : le filtre de contexte du même nom n'y est jamais envoyé.
-  setContext(qs, { ...context, played: undefined })
   if (page > 1) qs.set('page', page)
   if (played !== undefined) qs.set('played', played ? '1' : '0')
   if (isExpansion !== undefined) qs.set('isExpansion', isExpansion ? '1' : '0')

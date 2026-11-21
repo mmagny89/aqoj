@@ -6,13 +6,13 @@ import { FeedbackNotice } from '../components/GameFeedback'
 import { useGameFeedback } from '../hooks/useGameFeedback'
 import { useAuth } from '../context/AuthContext'
 import { storedDifficulty, storeDifficulty } from '../utils/difficulte'
-import ContextFilters from '../components/ContextFilters'
+import { ClearFilters, Gauge, PlayedRow, ScenarioRow } from '../components/ContextFilters'
 import { useContextFilters } from '../hooks/useContextFilters'
-import { activeCount, filtersToApi } from '../utils/contexte'
+import { AGES, DURATION_STEPS, FITS, PLAYER_STEPS, PLAYERS, WEIGHTS, activeCount, durationLabel, filtersToApi } from '../utils/contexte'
 import { ENGINES, SUPPORT_FAMILIES, EXTRA_FAMILIES, familyLabel } from '../utils/engelstein'
 
 /* ── Chip sélectionnable ─────────────────────────────────────────────── */
-function Chip({ active, onClick, icon, label, small = false }) {
+function Chip({ active, onClick, icon, label, small = true }) {
   return (
     <button type="button" onClick={onClick} aria-pressed={active} className={small ? 'chip chip-sm' : 'chip !min-h-11 text-sm'}>
       {small && <span aria-hidden="true" className="mr-1 inline-block w-3 text-center">{active ? '✓' : ''}</span>}
@@ -31,18 +31,18 @@ function FilterSection({ title, children, active = false }) {
   const open = chosen ?? active
   const id = useId()
   return (
-    <div className="border-b-2 border-ink/15 pb-4">
+    <div className="border-b-2 border-ink/15 pb-1">
       <button
         type="button"
         onClick={() => setChosen(!open)}
         aria-expanded={open}
         aria-controls={id}
-        className="mb-1 flex min-h-11 w-full items-center justify-between text-left font-bold"
+        className="flex min-h-11 w-full items-center justify-between text-left font-bold"
       >
         <span>{title}</span>
         <span aria-hidden="true" className="text-stone-600">{open ? '−' : '+'}</span>
       </button>
-      <div id={id} hidden={!open}>{children}</div>
+      <div id={id} hidden={!open} className="pb-2">{children}</div>
     </div>
   )
 }
@@ -316,17 +316,12 @@ export default function RecommendationPage() {
         <p className="mt-1 text-lg text-stone-600">Selon vos styles favoris et votre table : les résultats se mettent à jour à chaque changement.</p>
       </div>
 
-      {/* Table : joueurs, durée, poids, mode, âge, déjà joué, avec des scénarios en un clic */}
-      <section aria-label="Votre table" className="panel mb-6 p-4 sm:p-5">
-        <ContextFilters filters={context} onChange={setContext} idPrefix="reco-ctx" />
-      </section>
-
       <div>
         <div className="flex flex-col lg:flex-row gap-6 lg:items-start">
 
           {/* ── Panneau filtres (sidebar) ─────────────────────────────── */}
           <aside className={`
-            w-full lg:w-72 flex-shrink-0 panel p-5 space-y-4
+            w-full lg:w-72 flex-shrink-0 panel p-4 space-y-1
             ${filtersOpen ? 'block' : 'hidden lg:block'}
           `}>
             <div className="flex items-center justify-between">
@@ -337,6 +332,61 @@ export default function RecommendationPage() {
                 </button>
               )}
             </div>
+
+            {/* Table : réglages de contexte (scénario et « joué » sont en haut de la liste) */}
+            <FilterSection title="Nombre de joueurs" active={context.players != null}>
+              <Gauge
+                label="Nombre de joueurs"
+                steps={PLAYER_STEPS}
+                value={context.players}
+                format={n => (n == null ? 'Tous' : n === PLAYERS.at(-1) ? `${n} joueurs et +` : `${n} joueur${n > 1 ? 's' : ''}`)}
+                marks={['Tous', '2', '4', '6', '8+']}
+                onChange={n => setContext(prev => ({ ...prev, players: n, fit: n == null ? null : prev.fit }))}
+              />
+              {context.players != null && (
+                <div role="group" aria-label={`À ${context.players} joueurs`} className="mt-2 flex flex-wrap gap-1.5">
+                  {FITS.map(fit => (
+                    <Chip key={fit.label} active={context.fit === fit.value} label={fit.label} onClick={() => setContext(prev => ({ ...prev, fit: fit.value }))} />
+                  ))}
+                </div>
+              )}
+            </FilterSection>
+
+            <FilterSection title="Durée maximum" active={context.maxTime != null}>
+              <Gauge
+                label="Durée maximum, en minutes"
+                steps={DURATION_STEPS}
+                value={context.maxTime}
+                format={m => (m == null ? 'Toutes durées' : `≤ ${durationLabel(m)}`)}
+                marks={['Toutes', '30m', '1h', '2h', '3h']}
+                onChange={m => setContext(prev => ({ ...prev, maxTime: m }))}
+              />
+            </FilterSection>
+
+            <FilterSection title="Difficulté" active={context.weight != null}>
+              <div className="flex flex-wrap gap-1.5">
+                {WEIGHTS.map(w => (
+                  <Chip key={w.value} active={context.weight === w.value} label={w.label}
+                    onClick={() => setContext(prev => ({ ...prev, weight: prev.weight === w.value ? null : w.value }))} />
+                ))}
+              </div>
+            </FilterSection>
+
+            <FilterSection title="Mode de jeu" active={context.coop != null}>
+              <div className="flex flex-wrap gap-1.5">
+                <Chip active={context.coop === true} label="Coopératif" onClick={() => setContext(prev => ({ ...prev, coop: prev.coop === true ? null : true }))} />
+                <Chip active={context.coop === false} label="Compétitif" onClick={() => setContext(prev => ({ ...prev, coop: prev.coop === false ? null : false }))} />
+              </div>
+            </FilterSection>
+
+            <FilterSection title="Joueur le plus jeune" active={context.age != null}>
+              <div className="flex flex-wrap gap-1.5">
+                {AGES.map(a => (
+                  <Chip key={a} active={context.age === a} label={`${a} ans`}
+                    onClick={() => setContext(prev => ({ ...prev, age: prev.age === a ? null : a }))} />
+                ))}
+              </div>
+            </FilterSection>
 
             {/* Moteurs Engelstein */}
             <FilterSection title="Style / Moteur" active={hasAny(selectedFamilies, Object.keys(ENGINES))}>
@@ -430,6 +480,12 @@ export default function RecommendationPage() {
 
           {/* ── Zone résultats ────────────────────────────────────────── */}
           <div className="flex-1 min-w-0">
+            {/* Scénario et « joué » restent en haut de la liste ; les autres réglages de table sont dans la barre latérale */}
+            <div className="panel mb-4 flex flex-col gap-1 bg-snow px-3 py-2">
+              <ScenarioRow filters={context} onChange={setContext} idPrefix="reco-ctx" />
+              <PlayedRow filters={context} onChange={setContext} idPrefix="reco-ctx" />
+              <ClearFilters filters={context} onChange={setContext} />
+            </div>
             <ResultsPanel results={results} totals={totals} activeTab={activeTab} onTabChange={setActiveTab} type={type} onType={setType} onLoadMore={loadMore} feedback={feedback} context={context} />
           </div>
 
