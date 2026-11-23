@@ -19,7 +19,7 @@ Plateforme de découverte et de recommandation de jeux de société pour les mem
 | Couche | Technologie |
 |---|---|
 | Backend | Symfony 8.1 — API JSON (PHP 8.5, FrankenPHP) |
-| Frontend | React 19 + Vite 6 + TailwindCSS v4 |
+| Frontend | React 19 + Vite 8 + TailwindCSS v4 |
 | Base de données | PostgreSQL 18 |
 | Serveur web | FrankenPHP (Caddy intégré), Traefik en frontal en staging et production |
 | Traduction | LibreTranslate auto-hébergé (en→fr), service `libretranslate` |
