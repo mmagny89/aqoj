@@ -29,13 +29,13 @@ console:
 # Qualité
 test:
 	docker compose exec -e APP_ENV=test php vendor/bin/phpunit
-	docker compose --profile frontend exec node npm test
+	docker compose --profile frontend exec -T node npm test
 
 stan:
-	docker compose exec php vendor/bin/phpstan analyse --no-progress
+	docker compose exec -T php vendor/bin/phpstan analyse --no-progress
 
 lint:
-	docker compose --profile frontend exec node npm run lint
+	docker compose --profile frontend exec -T node npm run lint
 
 qualite: stan test lint
 
@@ -49,7 +49,7 @@ ci:
 
 # Tout ce que la CI vérifie : portes PHP en environnement vierge, puis le front (audit, lint, tests, build).
 check: ci
-	docker compose --profile frontend exec node sh -c 'npm audit --omit=dev --audit-level=high && npm run lint && npm test && npm run build'
+	docker compose --profile frontend exec -T node sh -c 'npm audit --omit=dev --audit-level=high && npm run lint && npm test && npm run build'
 
 # Active le hook pre-push (une fois par clone) : il lance `make check` et annule le push s'il échoue.
 hooks:

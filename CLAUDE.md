@@ -5,7 +5,7 @@ Plateforme de découverte et de recommandation de jeux de société, alimentée 
 
 ## État
 - **Local seulement** : ni préproduction ni production en service. Les fichiers `compose.staging.yml`, `compose.prod.yml` et `outils/` sont prêts ; il reste à préparer le serveur (Traefik, secrets) puis à poser les variables de dépôt `DEPLOIEMENT_PROD` et `DEPLOIEMENT_STAGING` (valeur `oui`) pour activer les déploiements du workflow.
-- Symfony 8.1 (API en contrôleurs, Doctrine, PostgreSQL 18) sur FrankenPHP en mode worker ; React 18 + Vite + Tailwind v4 en headless, même origine.
+- Symfony 8.1 (API en contrôleurs, Doctrine, PostgreSQL 18) sur FrankenPHP en mode worker ; React 19 + Vite + Tailwind v4 en headless, même origine.
 
 ## Infrastructure — règle qui fait autorité
 - `.claude/rules/stack-conventions.md` prime pour Docker, `.env`, nommage, ports et déploiement. Ne pas la reformuler ici. `.claude/` est ignoré par git (copie de `../claude/subagent/`).
